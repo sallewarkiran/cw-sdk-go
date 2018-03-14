@@ -301,12 +301,16 @@ func reconnect(c *StreamConn, oldState, new State) {
 }
 
 func sendClientID(c *StreamConn, oldState, new State) {
-	cm := &ProtobufClient.ClientIdentificationMessage{
-		Useragent:     "Unknown user-agent",
-		Revision:      "foo",
-		Integration:   "bar",
-		Locale:        "en_US", // TODO
-		Subscriptions: c.params.Subscriptions,
+	cm := &ProtobufClient.ClientMessage{
+		Body: &ProtobufClient.ClientMessage_Identification{
+			Identification: &ProtobufClient.ClientIdentificationMessage{
+				Useragent:     "Cryptowatch Stream Client Golang/1.0", // TODO: real version
+				Revision:      "TODO",                                 // TODO: real revision
+				Integration:   "",                                     // Irrelevant
+				Locale:        "en_US",                                // TODO
+				Subscriptions: c.params.Subscriptions,
+			},
+		},
 	}
 
 	if err := c.sendProto(cm); err != nil {
