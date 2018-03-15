@@ -1,4 +1,4 @@
-package client
+package streamclient
 
 import (
 	"sync"
@@ -39,7 +39,10 @@ func NewMarketConn(params *MarketParams) (*MarketConn, error) {
 
 	streamConn.onRead(func(sc *StreamConn, data []byte) {
 		var msg ProtobufMarkets.MarketUpdateMessage
-		proto.Unmarshal(data, &msg)
+		if err := proto.Unmarshal(data, &msg); err != nil {
+			// Close connection (and if reconnection was requested, then reconnect)
+			conn.StreamConn.closeInternal(false)
+		}
 
 		for _, l := range conn.msgListeners {
 			l(conn, &msg)
