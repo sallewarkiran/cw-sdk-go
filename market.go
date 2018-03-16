@@ -34,7 +34,7 @@ func NewMarketConn(params *MarketParams) (*MarketConn, error) {
 		return nil, errors.Trace(err)
 	}
 
-	conn := &MarketConn{
+	c := &MarketConn{
 		StreamConn: streamConn,
 	}
 
@@ -42,18 +42,22 @@ func NewMarketConn(params *MarketParams) (*MarketConn, error) {
 		var msg ProtobufMarkets.MarketUpdateMessage
 		if err := proto.Unmarshal(data, &msg); err != nil {
 			// Close connection (and if reconnection was requested, then reconnect)
-			conn.StreamConn.closeInternal(
+			c.StreamConn.closeInternal(
 				websocket.FormatCloseMessage(websocket.CloseUnsupportedData, ""),
 				false,
 			)
 		}
 
-		for _, l := range conn.msgListeners {
-			l(conn, &msg)
+		c.mtx.Lock()
+		listeners := c.msgListeners
+		c.mtx.Unlock()
+
+		for _, l := range listeners {
+			l(c, &msg)
 		}
 	})
 
-	return conn, nil
+	return c, nil
 }
 
 type OnMessageCallback func(conn *MarketConn, msg *ProtobufMarkets.MarketUpdateMessage)
