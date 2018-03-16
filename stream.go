@@ -424,6 +424,7 @@ func (c *StreamConn) connLoop(connCtx context.Context, connCtxCancel context.Can
 		c.mtx.Lock()
 		defer c.mtx.Unlock()
 		c.updateState(StateDisconnected, connErr)
+		c.wsConn = nil
 		c.connCtx = nil
 		c.connCtxCancel = nil
 	}()
@@ -470,9 +471,10 @@ cloop:
 			}
 		}
 
-		c.mtx.Lock()
-		c.wsConn = nil
-		c.mtx.Unlock()
+		// NOTE: we shouldn't reset wsConn to nil here because it would break an
+		// assumption that wsConn is never nil in the StateConnecting state. So,
+		// we set it to nil only in conjunction with entering
+		// StateWaitBeforeReconnect and StateDisconnected.
 
 		// If shouldn't reconnect, we're done
 		if !c.params.Reconnect {
@@ -486,6 +488,7 @@ cloop:
 			// Looks like we should reconnect (after a timeout), so set the
 			// appropriate state
 			c.mtx.Lock()
+			c.wsConn = nil
 			c.updateState(StateWaitBeforeReconnect, connErr)
 			c.mtx.Unlock()
 		}
