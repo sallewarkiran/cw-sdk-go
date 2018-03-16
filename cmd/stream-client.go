@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"os/signal"
 	"time"
@@ -40,21 +39,10 @@ func main() {
 		u = args[0]
 	}
 
-	urlParsed, err := url.Parse(u)
-	if err != nil {
-		log.Fatal("failed to parse address %s: %s", u, err)
-	}
-
-	if urlParsed.Scheme != "ws" && urlParsed.Scheme != "wss" {
-		log.Fatal(`the url should have "ws" or "wss" scheme`)
-	}
-
 	// Setup market connection (but don't connect just yet)
 	c, err := streamclient.NewMarketConn(&streamclient.MarketParams{
 		StreamParams: streamclient.StreamParams{
-			Host:  urlParsed.Host,
-			Path:  urlParsed.Path,
-			NoTLS: urlParsed.Scheme == "ws",
+			URL: u,
 
 			Reconnect:        true,
 			ReconnectTimeout: 1 * time.Second,

@@ -114,9 +114,9 @@ func getRootHandler(
 }
 
 type testServerParams struct {
-	rx         <-chan websocketEvent
-	tx         chan<- websocketTx
-	host, path string
+	rx  <-chan websocketEvent
+	tx  chan<- websocketTx
+	url string
 }
 
 func withTestServer(
@@ -134,16 +134,17 @@ func withTestServer(
 	ts := httptest.NewServer(http.HandlerFunc(getRootHandler(t, rx, tx)))
 	defer ts.Close()
 
+	// Replace the scheme in URL to "ws"
 	u, err := url.Parse(ts.URL)
 	if err != nil {
 		return errors.Trace(err)
 	}
+	u.Scheme = "ws"
 
 	if err := cb(testServerParams{
-		rx:   rx,
-		tx:   tx,
-		host: u.Host,
-		path: u.Path,
+		rx:  rx,
+		tx:  tx,
+		url: u.String(),
 	}); err != nil {
 		return errors.Trace(err)
 	}
@@ -156,9 +157,7 @@ func withTestServer(
 func TestWriteToNonConnected(t *testing.T) {
 	err := withTestServer(t, func(tp testServerParams) error {
 		conn, err := NewStreamConn(&StreamParams{
-			Host:      tp.host,
-			Path:      tp.path,
-			NoTLS:     true,
+			URL:       tp.url,
 			Reconnect: true,
 		})
 		if err != nil {
@@ -186,9 +185,7 @@ func TestMarketConn(t *testing.T) {
 
 		conn, err := NewMarketConn(&MarketParams{
 			StreamParams: StreamParams{
-				Host:          tp.host,
-				Path:          tp.path,
-				NoTLS:         true,
+				URL:           tp.url,
 				Reconnect:     true,
 				Subscriptions: []string{"foo", "bar"},
 			},

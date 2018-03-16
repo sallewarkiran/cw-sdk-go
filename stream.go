@@ -3,7 +3,6 @@ package streamclient
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"sync"
 	"time"
 
@@ -58,9 +57,7 @@ func init() {
 // StreamParams contains params for opening a client stream connection
 // (see StreamConn)
 type StreamParams struct {
-	Host          string
-	Path          string
-	NoTLS         bool
+	URL           string
 	Reconnect     bool
 	Subscriptions []string
 
@@ -420,15 +417,8 @@ func (c *StreamConn) connLoop(connCtx context.Context, connCtxCancel context.Can
 
 cloop:
 	for {
-		scheme := "wss"
-		if c.params.NoTLS {
-			scheme = "ws"
-		}
-
-		u := url.URL{Scheme: scheme, Host: c.params.Host, Path: c.params.Path}
-
 		var wsConn *websocket.Conn
-		wsConn, _, connErr = websocket.DefaultDialer.Dial(u.String(), nil)
+		wsConn, _, connErr = websocket.DefaultDialer.Dial(c.params.URL, nil)
 		if connErr == nil {
 			// Connected successfully
 
