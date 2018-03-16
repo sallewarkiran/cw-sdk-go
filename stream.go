@@ -16,13 +16,29 @@ import (
 type State int
 
 const (
+	// StateDisconnected means we're disconnected and not trying to connect.
+	// connLoop is not running.
 	StateDisconnected State = iota
+
+	// StateWaitBeforeReconnect means we already tried to connect, but then
+	// either the connection failed, or succeeded but later disconnected for some
+	// reason (see stateCause), and now we're waiting for a timeout before
+	// connecting again. wsConn is nil, but connCtx and connCtxCancel are not,
+	// and connLoop is running.
 	StateWaitBeforeReconnect
+
+	// StateConnecting means we're calling websocket.DefaultDialer.Dial() right
+	// now.
 	StateConnecting
+
+	// StateConnected means the websocket connection is established.
 	StateConnected
 
+	// StatesCnt is a number of states
 	StatesCnt
 
+	// StateAny can be used with AddStateListener() and AddStateListenerOpt()
+	// in order to listen for all states.
 	StateAny = -1
 )
 
@@ -49,7 +65,7 @@ type StreamParams struct {
 	Subscriptions []string
 
 	ReconnectTimeout time.Duration
-	Backoff          bool
+	Backoff          bool // TODO
 }
 
 // StreamConn is a client stream connection; it's typically wrapped into more
@@ -73,8 +89,8 @@ type StreamConn struct {
 	onReadCB onReadCallback
 
 	// connCtx and connCtxCancel are context and its cancel func for the
-	// currently running connLoop. If no connLoop is running at the moment, these
-	// are nil.
+	// currently running connLoop. If no connLoop is running at the moment (i.e.
+	// the state is StateDisconnected), these are nil.
 	connCtx       context.Context
 	connCtxCancel context.CancelFunc
 
@@ -137,11 +153,25 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 	return c, nil
 }
 
+// StateCallback is a signature of a state listener. Arguments conn, oldState
+// and state are self-descriptive; cause is the error which caused the current
+// state. Cause is relevant only for StateDisconnected and
+// StateWaitBeforeReconnect (in which case it's either the reason of failure to
+// connect, or reason of disconnection), for other states it's always nil.
+//
+// See AddStateListener.
 type StateCallback func(conn *StreamConn, oldState, state State, cause error)
 
 // AddStateListener registers a new listener for the given state. Listener is
 // registered with the default options (zero values of all fields in
-// StateListenerOpt)
+// StateListenerOpt). All registered callbacks for all states will be called by
+// the same internal goroutine, i.e. they are never called concurrently with
+// each other.
+//
+// The order of listeners invocation for the same state is unspecified, and
+// clients shouldn't rely on it.
+//
+// To subscribe to all state changes, use StateAny.
 func (c *StreamConn) AddStateListener(state State, cb StateCallback) {
 	c.AddStateListenerOpt(state, cb, StateListenerOpt{})
 }
@@ -207,7 +237,9 @@ func (c *StreamConn) Connect() error {
 }
 
 // Close stops reconnection loop (if reconnection was requested), and if
-// websocket connection is active at the moment, closes it as well.
+// websocket connection is active at the moment, closes it as well (with the
+// code 1000, i.e. normal closure). If graceful websocket closure fails, the
+// forceful one is performed.
 func (c *StreamConn) Close() error {
 	if err := c.closeInternal(websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), true); err != nil {
 		return errors.Trace(err)
@@ -363,6 +395,7 @@ func (c *StreamConn) updateState(state State, cause error) {
 	c.stateListeners[state] = c.removeOneOff(c.stateListeners[state])
 	c.stateListeners[StateAny] = c.removeOneOff(c.stateListeners[StateAny])
 
+	// Request listeners invocation (will be invoked by a dedicated goroutine)
 	c.callListeners <- callListenersReq{
 		listeners: listeners,
 		oldState:  oldState,

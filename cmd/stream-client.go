@@ -28,9 +28,11 @@ func main() {
 	flag.Var(&subs, "sub", "Subscription key. This flag can be given multiple times")
 	flag.Parse()
 
+	// Setup OS signal handler
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
+	// Get address to connect to
 	u := defaultURL
 
 	args := flag.Args()
@@ -47,8 +49,7 @@ func main() {
 		log.Fatal(`the url should have "ws" or "wss" scheme`)
 	}
 
-	fmt.Printf("Connecting to %s ...\n", u)
-
+	// Setup market connection (but don't connect just yet)
 	c, err := streamclient.NewMarketConn(&streamclient.MarketParams{
 		StreamParams: streamclient.StreamParams{
 			Host:  urlParsed.Host,
@@ -64,6 +65,7 @@ func main() {
 		log.Fatal("%s", err)
 	}
 
+	// Will print state changes to the user
 	c.AddStateListener(
 		streamclient.StateAny,
 		func(conn *streamclient.StreamConn, oldState, state streamclient.State, cause error) {
@@ -75,6 +77,7 @@ func main() {
 		},
 	)
 
+	// Will print received market update messages
 	c.AddMessageListener(func(conn *streamclient.MarketConn, msg *ProtobufMarkets.MarketUpdateMessage) {
 		str := ""
 		if *detailed {
@@ -86,8 +89,12 @@ func main() {
 		fmt.Printf("Received message: %s\n\n", str)
 	})
 
+	// Start connection loop
+	fmt.Printf("Connecting to %s ...\n", u)
 	c.Connect()
 
+	// Wait until the OS signal is received, at which point we'll close the
+	// connection and quit
 	<-interrupt
 	fmt.Printf("Closing connection...\n")
 
