@@ -19,59 +19,65 @@ One possible workflow is as follows:
 
 ```golang
 
-  // Create a format-aware connection instance (in this case, MarketConn).
-  // Note that the actual connection will happen later.
-	c, err := streamclient.NewMarketConn(&streamclient.MarketParams{
-		StreamParams: streamclient.StreamParams{
-			URL: "wss://sb.cryptowat.ch",
+// Create a format-aware connection instance (in this case, MarketConn).
+// Note that the actual connection will happen later.
+c, err := streamclient.NewMarketConn(&streamclient.MarketParams{
+	StreamParams: streamclient.StreamParams{
+		URL: "wss://sb.cryptowat.ch",
 
-			Reconnect:        true,
-			ReconnectTimeout: 1 * time.Second,
-			Subscriptions:    []string{
-				"market:bitfinex:btcusd:orderbook:deltas",
-				"market:bitfinex:btceur:orderbook:deltas",
-			},
+		Reconnect:        true,
+		ReconnectTimeout: 1 * time.Second,
+		Subscriptions:    []string{
+			"market:bitfinex:btcusd:orderbook:deltas",
+			"market:bitfinex:btceur:orderbook:deltas",
 		},
-	})
-	if err != nil {
-		log.Fatal("%s", err)
-	}
+	},
+})
+if err != nil {
+	log.Fatal("%s", err)
+}
 
-	// Ask for the state transition updates, and present them to the user somehow
-	c.AddStateListener(
-		streamclient.StateAny,
-		func(conn *streamclient.StreamConn, oldState, state streamclient.State, cause error) {
-			fmt.Printf("State updated: %s -> %s", streamclient.StateNames[oldState], streamclient.StateNames[state])
-			// If there is a non-nil cause, print it as well
-			if cause != nil {
-				fmt.Printf(" (%s)", cause)
-			}
-			fmt.Printf("\n")
-		},
-	)
+// Ask for the state transition updates, and present them to the user somehow
+c.AddStateListener(
+	streamclient.StateAny,
+	func(conn *streamclient.StreamConn, oldState, state streamclient.State, cause error) {
+		fmt.Printf(
+		  "State updated: %s -> %s",
+		  streamclient.StateNames[oldState],
+		  streamclient.StateNames[state],
+		)
+		// If there is a non-nil cause, print it as well
+		if cause != nil {
+			fmt.Printf(" (%s)", cause)
+		}
+		fmt.Printf("\n")
+	},
+)
 
-	// Listen for received parsed market messages and print them
-	c.AddMessageListener(func(conn *streamclient.MarketConn, msg *ProtobufMarkets.MarketUpdateMessage) {
+// Listen for received parsed market messages and print them
+c.AddMessageListener(
+	func(conn *streamclient.MarketConn, msg *ProtobufMarkets.MarketUpdateMessage) {
 		fmt.Printf("Message received: %s\n\n", proto.CompactTextString(msg))
-	})
+	},
+)
 
-	// Finally, connect.
-	c.Connect()
+// Finally, connect.
+c.Connect()
 
-	// NOTE: by the time Connect() returns, the connection is not yet
-	// established. Connect() merely starts the connection loop (which will
-	// handle connection, receiving data, and reconnection if requested), and
-	// returns.
+// NOTE: by the time Connect() returns, the connection is not yet
+// established. Connect() merely starts the connection loop (which will
+// handle connection, receiving data, and reconnection if requested), and
+// returns.
 
-	// Wait for some external event, such as OS signal.
-	WaitForSomething()
+// Wait for some external event, such as OS signal.
+WaitForSomething()
 
-	// Close the connection. It will cause the reconnection to stop, and
-	// currently active websocket connection (if any) to close with the status
-	// 1000 (normal closure).
-	if err := c.Close(); err != nil {
-		log.Fatal("Failed to close the connection: %s", err)
-	}
+// Close the connection. It will cause the reconnection to stop, and
+// currently active websocket connection (if any) to close with the status
+// 1000 (normal closure).
+if err := c.Close(); err != nil {
+	log.Fatal("Failed to close the connection: %s", err)
+}
 ```
 
 Note that from the above, only `AddMessageListener` is provided by (and is
