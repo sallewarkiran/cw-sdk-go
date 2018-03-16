@@ -201,14 +201,15 @@ func (c *StreamConn) AddStateListenerOpt(state State, cb StateCallback, opt Stat
 
 	c.mtx.Lock()
 	defer func() {
+		stateNow := c.state
 		c.mtx.Unlock()
 		if callNow {
-			cb(c, state, state, stateCause)
+			cb(c, stateNow, stateNow, stateCause)
 		}
 	}()
 
 	// Determine whether the callback should be called right now
-	callNow = opt.CallImmediately && c.state == state
+	callNow = opt.CallImmediately && (state == c.state || state == StateAny)
 	stateCause = c.stateCause
 
 	// Update stored listeners if needed
@@ -461,6 +462,9 @@ cloop:
 					}
 
 				case websocket.CloseMessage:
+					// TODO: set connErr to something? So that the state listeners will
+					// see that the reason of disconnection is that we've got a close
+					// message.
 					break recvLoop
 				}
 			}

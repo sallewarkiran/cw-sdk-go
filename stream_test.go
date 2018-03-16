@@ -24,18 +24,22 @@ type stateTracker struct {
 	mtx    sync.Mutex
 }
 
-func (st *stateTracker) AddStateListener(conn *StreamConn) {
-	conn.AddStateListener(StateAny, func(conn *StreamConn, oldState, state State, cause error) {
-		st.mtx.Lock()
+func (st *stateTracker) AddStateListener(conn *StreamConn, state State, opt StateListenerOpt) {
+	conn.AddStateListenerOpt(
+		state,
+		func(conn *StreamConn, oldState, state State, cause error) {
+			st.mtx.Lock()
 
-		defer st.mtx.Unlock()
-		errStr := ""
-		if cause != nil {
-			errStr = fmt.Sprintf("(%s)", cause)
-		}
+			defer st.mtx.Unlock()
+			errStr := ""
+			if cause != nil {
+				errStr = fmt.Sprintf("(%s)", cause)
+			}
 
-		st.states = append(st.states, fmt.Sprintf("%s->%s%s", StateNames[oldState], StateNames[state], errStr))
-	})
+			st.states = append(st.states, fmt.Sprintf("%s->%s%s", StateNames[oldState], StateNames[state], errStr))
+		},
+		opt,
+	)
 }
 
 func (st *stateTracker) CheckStates(want []string) error {
@@ -198,7 +202,7 @@ func TestMarketConn(t *testing.T) {
 
 		// Add state tracker to the connection, so we'll see all state transitions
 		st := stateTracker{}
-		st.AddStateListener(conn.StreamConn)
+		st.AddStateListener(conn.StreamConn, StateAny, StateListenerOpt{})
 
 		conn.AddMessageListener(
 			func(conn *MarketConn, msg *ProtobufMarkets.MarketUpdateMessage) {
@@ -216,7 +220,7 @@ func TestMarketConn(t *testing.T) {
 		}
 
 		// Wait for the client identification message
-		if err := waitIdMsg(tp.rx); err != nil {
+		if err := waitIdMsg(tp.rx, []string{"foo", "bar"}); err != nil {
 			return errors.Errorf("waiting for client identification message: %s", err)
 		}
 
@@ -327,7 +331,7 @@ func TestMarketConn(t *testing.T) {
 		}
 
 		// Wait for the client identification message
-		if err := waitIdMsg(tp.rx); err != nil {
+		if err := waitIdMsg(tp.rx, []string{"foo", "bar"}); err != nil {
 			return errors.Errorf("waiting for client identification message: %s", err)
 		}
 
@@ -340,6 +344,247 @@ func TestMarketConn(t *testing.T) {
 			"connecting->connected",
 		}); err != nil {
 			return errors.Trace(err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+}
+
+func TestStateListeners(t *testing.T) {
+	err := withTestServer(t, func(tp testServerParams) error {
+		c, err := NewStreamConn(&StreamParams{
+			URL:              tp.url,
+			Reconnect:        true,
+			ReconnectTimeout: 1 * time.Millisecond,
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		type testCase struct {
+			state                   State
+			oneOff, callImmediately bool
+			wantTransitions         []string
+		}
+
+		// Init test cases table {{{
+		testCases := []testCase{
+			testCase{
+				state: StateAny, oneOff: false, callImmediately: false,
+				wantTransitions: []string{
+					"disconnected->connecting",
+					"connecting->connected",
+					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+					"wait_before_reconnect->connecting",
+					"connecting->connected",
+					"connected->disconnected(websocket: close 1000 (normal))",
+					"disconnected->connecting",
+					"connecting->connected",
+					"connected->disconnected(websocket: close 1000 (normal))",
+				},
+			},
+			testCase{
+				state: StateAny, oneOff: false, callImmediately: true,
+				wantTransitions: []string{
+					"disconnected->disconnected",
+					"disconnected->connecting",
+					"connecting->connected",
+					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+					"wait_before_reconnect->connecting",
+					"connecting->connected",
+					"connected->disconnected(websocket: close 1000 (normal))",
+					"disconnected->connecting",
+					"connecting->connected",
+					"connected->disconnected(websocket: close 1000 (normal))",
+				},
+			},
+			testCase{
+				state: StateAny, oneOff: true, callImmediately: false,
+				wantTransitions: []string{
+					"disconnected->connecting",
+				},
+			},
+			testCase{
+				state: StateAny, oneOff: true, callImmediately: true,
+				wantTransitions: []string{
+					"disconnected->disconnected",
+				},
+			},
+
+			testCase{
+				state: StateConnected, oneOff: false, callImmediately: false,
+				wantTransitions: []string{
+					"connecting->connected",
+					"connecting->connected",
+					"connecting->connected",
+				},
+			},
+			testCase{
+				state: StateConnected, oneOff: false, callImmediately: true,
+				wantTransitions: []string{
+					"connecting->connected",
+					"connecting->connected",
+					"connecting->connected",
+				},
+			},
+			testCase{
+				state: StateConnected, oneOff: true, callImmediately: false,
+				wantTransitions: []string{
+					"connecting->connected",
+				},
+			},
+			testCase{
+				state: StateConnected, oneOff: true, callImmediately: true,
+				wantTransitions: []string{
+					"connecting->connected",
+				},
+			},
+
+			testCase{
+				state: StateDisconnected, oneOff: false, callImmediately: false,
+				wantTransitions: []string{
+					"connected->disconnected(websocket: close 1000 (normal))",
+					"connected->disconnected(websocket: close 1000 (normal))",
+				},
+			},
+			testCase{
+				state: StateDisconnected, oneOff: false, callImmediately: true,
+				wantTransitions: []string{
+					"disconnected->disconnected",
+					"connected->disconnected(websocket: close 1000 (normal))",
+					"connected->disconnected(websocket: close 1000 (normal))",
+				},
+			},
+			testCase{
+				state: StateDisconnected, oneOff: true, callImmediately: false,
+				wantTransitions: []string{
+					"connected->disconnected(websocket: close 1000 (normal))",
+				},
+			},
+			testCase{
+				state: StateDisconnected, oneOff: true, callImmediately: true,
+				wantTransitions: []string{
+					"disconnected->disconnected",
+				},
+			},
+
+			testCase{
+				state: StateWaitBeforeReconnect, oneOff: false, callImmediately: false,
+				wantTransitions: []string{
+					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+				},
+			},
+			testCase{
+				state: StateWaitBeforeReconnect, oneOff: false, callImmediately: true,
+				wantTransitions: []string{
+					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+				},
+			},
+			testCase{
+				state: StateWaitBeforeReconnect, oneOff: true, callImmediately: false,
+				wantTransitions: []string{
+					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+				},
+			},
+			testCase{
+				state: StateWaitBeforeReconnect, oneOff: true, callImmediately: true,
+				wantTransitions: []string{
+					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+				},
+			},
+		}
+		// }}}
+
+		// Create state trackers for each test case
+		st := make([]stateTracker, len(testCases))
+		for i, v := range testCases {
+			st[i] = stateTracker{}
+			st[i].AddStateListener(c, v.state, StateListenerOpt{
+				OneOff: v.oneOff, CallImmediately: v.callImmediately,
+			})
+		}
+
+		if err := c.Connect(); err != nil {
+			return errors.Trace(err)
+		}
+
+		// Wait for the new conn to be opened
+		if err := waitConnOpen(tp.rx); err != nil {
+			return errors.Errorf("waiting for new conn to be opened: %s", err)
+		}
+
+		// Wait for the client identification message
+		if err := waitIdMsg(tp.rx, []string{}); err != nil {
+			return errors.Errorf("waiting for client identification message: %s", err)
+		}
+
+		// Reconnect
+		c.closeInternal(nil, false)
+
+		// Wait for the connection being closed
+		if err := waitConnClose(tp.rx); err != nil {
+			return errors.Errorf("waiting for connection being closed: %s", err)
+		}
+
+		// Wait for the new conn to be opened
+		if err := waitConnOpen(tp.rx); err != nil {
+			return errors.Errorf("waiting for new conn to be opened: %s", err)
+		}
+
+		// Wait for the client identification message
+		if err := waitIdMsg(tp.rx, []string{}); err != nil {
+			return errors.Errorf("waiting for client identification message: %s", err)
+		}
+
+		// Close and stop reconnecting
+		c.Close()
+
+		// Wait for the connection being closed
+		if err := waitConnClose(tp.rx); err != nil {
+			return errors.Errorf("waiting for connection being closed: %s", err)
+		}
+
+		// Server gets close message before client stateListeners are called,
+		// so we have to give it some time to rotate.
+		time.Sleep(10 * time.Millisecond)
+
+		// Connect again
+		if err := c.Connect(); err != nil {
+			return errors.Trace(err)
+		}
+
+		// Wait for the new conn to be opened
+		if err := waitConnOpen(tp.rx); err != nil {
+			return errors.Errorf("waiting for new conn to be opened: %s", err)
+		}
+
+		// Wait for the client identification message
+		if err := waitIdMsg(tp.rx, []string{}); err != nil {
+			return errors.Errorf("waiting for client identification message: %s", err)
+		}
+
+		// Close and stop reconnecting
+		c.Close()
+
+		// Wait for the connection being closed
+		if err := waitConnClose(tp.rx); err != nil {
+			return errors.Errorf("waiting for connection being closed: %s", err)
+		}
+
+		// Server gets close message before client stateListeners are called,
+		// so we have to give it some time to rotate.
+		time.Sleep(10 * time.Millisecond)
+
+		// Check states from all test cases
+
+		for i, v := range testCases {
+			if err := st[i].CheckStates(v.wantTransitions); err != nil {
+				return errors.Annotatef(err, "test case #%d", i)
+			}
 		}
 
 		return nil
@@ -382,7 +627,7 @@ func waitConnOpen(rx <-chan websocketEvent) error {
 	return nil
 }
 
-func waitIdMsg(rx <-chan websocketEvent) error {
+func waitIdMsg(rx <-chan websocketEvent, subs []string) error {
 	select {
 	case event := <-rx:
 		if want, got := eventTypeMsg, event.eventType; want != got {
@@ -410,9 +655,11 @@ func waitIdMsg(rx <-chan websocketEvent) error {
 
 		// Check subscriptions
 		{
-			want := []string{"foo", "bar"}
-			if !reflect.DeepEqual(want, cid.Subscriptions) {
-				return errors.Errorf("Subscriptions: want: %+v, got: %+v", want, cid.Subscriptions)
+			want := subs
+			if !(len(want) == 0 && len(subs) == 0) {
+				if !reflect.DeepEqual(want, cid.Subscriptions) {
+					return errors.Errorf("Subscriptions: want: %+v, got: %+v", want, cid.Subscriptions)
+				}
 			}
 		}
 
