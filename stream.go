@@ -16,16 +16,14 @@ import (
 type State int
 
 const (
-	StateAny = -1
-)
-
-const (
 	StateDisconnected State = iota
 	StateWaitBeforeReconnect
 	StateConnecting
 	StateConnected
 
 	StatesCnt
+
+	StateAny = -1
 )
 
 var (
@@ -118,10 +116,8 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 	// write something while not connected will result in a proper error.
 	go c.writeLoop()
 
-	// Start goroutine which will call state listeners. The rationale to have
-	// a separate goroutine for that is that the listeners should be called
-	// with c.mtx unlocked, and we don't want to unlock it in the middle of
-	// c.updateState()
+	// Start goroutine which will call state listeners. See comment for
+	// notifyLoop for the rationale of this design.
 	go c.notifyLoop()
 
 	return c, nil
@@ -183,6 +179,9 @@ func (c *StreamConn) Connect() error {
 		return errors.Errorf("connection is already active")
 	}
 
+	// NOTE that we need to enter the state StateConnecting here and not in
+	// connLoop, in order to prevent the race which would result in multiple
+	// running connLoops.
 	c.connCtx, c.connCtxCancel = context.WithCancel(context.Background())
 	c.updateState(StateConnecting)
 
@@ -223,6 +222,7 @@ func (c *StreamConn) closeInternal(stopReconnecting bool) error {
 	// stopReconnecting arg)
 	if wsConn != nil {
 		if err := wsConn.WriteControl(websocket.CloseMessage, nil, time.Time{}); err != nil {
+			// Graceful close failed, try to close forcefully
 			return errors.Trace(wsConn.Close())
 		}
 	}
@@ -281,12 +281,14 @@ func (c *StreamConn) send(data []byte) error {
 
 	res := make(chan error)
 
+	// Request the websocket write
 	c.connTx <- websocketTx{
 		messageType: websocket.TextMessage,
 		data:        data,
 		res:         res,
 	}
 
+	// Wait for the resulting error
 	if err := <-res; err != nil {
 		return errors.Annotatef(err, "sending msg")
 	}
@@ -309,11 +311,11 @@ func (c *StreamConn) sendProto(pb proto.Message) error {
 	return nil
 }
 
-func (c *StreamConn) removeOneOff(listeners []stateListener, oldState, state State) []stateListener {
+// removeOneOff takes a slice of listeners and returns a new one, with one-off
+// listeners removed.
+func (c *StreamConn) removeOneOff(listeners []stateListener) []stateListener {
 	// NOTE: c.mtx should be locked when removeOneOff is called
 
-	// Create a new slice of listeners and populate it with the permanent ones as
-	// we go
 	newListeners := []stateListener{}
 
 	for _, sl := range listeners {
@@ -341,8 +343,8 @@ func (c *StreamConn) updateState(state State) {
 	listeners := append(c.stateListeners[state], c.stateListeners[StateAny]...)
 
 	// Remove one-off listeners
-	c.stateListeners[state] = c.removeOneOff(c.stateListeners[state], oldState, state)
-	c.stateListeners[StateAny] = c.removeOneOff(c.stateListeners[StateAny], oldState, state)
+	c.stateListeners[state] = c.removeOneOff(c.stateListeners[state])
+	c.stateListeners[StateAny] = c.removeOneOff(c.stateListeners[StateAny])
 
 	c.callListeners <- callListenersReq{
 		listeners: listeners,
@@ -351,9 +353,9 @@ func (c *StreamConn) updateState(state State) {
 	}
 }
 
-// connLoop establishes a connection, receives all messages (and calls onReadCB
-// for each of them) until the connection is closed, then either waits for a
-// timeout and connects again, or just quits.
+// connLoop establishes a connection, then keeps receiving all websocket
+// messages (and calls onReadCB for each of them) until the connection is
+// closed, then either waits for a timeout and connects again, or just quits.
 func (c *StreamConn) connLoop(connCtx context.Context, connCtxCancel context.CancelFunc) {
 
 	defer func() {
@@ -420,6 +422,7 @@ cloop:
 			connCtxCancel()
 		}
 
+		// Check if we need to enter state StateWaitBeforeReconnect
 		select {
 		case <-connCtx.Done():
 		default:
@@ -430,6 +433,7 @@ cloop:
 			c.mtx.Unlock()
 		}
 
+		// Either wait for the timeout before reconnection, or quit.
 		select {
 		case <-connCtx.Done():
 			// Enough reconnections, quit now.
@@ -454,6 +458,7 @@ cloop:
 	for {
 		msg := <-c.connTx
 
+		// Get currently active websocket connection
 		c.mtx.Lock()
 		wsConn := c.wsConn
 		c.mtx.Unlock()
@@ -463,11 +468,17 @@ cloop:
 			continue cloop
 		}
 
+		// Try to write the message
 		err := errors.Trace(wsConn.WriteMessage(msg.messageType, msg.data))
+
+		// Send resulting error to the requester
 		msg.res <- err
 	}
 }
 
+// notifyLoop calls state listeners. The rationale to have a separate goroutine
+// for that is that the listeners should be called with c.mtx unlocked, and we
+// don't want to unlock it in the middle of c.updateState()
 func (c *StreamConn) notifyLoop() {
 	for {
 		req := <-c.callListeners
@@ -478,6 +489,8 @@ func (c *StreamConn) notifyLoop() {
 	}
 }
 
+// sendClientID sends ClientIdentificationMessage, it's called on
+// entering StateConnected state.
 func sendClientID(c *StreamConn, oldState, new State) {
 	cm := &ProtobufClient.ClientMessage{
 		Body: &ProtobufClient.ClientMessage_Identification{
