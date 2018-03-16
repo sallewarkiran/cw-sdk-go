@@ -223,6 +223,8 @@ func (c *StreamConn) AddStateListenerOpt(state State, cb StateCallback, opt Stat
 // Connect starts a connection goroutine, which establishes the connection,
 // receives all messages, and reconnects if needed. The Connect function
 // returns immediately, it doesn't wait for the connection to establish.
+// Returns a non-nil error if the connection goroutine is already running (i.e.
+// if state is anything but StateDisconnected)
 func (c *StreamConn) Connect() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
