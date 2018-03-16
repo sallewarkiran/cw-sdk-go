@@ -157,8 +157,9 @@ func withTestServer(
 func TestWriteToNonConnected(t *testing.T) {
 	err := withTestServer(t, func(tp testServerParams) error {
 		conn, err := NewStreamConn(&StreamParams{
-			URL:       tp.url,
-			Reconnect: true,
+			URL:              tp.url,
+			Reconnect:        true,
+			ReconnectTimeout: 1 * time.Millisecond,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -185,9 +186,10 @@ func TestMarketConn(t *testing.T) {
 
 		conn, err := NewMarketConn(&MarketParams{
 			StreamParams: StreamParams{
-				URL:           tp.url,
-				Reconnect:     true,
-				Subscriptions: []string{"foo", "bar"},
+				URL:              tp.url,
+				Reconnect:        true,
+				ReconnectTimeout: 1 * time.Millisecond,
+				Subscriptions:    []string{"foo", "bar"},
 			},
 		})
 		if err != nil {

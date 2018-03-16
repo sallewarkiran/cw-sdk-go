@@ -57,12 +57,17 @@ func init() {
 // StreamParams contains params for opening a client stream connection
 // (see StreamConn)
 type StreamParams struct {
-	URL           string
-	Reconnect     bool
+	// Server URL, e.g. wss://sb.cryptowat.ch
+	URL string
+	// Initial set of subscription keys
 	Subscriptions []string
 
+	// Whether the library should reconnect automatically
+	Reconnect bool
+	// Initial reconnection timeout: if zero, then 1 second will be used
 	ReconnectTimeout time.Duration
-	Backoff          bool // TODO
+	// Reconnection backoff (TODO)
+	Backoff bool
 }
 
 // StreamConn is a client stream connection; it's typically wrapped into more
@@ -134,6 +139,11 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 		stateListeners: make(map[State][]stateListener),
 		connTx:         make(chan websocketTx, 1),
 		callListeners:  make(chan callListenersReq, 1),
+	}
+
+	// By default, set reconnection time to 1 second.
+	if c.params.ReconnectTimeout == 0 {
+		c.params.ReconnectTimeout = 1 * time.Second
 	}
 
 	// When connected, will send client identification message
