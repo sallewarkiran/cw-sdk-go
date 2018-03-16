@@ -57,17 +57,30 @@ type StreamParams struct {
 // the data being received.
 type StreamConn struct {
 	params StreamParams
-	wsConn *websocket.Conn
 
 	connTx        chan websocketTx
 	callListeners chan callListenersReq
 
 	stateListeners map[State][]stateListener
-	state          State
-	onReadCB       onReadCallback
 
+	// Current state
+	state State
+	// Error caused the current state; only relevant for StateDisconnected and
+	// StateWaitBeforeReconnect, for other states it's always nil.
+	stateCause error
+
+	// onReadCB, if not nil, is called for each received websocket message.
+	onReadCB onReadCallback
+
+	// connCtx and connCtxCancel are context and its cancel func for the
+	// currently running connLoop. If no connLoop is running at the moment, these
+	// are nil.
 	connCtx       context.Context
 	connCtxCancel context.CancelFunc
+
+	// wsConn is the currently active websocket connection, or nil if no
+	// connection is established.
+	wsConn *websocket.Conn
 
 	mtx sync.Mutex
 }
@@ -90,6 +103,7 @@ type websocketTx struct {
 type callListenersReq struct {
 	listeners       []stateListener
 	oldState, state State
+	cause           error
 }
 
 // NewStreamConn creates a new stream connection. Typically not used directly
@@ -123,7 +137,7 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 	return c, nil
 }
 
-type StateCallback func(conn *StreamConn, oldState, state State)
+type StateCallback func(conn *StreamConn, oldState, state State, cause error)
 
 // AddStateListener registers a new listener for the given state. Listener is
 // registered with the default options (zero values of all fields in
@@ -146,17 +160,19 @@ type StateListenerOpt struct {
 // options; see StateListenerOpt for details.
 func (c *StreamConn) AddStateListenerOpt(state State, cb StateCallback, opt StateListenerOpt) {
 	var callNow bool
+	var stateCause error
 
 	c.mtx.Lock()
 	defer func() {
 		c.mtx.Unlock()
 		if callNow {
-			cb(c, state, state)
+			cb(c, state, state, stateCause)
 		}
 	}()
 
 	// Determine whether the callback should be called right now
 	callNow = opt.CallImmediately && c.state == state
+	stateCause = c.stateCause
 
 	// Update stored listeners if needed
 	if !opt.OneOff || !callNow {
@@ -183,7 +199,7 @@ func (c *StreamConn) Connect() error {
 	// connLoop, in order to prevent the race which would result in multiple
 	// running connLoops.
 	c.connCtx, c.connCtxCancel = context.WithCancel(context.Background())
-	c.updateState(StateConnecting)
+	c.updateState(StateConnecting, nil)
 
 	go c.connLoop(c.connCtx, c.connCtxCancel)
 
@@ -193,14 +209,14 @@ func (c *StreamConn) Connect() error {
 // Close stops reconnection loop (if reconnection was requested), and if
 // websocket connection is active at the moment, closes it as well.
 func (c *StreamConn) Close() error {
-	if err := c.closeInternal(true); err != nil {
+	if err := c.closeInternal(websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), true); err != nil {
 		return errors.Trace(err)
 	}
 
 	return nil
 }
 
-func (c *StreamConn) closeInternal(stopReconnecting bool) error {
+func (c *StreamConn) closeInternal(data []byte, stopReconnecting bool) error {
 	c.mtx.Lock()
 	wsConn := c.wsConn
 
@@ -221,7 +237,7 @@ func (c *StreamConn) closeInternal(stopReconnecting bool) error {
 	// break out of readLoop (and then either reconnect or quit, depending on the
 	// stopReconnecting arg)
 	if wsConn != nil {
-		if err := wsConn.WriteControl(websocket.CloseMessage, nil, time.Time{}); err != nil {
+		if err := wsConn.WriteControl(websocket.CloseMessage, data, time.Time{}); err != nil {
 			// Graceful close failed, try to close forcefully
 			return errors.Trace(wsConn.Close())
 		}
@@ -327,7 +343,7 @@ func (c *StreamConn) removeOneOff(listeners []stateListener) []stateListener {
 	return newListeners
 }
 
-func (c *StreamConn) updateState(state State) {
+func (c *StreamConn) updateState(state State, cause error) {
 	// NOTE: c.mtx should be locked when removeOneOff is called
 
 	if c.state == state {
@@ -337,6 +353,7 @@ func (c *StreamConn) updateState(state State) {
 
 	oldState := c.state
 	c.state = state
+	c.stateCause = cause
 
 	// Collect all listeners to call now
 	// We'll call them a bit later, when the mutex is not locked
@@ -350,6 +367,7 @@ func (c *StreamConn) updateState(state State) {
 		listeners: listeners,
 		oldState:  oldState,
 		state:     state,
+		cause:     cause,
 	}
 }
 
@@ -357,11 +375,12 @@ func (c *StreamConn) updateState(state State) {
 // messages (and calls onReadCB for each of them) until the connection is
 // closed, then either waits for a timeout and connects again, or just quits.
 func (c *StreamConn) connLoop(connCtx context.Context, connCtxCancel context.CancelFunc) {
+	var connErr error
 
 	defer func() {
 		c.mtx.Lock()
 		defer c.mtx.Unlock()
-		c.updateState(StateDisconnected)
+		c.updateState(StateDisconnected, connErr)
 		c.connCtx = nil
 		c.connCtxCancel = nil
 	}()
@@ -375,13 +394,14 @@ cloop:
 
 		u := url.URL{Scheme: scheme, Host: c.params.Host, Path: c.params.Path}
 
-		wsConn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-		if err == nil {
+		var wsConn *websocket.Conn
+		wsConn, _, connErr = websocket.DefaultDialer.Dial(u.String(), nil)
+		if connErr == nil {
 			// Connected successfully
 
 			c.mtx.Lock()
 			c.wsConn = wsConn
-			c.updateState(StateConnected)
+			c.updateState(StateConnected, nil)
 			c.mtx.Unlock()
 
 			// Will loop here until the websocket connection is closed
@@ -389,7 +409,7 @@ cloop:
 			for {
 				msgType, data, err := wsConn.ReadMessage()
 				if err != nil {
-					// TODO: save the error and make it available for clients
+					connErr = err
 					break recvLoop
 				}
 
@@ -409,8 +429,6 @@ cloop:
 					break recvLoop
 				}
 			}
-		} else {
-			// TODO: save the error and make it available for clients
 		}
 
 		c.mtx.Lock()
@@ -429,7 +447,7 @@ cloop:
 			// Looks like we should reconnect (after a timeout), so set the
 			// appropriate state
 			c.mtx.Lock()
-			c.updateState(StateWaitBeforeReconnect)
+			c.updateState(StateWaitBeforeReconnect, connErr)
 			c.mtx.Unlock()
 		}
 
@@ -443,7 +461,7 @@ cloop:
 		case <-time.After(c.params.ReconnectTimeout):
 			// Will try to reconnect one more time
 			c.mtx.Lock()
-			c.updateState(StateConnecting)
+			c.updateState(StateConnecting, nil)
 			c.mtx.Unlock()
 
 			continue cloop
@@ -484,14 +502,14 @@ func (c *StreamConn) notifyLoop() {
 		req := <-c.callListeners
 
 		for _, sl := range req.listeners {
-			sl.cb(c, req.oldState, req.state)
+			sl.cb(c, req.oldState, req.state, req.cause)
 		}
 	}
 }
 
 // sendClientID sends ClientIdentificationMessage, it's called on
 // entering StateConnected state.
-func sendClientID(c *StreamConn, oldState, new State) {
+func sendClientID(c *StreamConn, oldState, new State, cause error) {
 	cm := &ProtobufClient.ClientMessage{
 		Body: &ProtobufClient.ClientMessage_Identification{
 			Identification: &ProtobufClient.ClientIdentificationMessage{

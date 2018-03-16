@@ -64,9 +64,16 @@ func main() {
 		log.Fatal("%s", err)
 	}
 
-	c.AddStateListener(streamclient.StateAny, func(conn *streamclient.StreamConn, oldState, state streamclient.State) {
-		fmt.Printf("State updated: %s -> %s\n", streamclient.StateNames[oldState], streamclient.StateNames[state])
-	})
+	c.AddStateListener(
+		streamclient.StateAny,
+		func(conn *streamclient.StreamConn, oldState, state streamclient.State, cause error) {
+			fmt.Printf("State updated: %s -> %s", streamclient.StateNames[oldState], streamclient.StateNames[state])
+			if cause != nil {
+				fmt.Printf(" (%s)", cause)
+			}
+			fmt.Printf("\n")
+		},
+	)
 
 	c.AddMessageListener(func(conn *streamclient.MarketConn, msg *ProtobufMarkets.MarketUpdateMessage) {
 		str := ""

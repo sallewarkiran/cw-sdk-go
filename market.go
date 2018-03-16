@@ -5,6 +5,7 @@ import (
 
 	"github.com/cryptowatch/proto/markets"
 	"github.com/golang/protobuf/proto"
+	"github.com/gorilla/websocket"
 	"github.com/juju/errors"
 )
 
@@ -41,7 +42,10 @@ func NewMarketConn(params *MarketParams) (*MarketConn, error) {
 		var msg ProtobufMarkets.MarketUpdateMessage
 		if err := proto.Unmarshal(data, &msg); err != nil {
 			// Close connection (and if reconnection was requested, then reconnect)
-			conn.StreamConn.closeInternal(false)
+			conn.StreamConn.closeInternal(
+				websocket.FormatCloseMessage(websocket.CloseUnsupportedData, ""),
+				false,
+			)
 		}
 
 		for _, l := range conn.msgListeners {

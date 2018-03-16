@@ -25,12 +25,16 @@ type stateTracker struct {
 }
 
 func (st *stateTracker) AddStateListener(conn *StreamConn) {
-	conn.AddStateListener(StateAny, func(conn *StreamConn, oldState, state State) {
+	conn.AddStateListener(StateAny, func(conn *StreamConn, oldState, state State, cause error) {
 		st.mtx.Lock()
 
 		defer st.mtx.Unlock()
+		errStr := ""
+		if cause != nil {
+			errStr = fmt.Sprintf("(%s)", cause)
+		}
 
-		st.states = append(st.states, fmt.Sprintf("%s->%s", StateNames[oldState], StateNames[state]))
+		st.states = append(st.states, fmt.Sprintf("%s->%s%s", StateNames[oldState], StateNames[state], errStr))
 	})
 }
 
@@ -332,7 +336,7 @@ func TestMarketConn(t *testing.T) {
 		if err := st.CheckStates([]string{
 			"disconnected->connecting",
 			"connecting->connected",
-			"connected->wait_before_reconnect",
+			"connected->wait_before_reconnect(websocket: close 1003 (unsupported data))",
 			"wait_before_reconnect->connecting",
 			"connecting->connected",
 		}); err != nil {
