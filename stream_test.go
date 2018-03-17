@@ -212,6 +212,32 @@ func TestConnectConnected(t *testing.T) {
 	}
 }
 
+// TestConnectConnected ensures that calling Connect on a connection with
+// active connection loop results in an error
+func TestCloseClosed(t *testing.T) {
+	err := withTestServer(t, func(tp testServerParams) error {
+		c, err := NewStreamConn(&StreamParams{
+			URL:              tp.url,
+			Reconnect:        true,
+			ReconnectTimeout: 1 * time.Millisecond,
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		errClose := c.Close()
+		if want, got := ErrNotConnected, errors.Cause(errClose); got != want {
+			return errors.Errorf("want: %v, got: %v", want, got)
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+}
+
 func TestMarketConn(t *testing.T) {
 	err := withTestServer(t, func(tp testServerParams) error {
 		// marketRx is a channel to which all MarketUpdateMessage's received by
@@ -571,7 +597,9 @@ func TestStateListeners(t *testing.T) {
 		}
 
 		// Close and stop reconnecting
-		c.Close()
+		if err := c.Close(); err != nil {
+			return errors.Trace(err)
+		}
 
 		// Wait for the connection being closed
 		if err := waitConnClose(tp.rx); err != nil {
@@ -598,7 +626,9 @@ func TestStateListeners(t *testing.T) {
 		}
 
 		// Close and stop reconnecting
-		c.Close()
+		if err := c.Close(); err != nil {
+			return errors.Trace(err)
+		}
 
 		// Wait for the connection being closed
 		if err := waitConnClose(tp.rx); err != nil {
