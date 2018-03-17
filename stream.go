@@ -197,28 +197,29 @@ type StateListenerOpt struct {
 // AddStateListenerOpt is like AddStateListener, but also takes additional
 // options; see StateListenerOpt for details.
 func (c *StreamConn) AddStateListenerOpt(state State, cb StateCallback, opt StateListenerOpt) {
-	var callNow bool
-	var stateCause error
+	sl := stateListener{
+		cb:  cb,
+		opt: opt,
+	}
 
 	c.mtx.Lock()
-	defer func() {
-		stateNow := c.state
-		c.mtx.Unlock()
-		if callNow {
-			cb(c, stateNow, stateNow, stateCause)
-		}
-	}()
+	defer c.mtx.Unlock()
 
 	// Determine whether the callback should be called right now
-	callNow = opt.CallImmediately && (state == c.state || state == StateAny)
-	stateCause = c.stateCause
+	callNow := opt.CallImmediately && (state == c.state || state == StateAny)
 
 	// Update stored listeners if needed
 	if !opt.OneOff || !callNow {
-		c.stateListeners[state] = append(c.stateListeners[state], stateListener{
-			cb:  cb,
-			opt: opt,
-		})
+		c.stateListeners[state] = append(c.stateListeners[state], sl)
+	}
+
+	if callNow {
+		c.callListeners <- callListenersReq{
+			listeners: []stateListener{sl},
+			oldState:  c.state,
+			state:     c.state,
+			cause:     c.stateCause,
+		}
 	}
 }
 
