@@ -44,7 +44,8 @@ const (
 var (
 	StateNames = make([]string, StatesCnt)
 
-	ErrNotConnected = errors.New("not connected")
+	ErrNotConnected   = errors.New("not connected")
+	ErrConnLoopActive = errors.New("connection loop is already active")
 )
 
 func init() {
@@ -232,7 +233,7 @@ func (c *StreamConn) Connect() error {
 
 	if c.state != StateDisconnected {
 		// TODO: if state is StateWaitBeforeReconnect, connect immediately
-		return errors.Errorf("connection is already active")
+		return errors.Trace(ErrConnLoopActive)
 	}
 
 	// NOTE that we need to enter the state StateConnecting here and not in
