@@ -373,8 +373,7 @@ func (c *StreamConn) sendProto(pb proto.Message) error {
 
 // removeOneOff takes a slice of listeners and returns a new one, with one-off
 // listeners removed.
-func (c *StreamConn) removeOneOff(listeners []stateListener) []stateListener {
-	// NOTE: c.mtx should be locked when removeOneOff is called
+func removeOneOff(listeners []stateListener) []stateListener {
 
 	newListeners := []stateListener{}
 
@@ -388,7 +387,7 @@ func (c *StreamConn) removeOneOff(listeners []stateListener) []stateListener {
 }
 
 func (c *StreamConn) updateState(state State, cause error) {
-	// NOTE: c.mtx should be locked when removeOneOff is called
+	// NOTE: c.mtx should be locked when updateState is called
 
 	if c.state == state {
 		// No need to call any listeners
@@ -404,8 +403,8 @@ func (c *StreamConn) updateState(state State, cause error) {
 	listeners := append(c.stateListeners[state], c.stateListeners[StateAny]...)
 
 	// Remove one-off listeners
-	c.stateListeners[state] = c.removeOneOff(c.stateListeners[state])
-	c.stateListeners[StateAny] = c.removeOneOff(c.stateListeners[StateAny])
+	c.stateListeners[state] = removeOneOff(c.stateListeners[state])
+	c.stateListeners[StateAny] = removeOneOff(c.stateListeners[StateAny])
 
 	// Request listeners invocation (will be invoked by a dedicated goroutine)
 	c.callListeners <- callListenersReq{
