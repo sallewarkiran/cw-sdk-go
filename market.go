@@ -17,7 +17,7 @@ type MarketParams struct {
 // update messages, see AddMessageListener.
 type MarketConn struct {
 	*StreamConn
-	msgListeners []OnMessageCallback
+	msgListeners []OnMarketMsgCallback
 
 	mtx sync.Mutex
 }
@@ -60,11 +60,11 @@ func NewMarketConn(params *MarketParams) (*MarketConn, error) {
 	return c, nil
 }
 
-type OnMessageCallback func(conn *MarketConn, msg *ProtobufMarkets.MarketUpdateMessage)
+type OnMarketMsgCallback func(conn *MarketConn, msg *ProtobufMarkets.MarketUpdateMessage)
 
 // AddMessageListener registers a new listener for all received market update
 // messages.
-func (c *MarketConn) AddMessageListener(cb OnMessageCallback) {
+func (c *MarketConn) AddMessageListener(cb OnMarketMsgCallback) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
