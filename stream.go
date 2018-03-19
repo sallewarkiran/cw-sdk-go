@@ -453,7 +453,7 @@ func (c *StreamConn) updateState(state State, cause error) {
 	// NOTE: c.mtx should be locked when updateState is called
 
 	if c.state == state {
-		// No need to call any listeners
+		// No need to do anything
 		return
 	}
 
@@ -498,6 +498,14 @@ func (c *StreamConn) connLoop(connCtx context.Context, connCtxCancel context.Can
 
 cloop:
 	for {
+		// When the goroutine is just started by Connect(), the state is already
+		// StateConnecting (see Connect() for the explanation on why), in which
+		// case the updateState below is a no-op. When reconnecting though, the
+		// state is different here, so it'll be changed to StateConnecting.
+		c.mtx.Lock()
+		c.updateState(StateConnecting, nil)
+		c.mtx.Unlock()
+
 		var wsConn *websocket.Conn
 		wsConn, _, connErr = websocket.DefaultDialer.Dial(c.params.URL, nil)
 		if connErr == nil {
@@ -563,16 +571,13 @@ cloop:
 
 			// TODO: backoff
 		case <-time.After(c.params.ReconnectTimeout):
+			// Will try to reconnect one more time
 			break waitReconnect
 
 		case <-c.reconnectNow:
+			// Will try to reconnect one more time
 			break waitReconnect
 		}
-
-		// Will try to reconnect one more time
-		c.mtx.Lock()
-		c.updateState(StateConnecting, nil)
-		c.mtx.Unlock()
 	}
 }
 
