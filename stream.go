@@ -242,7 +242,6 @@ func (c *StreamConn) Connect() error {
 		// NOTE that we need to enter the state StateConnecting here and not in
 		// connLoop, in order to prevent the race which would result in multiple
 		// running connLoops.
-		c.connCtx, c.connCtxCancel = context.WithCancel(context.Background())
 		c.updateState(StateConnecting, nil)
 
 		go c.connLoop(c.connCtx, c.connCtxCancel)
@@ -398,6 +397,45 @@ func removeOneOff(listeners []stateListener) []stateListener {
 	return newListeners
 }
 
+// enterLeaveState should be called on leaving and entering each state. So,
+// when changing state from A to B, it's called twice, like this:
+//
+//      enterLeaveState(A, false)
+//      enterLeaveState(B, true)
+func (c *StreamConn) enterLeaveState(state State, enter bool) {
+	switch state {
+
+	case StateDisconnected:
+		// connCtx and its cancel func should be present in all states but
+		// StateDisconnected
+		if enter {
+			c.connCtx = nil
+			c.connCtxCancel = nil
+		} else {
+			c.connCtx, c.connCtxCancel = context.WithCancel(context.Background())
+		}
+
+	case StateWaitBeforeReconnect:
+		// reconnectNow is present only in StateWaitBeforeReconnect
+		if enter {
+			c.reconnectNow = make(chan struct{})
+		} else {
+			c.reconnectNow = nil
+		}
+
+	case StateConnecting:
+		// Nothing special to do for the StateConnecting state
+
+	case StateConnected:
+		// wsConn is present only in StateConnected
+		if enter {
+			// wsConn is set by the calling code
+		} else {
+			c.wsConn = nil
+		}
+	}
+}
+
 func (c *StreamConn) updateState(state State, cause error) {
 	// NOTE: c.mtx should be locked when updateState is called
 
@@ -406,9 +444,15 @@ func (c *StreamConn) updateState(state State, cause error) {
 		return
 	}
 
+	// Properly leave the current state
+	c.enterLeaveState(c.state, false)
+
 	oldState := c.state
 	c.state = state
 	c.stateCause = cause
+
+	// Properly enter the new state
+	c.enterLeaveState(c.state, true)
 
 	// Collect all listeners to call now
 	// We'll call them a bit later, when the mutex is not locked
@@ -437,10 +481,6 @@ func (c *StreamConn) connLoop(connCtx context.Context, connCtxCancel context.Can
 		c.mtx.Lock()
 		defer c.mtx.Unlock()
 		c.updateState(StateDisconnected, connErr)
-		c.reconnectNow = nil
-		c.wsConn = nil
-		c.connCtx = nil
-		c.connCtxCancel = nil
 	}()
 
 cloop:
@@ -485,11 +525,6 @@ cloop:
 			}
 		}
 
-		// NOTE: we shouldn't reset wsConn to nil here because it would break an
-		// assumption that wsConn is never nil in the StateConnecting state. So,
-		// we set it to nil only in conjunction with entering
-		// StateWaitBeforeReconnect and StateDisconnected.
-
 		// If shouldn't reconnect, we're done
 		if !c.params.Reconnect {
 			connCtxCancel()
@@ -502,9 +537,7 @@ cloop:
 			// Looks like we should reconnect (after a timeout), so set the
 			// appropriate state
 			c.mtx.Lock()
-			c.wsConn = nil
 			c.updateState(StateWaitBeforeReconnect, connErr)
-			c.reconnectNow = make(chan struct{})
 			c.mtx.Unlock()
 		}
 
@@ -525,7 +558,6 @@ cloop:
 
 		// Will try to reconnect one more time
 		c.mtx.Lock()
-		c.reconnectNow = nil
 		c.updateState(StateConnecting, nil)
 		c.mtx.Unlock()
 	}
