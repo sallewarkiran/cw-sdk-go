@@ -101,6 +101,11 @@ type StreamConn struct {
 	// connection is established.
 	wsConn *websocket.Conn
 
+	// reconnectNow is a channel which is only non-nil in the
+	// StateWaitBeforeReconnect state, and closing it causes the reconnection to
+	// happen immediately
+	reconnectNow chan struct{}
+
 	mtx sync.Mutex
 }
 
@@ -232,18 +237,25 @@ func (c *StreamConn) Connect() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	if c.state != StateDisconnected {
-		// TODO: if state is StateWaitBeforeReconnect, connect immediately
+	switch c.state {
+	case StateDisconnected:
+		// NOTE that we need to enter the state StateConnecting here and not in
+		// connLoop, in order to prevent the race which would result in multiple
+		// running connLoops.
+		c.connCtx, c.connCtxCancel = context.WithCancel(context.Background())
+		c.updateState(StateConnecting, nil)
+
+		go c.connLoop(c.connCtx, c.connCtxCancel)
+
+	case StateWaitBeforeReconnect:
+		// We're waiting for a timeout before reconnecting; force it to reconnect
+		// right now
+		close(c.reconnectNow)
+
+	case StateConnecting, StateConnected:
+		// Already connected or connecting
 		return errors.Trace(ErrConnLoopActive)
 	}
-
-	// NOTE that we need to enter the state StateConnecting here and not in
-	// connLoop, in order to prevent the race which would result in multiple
-	// running connLoops.
-	c.connCtx, c.connCtxCancel = context.WithCancel(context.Background())
-	c.updateState(StateConnecting, nil)
-
-	go c.connLoop(c.connCtx, c.connCtxCancel)
 
 	return nil
 }
@@ -425,6 +437,7 @@ func (c *StreamConn) connLoop(connCtx context.Context, connCtxCancel context.Can
 		c.mtx.Lock()
 		defer c.mtx.Unlock()
 		c.updateState(StateDisconnected, connErr)
+		c.reconnectNow = nil
 		c.wsConn = nil
 		c.connCtx = nil
 		c.connCtxCancel = nil
@@ -491,10 +504,12 @@ cloop:
 			c.mtx.Lock()
 			c.wsConn = nil
 			c.updateState(StateWaitBeforeReconnect, connErr)
+			c.reconnectNow = make(chan struct{})
 			c.mtx.Unlock()
 		}
 
 		// Either wait for the timeout before reconnection, or quit.
+	waitReconnect:
 		select {
 		case <-connCtx.Done():
 			// Enough reconnections, quit now.
@@ -502,13 +517,17 @@ cloop:
 
 			// TODO: backoff
 		case <-time.After(c.params.ReconnectTimeout):
-			// Will try to reconnect one more time
-			c.mtx.Lock()
-			c.updateState(StateConnecting, nil)
-			c.mtx.Unlock()
+			break waitReconnect
 
-			continue cloop
+		case <-c.reconnectNow:
+			break waitReconnect
 		}
+
+		// Will try to reconnect one more time
+		c.mtx.Lock()
+		c.reconnectNow = nil
+		c.updateState(StateConnecting, nil)
+		c.mtx.Unlock()
 	}
 }
 
