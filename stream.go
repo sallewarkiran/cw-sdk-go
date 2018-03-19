@@ -349,6 +349,13 @@ func (c *StreamConn) URL() string {
 	return c.params.URL
 }
 
+// GetState returns connection state
+func (c *StreamConn) GetState() State {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	return c.state
+}
+
 type onReadCallback func(conn *StreamConn, data []byte)
 
 // onRead sets on-read callback; it should be called once right after creation
