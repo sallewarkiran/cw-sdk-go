@@ -655,6 +655,28 @@ func TestStateListeners(t *testing.T) {
 	}
 }
 
+func TestDefaultURL(t *testing.T) {
+	err := withTestServer(t, func(tp testServerParams) error {
+		conn, err := NewStreamConn(&StreamParams{
+			Reconnect:        true,
+			ReconnectTimeout: 1 * time.Millisecond,
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		if want, got := "wss://sb.cryptowat.ch", conn.URL(); got != want {
+			return errors.Errorf("want: %v, got: %v", want, got)
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+}
+
 type eventType int
 
 const (

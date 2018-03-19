@@ -13,10 +13,6 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
-const (
-	defaultURL = "wss://sb.cryptowat.ch"
-)
-
 var (
 	subs stringSlice
 
@@ -31,10 +27,10 @@ func main() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	// Get address to connect to
-	u := defaultURL
-
 	args := flag.Args()
+
+	// Get address to connect to
+	u := ""
 	if len(args) >= 1 {
 		u = args[0]
 	}
@@ -78,7 +74,7 @@ func main() {
 	})
 
 	// Start connection loop
-	fmt.Printf("Connecting to %s ...\n", u)
+	fmt.Printf("Connecting to %s ...\n", c.URL())
 	c.Connect()
 
 	// Wait until the OS signal is received, at which point we'll close the

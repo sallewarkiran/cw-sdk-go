@@ -41,6 +41,10 @@ const (
 	StateAny = -1
 )
 
+const (
+	defaultURL = "wss://sb.cryptowat.ch"
+)
+
 var (
 	StateNames = make([]string, StatesCnt)
 
@@ -145,6 +149,10 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 		stateListeners: make(map[State][]stateListener),
 		connTx:         make(chan websocketTx, 1),
 		callListeners:  make(chan callListenersReq, 1),
+	}
+
+	if c.params.URL == "" {
+		c.params.URL = defaultURL
 	}
 
 	// By default, set reconnection time to 1 second.
@@ -333,6 +341,11 @@ func (c *StreamConn) Unsubscribe(keys []string) error {
 	}
 
 	return nil
+}
+
+// URL returns an url used for connection
+func (c *StreamConn) URL() string {
+	return c.params.URL
 }
 
 type onReadCallback func(conn *StreamConn, data []byte)
