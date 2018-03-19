@@ -3,7 +3,7 @@ package streamclient
 import (
 	"sync"
 
-	"github.com/cryptowatch/proto/markets"
+	pbm "github.com/cryptowatch/proto/markets"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/juju/errors"
@@ -39,7 +39,7 @@ func NewMarketConn(params *MarketParams) (*MarketConn, error) {
 	}
 
 	streamConn.onRead(func(sc *StreamConn, data []byte) {
-		var msg ProtobufMarkets.MarketUpdateMessage
+		var msg pbm.MarketUpdateMessage
 		if err := proto.Unmarshal(data, &msg); err != nil {
 			// Close connection (and if reconnection was requested, then reconnect)
 			c.StreamConn.closeInternal(
@@ -60,7 +60,7 @@ func NewMarketConn(params *MarketParams) (*MarketConn, error) {
 	return c, nil
 }
 
-type OnMarketMsgCallback func(conn *MarketConn, msg *ProtobufMarkets.MarketUpdateMessage)
+type OnMarketMsgCallback func(conn *MarketConn, msg *pbm.MarketUpdateMessage)
 
 // AddMessageListener registers a new listener for all received market update
 // messages.

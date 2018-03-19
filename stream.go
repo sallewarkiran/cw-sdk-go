@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cryptowatch/proto/client"
+	pbc "github.com/cryptowatch/proto/client"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/juju/errors"
@@ -321,9 +321,9 @@ func (c *StreamConn) closeInternal(data []byte, stopReconnecting bool) error {
 
 // Subscribe subscribes to the given set of keys
 func (c *StreamConn) Subscribe(keys []string) error {
-	cm := &ProtobufClient.ClientMessage{
-		Body: &ProtobufClient.ClientMessage_Subscribe{
-			Subscribe: &ProtobufClient.ClientSubscribeMessage{
+	cm := &pbc.ClientMessage{
+		Body: &pbc.ClientMessage_Subscribe{
+			Subscribe: &pbc.ClientSubscribeMessage{
 				SubscriptionKeys: keys,
 			},
 		},
@@ -338,9 +338,9 @@ func (c *StreamConn) Subscribe(keys []string) error {
 
 // Unsubscribe unsubscribes from the given set of keys
 func (c *StreamConn) Unsubscribe(keys []string) error {
-	cm := &ProtobufClient.ClientMessage{
-		Body: &ProtobufClient.ClientMessage_Unsubscribe{
-			Unsubscribe: &ProtobufClient.ClientUnsubscribeMessage{
+	cm := &pbc.ClientMessage{
+		Body: &pbc.ClientMessage_Unsubscribe{
+			Unsubscribe: &pbc.ClientUnsubscribeMessage{
 				SubscriptionKeys: keys,
 			},
 		},
@@ -648,9 +648,9 @@ func (c *StreamConn) notifyLoop() {
 // sendClientID sends ClientIdentificationMessage, it's called on
 // entering StateConnected state.
 func sendClientID(c *StreamConn, oldState, new State, cause error) {
-	cm := &ProtobufClient.ClientMessage{
-		Body: &ProtobufClient.ClientMessage_Identification{
-			Identification: &ProtobufClient.ClientIdentificationMessage{
+	cm := &pbc.ClientMessage{
+		Body: &pbc.ClientMessage_Identification{
+			Identification: &pbc.ClientIdentificationMessage{
 				Useragent: fmt.Sprintf("Cryptowatch Stream Client Golang/%s", version),
 
 				// TODO: probably pass revision via params so that it depends on a
