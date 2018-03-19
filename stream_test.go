@@ -391,6 +391,10 @@ func TestMarketConn(t *testing.T) {
 			return errors.Errorf("waiting for client identification message: %s", err)
 		}
 
+		// State listeners are called in a separate goroutine, so we have to give
+		// it some time to rotate to avoid races.
+		time.Sleep(10 * time.Millisecond)
+
 		// Check states so far
 		if err := st.CheckStates([]string{
 			"disconnected->connecting",

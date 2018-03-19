@@ -42,6 +42,7 @@ func main() {
 
 			Reconnect:        true,
 			ReconnectTimeout: 1 * time.Second,
+			Backoff:          true,
 			Subscriptions:    subs,
 		},
 	})

@@ -69,10 +69,15 @@ type StreamParams struct {
 
 	// Whether the library should reconnect automatically
 	Reconnect bool
+	// Reconnection backoff: if true, then the reconnection time will be
+	// initially ReconnectTimeout, then will become twice as long each
+	// unsuccessful connection attempt; but it won't be longer than
+	// MaxReconnectTimeout.
+	Backoff bool
 	// Initial reconnection timeout: if zero, then 1 second will be used
 	ReconnectTimeout time.Duration
-	// Reconnection backoff (TODO)
-	Backoff bool
+	// Max reconnect timeout. If zero, then 30 seconds will be used.
+	MaxReconnectTimeout time.Duration
 }
 
 // StreamConn is a client stream connection; it's typically wrapped into more
@@ -155,9 +160,13 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 		c.params.URL = defaultURL
 	}
 
-	// By default, set reconnection time to 1 second.
+	// By default, set reconnection time to 1 second, and max reconnection
+	// time to 30 seconds
 	if c.params.ReconnectTimeout == 0 {
 		c.params.ReconnectTimeout = 1 * time.Second
+	}
+	if c.params.MaxReconnectTimeout == 0 {
+		c.params.MaxReconnectTimeout = 30 * time.Second
 	}
 
 	// When connected, will send client identification message
@@ -498,6 +507,8 @@ func (c *StreamConn) updateState(state State, cause error) {
 func (c *StreamConn) connLoop(connCtx context.Context, connCtxCancel context.CancelFunc) {
 	var connErr error
 
+	nextReconnectTimeout := c.params.ReconnectTimeout
+
 	defer func() {
 		c.mtx.Lock()
 		defer c.mtx.Unlock()
@@ -518,6 +529,7 @@ cloop:
 		wsConn, _, connErr = websocket.DefaultDialer.Dial(c.params.URL, nil)
 		if connErr == nil {
 			// Connected successfully
+			nextReconnectTimeout = c.params.ReconnectTimeout
 
 			c.mtx.Lock()
 			c.wsConn = wsConn
@@ -577,14 +589,20 @@ cloop:
 			// Enough reconnections, quit now.
 			break cloop
 
-			// TODO: backoff
-		case <-time.After(c.params.ReconnectTimeout):
+		case <-time.After(nextReconnectTimeout):
 			// Will try to reconnect one more time
 			break waitReconnect
 
 		case <-c.reconnectNow:
 			// Will try to reconnect one more time
 			break waitReconnect
+		}
+
+		if c.params.Backoff {
+			nextReconnectTimeout *= 2
+			if nextReconnectTimeout > c.params.MaxReconnectTimeout {
+				nextReconnectTimeout = c.params.MaxReconnectTimeout
+			}
 		}
 	}
 }
