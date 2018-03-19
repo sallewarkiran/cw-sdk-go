@@ -19,9 +19,21 @@ import (
 )
 
 // stateTracker {{{
+type stateChange struct {
+	oldState, state State
+	cause           error
+}
+
 type stateTracker struct {
-	states []string
-	mtx    sync.Mutex
+	states  []string
+	mtx     sync.Mutex
+	changes chan stateChange
+}
+
+func newStateTracker() *stateTracker {
+	return &stateTracker{
+		changes: make(chan stateChange, 1024),
+	}
 }
 
 func (st *stateTracker) AddStateListener(conn *StreamConn, state State, opt StateListenerOpt) {
@@ -29,14 +41,20 @@ func (st *stateTracker) AddStateListener(conn *StreamConn, state State, opt Stat
 		state,
 		func(conn *StreamConn, oldState, state State, cause error) {
 			st.mtx.Lock()
-
 			defer st.mtx.Unlock()
+
 			errStr := ""
 			if cause != nil {
 				errStr = fmt.Sprintf("(%s)", cause)
 			}
 
 			st.states = append(st.states, fmt.Sprintf("%s->%s%s", StateNames[oldState], StateNames[state], errStr))
+
+			st.changes <- stateChange{
+				oldState: oldState,
+				state:    state,
+				cause:    cause,
+			}
 		},
 		opt,
 	)
@@ -51,6 +69,15 @@ func (st *stateTracker) CheckStates(want []string) error {
 
 	if gotStr != wantStr {
 		return errors.Errorf("states error: want: %q, got: %q", wantStr, gotStr)
+	}
+
+	return nil
+}
+
+func (st *stateTracker) ExpectState(state State) error {
+	change := <-st.changes
+	if change.state != state {
+		return errors.Errorf("expect state change: want: %s, got: %s (%v)", StateNames[state], StateNames[change.state], change)
 	}
 
 	return nil
@@ -257,7 +284,7 @@ func TestMarketConn(t *testing.T) {
 		}
 
 		// Add state tracker to the connection, so we'll see all state transitions
-		st := stateTracker{}
+		st := newStateTracker()
 		st.AddStateListener(conn.StreamConn, StateAny, StateListenerOpt{})
 
 		conn.AddMessageListener(
@@ -270,9 +297,17 @@ func TestMarketConn(t *testing.T) {
 			return errors.Trace(err)
 		}
 
+		if err := st.ExpectState(StateConnecting); err != nil {
+			return errors.Trace(err)
+		}
+
 		// Wait for the new conn to be opened
 		if err := waitConnOpen(tp.rx); err != nil {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
+		}
+
+		if err := st.ExpectState(StateConnected); err != nil {
+			return errors.Trace(err)
 		}
 
 		// Wait for the client identification message
@@ -381,19 +416,27 @@ func TestMarketConn(t *testing.T) {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
+		if err := st.ExpectState(StateWaitBeforeReconnect); err != nil {
+			return errors.Trace(err)
+		}
+
+		if err := st.ExpectState(StateConnecting); err != nil {
+			return errors.Trace(err)
+		}
+
 		// Wait for the new conn to be opened
 		if err := waitConnOpen(tp.rx); err != nil {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
+		}
+
+		if err := st.ExpectState(StateConnected); err != nil {
+			return errors.Trace(err)
 		}
 
 		// Wait for the client identification message
 		if err := waitIdMsg(tp.rx, []string{"foo", "bar"}); err != nil {
 			return errors.Errorf("waiting for client identification message: %s", err)
 		}
-
-		// State listeners are called in a separate goroutine, so we have to give
-		// it some time to rotate to avoid races.
-		time.Sleep(10 * time.Millisecond)
 
 		// Check states so far
 		if err := st.CheckStates([]string{
@@ -560,9 +603,9 @@ func TestStateListeners(t *testing.T) {
 		// }}}
 
 		// Create state trackers for each test case
-		st := make([]stateTracker, len(testCases))
+		st := make([]*stateTracker, len(testCases))
 		for i, v := range testCases {
-			st[i] = stateTracker{}
+			st[i] = newStateTracker()
 			st[i].AddStateListener(c, v.state, StateListenerOpt{
 				OneOff: v.oneOff, CallImmediately: v.callImmediately,
 			})
@@ -572,9 +615,17 @@ func TestStateListeners(t *testing.T) {
 			return errors.Trace(err)
 		}
 
+		if err := st[0].ExpectState(StateConnecting); err != nil {
+			return errors.Trace(err)
+		}
+
 		// Wait for the new conn to be opened
 		if err := waitConnOpen(tp.rx); err != nil {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
+		}
+
+		if err := st[0].ExpectState(StateConnected); err != nil {
+			return errors.Trace(err)
 		}
 
 		// Wait for the client identification message
@@ -590,9 +641,21 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
+		if err := st[0].ExpectState(StateWaitBeforeReconnect); err != nil {
+			return errors.Trace(err)
+		}
+
+		if err := st[0].ExpectState(StateConnecting); err != nil {
+			return errors.Trace(err)
+		}
+
 		// Wait for the new conn to be opened
 		if err := waitConnOpen(tp.rx); err != nil {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
+		}
+
+		if err := st[0].ExpectState(StateConnected); err != nil {
+			return errors.Trace(err)
 		}
 
 		// Wait for the client identification message
@@ -610,18 +673,26 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
-		// Server gets close message before client stateListeners are called,
-		// so we have to give it some time to rotate.
-		time.Sleep(10 * time.Millisecond)
+		if err := st[0].ExpectState(StateDisconnected); err != nil {
+			return errors.Trace(err)
+		}
 
 		// Connect again
 		if err := c.Connect(); err != nil {
 			return errors.Trace(err)
 		}
 
+		if err := st[0].ExpectState(StateConnecting); err != nil {
+			return errors.Trace(err)
+		}
+
 		// Wait for the new conn to be opened
 		if err := waitConnOpen(tp.rx); err != nil {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
+		}
+
+		if err := st[0].ExpectState(StateConnected); err != nil {
+			return errors.Trace(err)
 		}
 
 		// Wait for the client identification message
@@ -639,9 +710,9 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
-		// Server gets close message before client stateListeners are called,
-		// so we have to give it some time to rotate.
-		time.Sleep(10 * time.Millisecond)
+		if err := st[0].ExpectState(StateDisconnected); err != nil {
+			return errors.Trace(err)
+		}
 
 		// Check states from all test cases
 
