@@ -1,0 +1,11 @@
+package: github.com/cryptowatch/stream-client-go
+import:
+- package: github.com/cryptowatch/proto
+  subpackages:
+  - client
+  - markets
+- package: github.com/golang/protobuf
+  subpackages:
+  - proto
+- package: github.com/gorilla/websocket
+- package: github.com/juju/errors
