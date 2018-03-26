@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package ProtobufMarkets;
+
+message PairUpdateMessage {
+  uint64 pair = 1;
+  
+  oneof Update {
+    PairVwapUpdate vwapUpdate = 2;
+    PairPerformanceUpdate performanceUpdate = 3;
+  }
+}
+
+message PairVwapUpdate {
+  double vwap = 1;
+}
+
+message PairPerformanceUpdate {
+  string window = 1;
+  double performance = 2;
+}
