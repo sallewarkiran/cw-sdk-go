@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/cryptowatch/proto/markets"
+	pbm "github.com/cryptowatch/proto/markets"
 	"github.com/cryptowatch/stream-client-go"
 	"github.com/golang/protobuf/proto"
 )
@@ -16,7 +16,11 @@ import (
 var (
 	subs stringSlice
 
-	detailed = flag.Bool("detailed", false, "Print detailed contents of received messages")
+	detailed  = flag.Bool("detailed", false, "Print detailed contents of received messages")
+	apiKey    = flag.String("apikey", "", "API key to use. Consider using -creds instead.")
+	secretKey = flag.String("secretkey", "", "Secret key to use. Consider using -creds instead.")
+
+	// TODO: -creds
 )
 
 func main() {
@@ -36,15 +40,16 @@ func main() {
 	}
 
 	// Setup market connection (but don't connect just yet)
-	c, err := streamclient.NewMarketConn(&streamclient.MarketParams{
-		StreamParams: streamclient.StreamParams{
-			URL: u,
+	c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
+		URL: u,
 
-			Reconnect:        true,
-			ReconnectTimeout: 1 * time.Second,
-			Backoff:          true,
-			Subscriptions:    subs,
-		},
+		Reconnect:        true,
+		ReconnectTimeout: 1 * time.Second,
+		Backoff:          true,
+		Subscriptions:    subs,
+
+		APIKey:    *apiKey,
+		SecretKey: *secretKey,
 	})
 	if err != nil {
 		log.Fatal("%s", err)
@@ -63,7 +68,7 @@ func main() {
 	)
 
 	// Will print received market update messages
-	c.AddMessageListener(func(conn *streamclient.MarketConn, msg *ProtobufMarkets.MarketUpdateMessage) {
+	c.AddMarketListener(func(conn *streamclient.StreamConn, msg *pbm.MarketUpdateMessage) {
 		str := ""
 		if *detailed {
 			str = proto.MarshalTextString(msg)
@@ -71,7 +76,7 @@ func main() {
 			str = proto.CompactTextString(msg)
 		}
 
-		fmt.Printf("Received message: %s\n\n", str)
+		fmt.Printf("Received market update: %s\n\n", str)
 	})
 
 	// Start connection loop

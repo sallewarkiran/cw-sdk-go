@@ -1,6 +1,10 @@
 package streamclient
 
 import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha512"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,12 +15,44 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cryptowatch/proto/client"
-	"github.com/cryptowatch/proto/markets"
+	pbc "github.com/cryptowatch/proto/client"
+	pbm "github.com/cryptowatch/proto/markets"
+	pbs "github.com/cryptowatch/proto/stream"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/juju/errors"
 )
+
+type eventType int
+
+const (
+	eventTypeConnOpened eventType = iota
+	eventTypeMsg
+)
+
+const (
+	testApiKey1        = "foo"
+	testSecretKey1     = "bar"
+	testSecretKeyWrong = "barbarbar"
+)
+
+// websocketEvent represents an event like new opened connection or new
+// received websocket message
+type websocketEvent struct {
+	eventType eventType
+
+	// The fields below are only relevant if eventType is eventTypeMsg
+	messageType int
+	data        []byte
+	err         error
+}
+
+// websocketTx represents message to send to the websocket
+type websocketTx struct {
+	messageType int
+	data        []byte
+	res         chan error
+}
 
 // stateTracker {{{
 type stateChange struct {
@@ -74,10 +110,25 @@ func (st *stateTracker) CheckStates(want []string) error {
 	return nil
 }
 
+var dontCheckErr = errors.Errorf("_do_not_check_error_")
+
 func (st *stateTracker) ExpectState(state State) error {
-	change := <-st.changes
-	if change.state != state {
-		return errors.Errorf("expect state change: want: %s, got: %s (%v)", StateNames[state], StateNames[change.state], change)
+	return st.ExpectStateWCause(state, dontCheckErr)
+}
+
+func (st *stateTracker) ExpectStateWCause(state State, cause error) error {
+	select {
+	case change := <-st.changes:
+		if change.state != state {
+			return errors.Errorf("expect state change: want: %s, got: %s (%v)", StateNames[state], StateNames[change.state], change)
+		}
+
+		if cause != dontCheckErr && errors.Cause(change.cause) != cause {
+			return errors.Errorf("expect state cause: want: %s, got: %s (%v)", cause, change.cause, change)
+		}
+
+	case <-time.After(1 * time.Second):
+		return errors.Errorf("expect state change: want: %s, but nothing happened", StateNames[state])
 	}
 
 	return nil
@@ -98,6 +149,7 @@ func getRootHandler(
 	tx <-chan websocketTx,
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithCancel(context.Background())
 		upgrader := websocket.Upgrader{}
 		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -126,20 +178,29 @@ func getRootHandler(
 				}
 
 				if err != nil {
+					t.Logf("breaking out of Rx loop")
+					// Signal tx loop to exit as well
+					cancel()
 					break
 				}
 			}
 		}()
 
+	txLoop:
 		for {
-			msg := <-tx
+			select {
+			case msg := <-tx:
+				t.Logf("websocket tx: type=%d, data=%+v", msg.messageType, msg.data)
 
-			t.Logf("websocket tx: type=%d, data=%+v", msg.messageType, msg.data)
-
-			if err := ws.WriteMessage(msg.messageType, msg.data); err != nil {
-				t.Logf("error writing to websocket: %s", err)
-				break
+				if err := ws.WriteMessage(msg.messageType, msg.data); err != nil {
+					t.Logf("error writing to websocket: %s", err)
+					break
+				}
+			case <-ctx.Done():
+				t.Logf("breaking out of Tx loop")
+				break txLoop
 			}
+
 		}
 	}
 }
@@ -152,7 +213,7 @@ type testServerParams struct {
 
 func withTestServer(
 	t *testing.T,
-	cb func(tp testServerParams) error,
+	cb func(tp *testServerParams) error,
 ) error {
 	// tx and rx are channels to communicate raw websocket messages with the
 	// test server: everything received by the server will be delivered to rx,
@@ -172,7 +233,7 @@ func withTestServer(
 	}
 	u.Scheme = "ws"
 
-	if err := cb(testServerParams{
+	if err := cb(&testServerParams{
 		rx:  rx,
 		tx:  tx,
 		url: u.String(),
@@ -183,10 +244,10 @@ func withTestServer(
 	return nil
 }
 
-// TestWriteToNonConnected ensures that sending to a non-connected StreamConn
+// TestWriteToNonConnected ensures that sending to a non-established StreamConn
 // results in an error
 func TestWriteToNonConnected(t *testing.T) {
-	err := withTestServer(t, func(tp testServerParams) error {
+	err := withTestServer(t, func(tp *testServerParams) error {
 		conn, err := NewStreamConn(&StreamParams{
 			URL:              tp.url,
 			Reconnect:        true,
@@ -212,7 +273,7 @@ func TestWriteToNonConnected(t *testing.T) {
 // TestConnectConnected ensures that calling Connect on a connection with
 // active connection loop results in an error
 func TestConnectConnected(t *testing.T) {
-	err := withTestServer(t, func(tp testServerParams) error {
+	err := withTestServer(t, func(tp *testServerParams) error {
 		c, err := NewStreamConn(&StreamParams{
 			URL:              tp.url,
 			Reconnect:        true,
@@ -242,7 +303,7 @@ func TestConnectConnected(t *testing.T) {
 // TestConnectConnected ensures that calling Connect on a connection with
 // active connection loop results in an error
 func TestCloseClosed(t *testing.T) {
-	err := withTestServer(t, func(tp testServerParams) error {
+	err := withTestServer(t, func(tp *testServerParams) error {
 		c, err := NewStreamConn(&StreamParams{
 			URL:              tp.url,
 			Reconnect:        true,
@@ -265,19 +326,20 @@ func TestCloseClosed(t *testing.T) {
 	}
 }
 
-func TestMarketConn(t *testing.T) {
-	err := withTestServer(t, func(tp testServerParams) error {
+func TestStreamConn(t *testing.T) {
+	err := withTestServer(t, func(tp *testServerParams) error {
 		// marketRx is a channel to which all MarketUpdateMessage's received by
 		// the client will be delivered.
-		marketRx := make(chan *ProtobufMarkets.MarketUpdateMessage, 128)
+		marketRx := make(chan *pbm.MarketUpdateMessage, 128)
 
-		conn, err := NewMarketConn(&MarketParams{
-			StreamParams: StreamParams{
-				URL:              tp.url,
-				Reconnect:        true,
-				ReconnectTimeout: 1 * time.Millisecond,
-				Subscriptions:    []string{"foo", "bar"},
-			},
+		conn, err := NewStreamConn(&StreamParams{
+			URL:              tp.url,
+			Reconnect:        true,
+			ReconnectTimeout: 1 * time.Millisecond,
+			Subscriptions:    []string{"foo", "bar"},
+
+			APIKey:    testApiKey1,
+			SecretKey: testSecretKey1,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -285,10 +347,10 @@ func TestMarketConn(t *testing.T) {
 
 		// Add state tracker to the connection, so we'll see all state transitions
 		st := newStateTracker()
-		st.AddStateListener(conn.StreamConn, StateAny, StateListenerOpt{})
+		st.AddStateListener(conn, StateAny, StateListenerOpt{})
 
-		conn.AddMessageListener(
-			func(conn *MarketConn, msg *ProtobufMarkets.MarketUpdateMessage) {
+		conn.AddMarketListener(
+			func(conn *StreamConn, msg *pbm.MarketUpdateMessage) {
 				marketRx <- msg
 			},
 		)
@@ -302,17 +364,31 @@ func TestMarketConn(t *testing.T) {
 		}
 
 		// Wait for the new conn to be opened
-		if err := waitConnOpen(tp.rx); err != nil {
+		if err := waitConnOpen(t, tp); err != nil {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st.ExpectState(StateConnected); err != nil {
+		if err := st.ExpectState(StateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
+		// Wait for the authentication request
+		if err := waitAuthnReq(t, tp, testApiKey1, testSecretKey1); err != nil {
+			return errors.Errorf("waiting for authn request: %s", err)
+		}
+
+		// Send AuthenticationResult to the client
+		if err := sendAuthnResp(t, tp, pbs.AuthenticationResult_AUTHENTICATED); err != nil {
+			return errors.Errorf("sending authn resp: %s", err)
+		}
+
 		// Wait for the client identification message
-		if err := waitIdMsg(tp.rx, []string{"foo", "bar"}); err != nil {
+		if err := waitIdMsg(t, tp, []string{"foo", "bar"}); err != nil {
 			return errors.Errorf("waiting for client identification message: %s", err)
+		}
+
+		if err := st.ExpectState(StateEstablished); err != nil {
+			return errors.Trace(err)
 		}
 
 		// Subscribe to one more topic
@@ -321,14 +397,15 @@ func TestMarketConn(t *testing.T) {
 		}
 
 		// Wait for the subscribe-to-baz message
-		if err := waitSubscribeMsg(tp.rx, []string{"baz"}); err != nil {
+		if err := waitSubscribeMsg(t, tp, []string{"baz"}); err != nil {
 			return errors.Errorf("waiting for subscribe message: %s", err)
 		}
 
 		// Check states so far
 		if err := st.CheckStates([]string{
 			"disconnected->connecting",
-			"connecting->connected",
+			"connecting->authenticating",
+			"authenticating->established",
 		}); err != nil {
 			return errors.Trace(err)
 		}
@@ -348,14 +425,18 @@ func TestMarketConn(t *testing.T) {
 		}
 
 		// Send MarketUpdateMessage to the client {{{
-		mm := &ProtobufMarkets.MarketUpdateMessage{
-			Update: &ProtobufMarkets.MarketUpdateMessage_TradesUpdate{
-				TradesUpdate: &ProtobufMarkets.TradesUpdate{
-					Trades: []*ProtobufMarkets.Trade{
-						&ProtobufMarkets.Trade{
-							Id:     1,
-							Price:  2,
-							Amount: 3,
+		mm := &pbs.StreamMessage{
+			Body: &pbs.StreamMessage_MarketUpdate{
+				MarketUpdate: &pbm.MarketUpdateMessage{
+					Update: &pbm.MarketUpdateMessage_TradesUpdate{
+						TradesUpdate: &pbm.TradesUpdate{
+							Trades: []*pbm.Trade{
+								&pbm.Trade{
+									Id:     1,
+									Price:  2,
+									Amount: 3,
+								},
+							},
 						},
 					},
 				},
@@ -412,7 +493,7 @@ func TestMarketConn(t *testing.T) {
 		}
 
 		// Wait for the connection being closed
-		if err := waitConnClose(tp.rx); err != nil {
+		if err := waitConnClose(t, tp); err != nil {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
@@ -425,26 +506,42 @@ func TestMarketConn(t *testing.T) {
 		}
 
 		// Wait for the new conn to be opened
-		if err := waitConnOpen(tp.rx); err != nil {
+		if err := waitConnOpen(t, tp); err != nil {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st.ExpectState(StateConnected); err != nil {
+		if err := st.ExpectState(StateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
+		// Wait for the authentication request
+		if err := waitAuthnReq(t, tp, testApiKey1, testSecretKey1); err != nil {
+			return errors.Errorf("waiting for authn request: %s", err)
+		}
+
+		// Send AuthenticationResult to the client
+		if err := sendAuthnResp(t, tp, pbs.AuthenticationResult_AUTHENTICATED); err != nil {
+			return errors.Errorf("sending authn resp: %s", err)
+		}
+
 		// Wait for the client identification message
-		if err := waitIdMsg(tp.rx, []string{"foo", "bar"}); err != nil {
+		if err := waitIdMsg(t, tp, []string{"foo", "bar"}); err != nil {
 			return errors.Errorf("waiting for client identification message: %s", err)
+		}
+
+		if err := st.ExpectState(StateEstablished); err != nil {
+			return errors.Trace(err)
 		}
 
 		// Check states so far
 		if err := st.CheckStates([]string{
 			"disconnected->connecting",
-			"connecting->connected",
-			"connected->wait_before_reconnect(websocket: close 1003 (unsupported data))",
+			"connecting->authenticating",
+			"authenticating->established",
+			"established->wait_before_reconnect(websocket: close 1003 (unsupported data))",
 			"wait_before_reconnect->connecting",
-			"connecting->connected",
+			"connecting->authenticating",
+			"authenticating->established",
 		}); err != nil {
 			return errors.Trace(err)
 		}
@@ -452,17 +549,138 @@ func TestMarketConn(t *testing.T) {
 		return nil
 	})
 	if err != nil {
+		t.Log(errors.ErrorStack(err))
+		t.Error(err)
+		return
+	}
+}
+
+func TestAuthnErrors(t *testing.T) {
+	err := withTestServer(t, func(tp *testServerParams) error {
+		// marketRx is a channel to which all MarketUpdateMessage's received by
+		// the client will be delivered.
+		marketRx := make(chan *pbm.MarketUpdateMessage, 128)
+
+		conn, err := NewStreamConn(&StreamParams{
+			URL:              tp.url,
+			Reconnect:        true,
+			ReconnectTimeout: 1 * time.Millisecond,
+			Subscriptions:    []string{"foo", "bar"},
+
+			APIKey:    testApiKey1,
+			SecretKey: testSecretKeyWrong,
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		// Add state tracker to the connection, so we'll see all state transitions
+		st := newStateTracker()
+		st.AddStateListener(conn, StateAny, StateListenerOpt{})
+
+		conn.AddMarketListener(
+			func(conn *StreamConn, msg *pbm.MarketUpdateMessage) {
+				marketRx <- msg
+			},
+		)
+
+		if err := conn.Connect(); err != nil {
+			return errors.Trace(err)
+		}
+
+		type testCase struct {
+			returnedStatus pbs.AuthenticationResult_Status
+			retry          int
+			expectedCause  error
+		}
+
+		testCases := []testCase{
+			testCase{pbs.AuthenticationResult_TOKEN_MISMATCH, 1, ErrBadCredentials},
+			testCase{pbs.AuthenticationResult_BAD_NONCE, 1, ErrUnknownAuthnError},
+			testCase{pbs.AuthenticationResult_UNKNOWN, 1, ErrUnknownAuthnError},
+			testCase{pbs.AuthenticationResult_TOKEN_EXPIRED, 3, ErrTokenExpired},
+		}
+
+		for _, tc := range testCases {
+			if err := st.ExpectState(StateConnecting); err != nil {
+				return errors.Trace(err)
+			}
+
+			// Wait for the new conn to be opened
+			if err := waitConnOpen(t, tp); err != nil {
+				return errors.Errorf("waiting for new conn to be opened: %s", err)
+			}
+
+			if err := st.ExpectState(StateAuthenticating); err != nil {
+				return errors.Trace(err)
+			}
+
+			// Try to authenticate a certain number of times
+			for i := 0; i < tc.retry; i++ {
+				// Wait for the authentication request
+				if err := waitAuthnReq(t, tp, testApiKey1, testSecretKey1); err == nil {
+					return errors.Errorf("authn request should be wrong")
+				}
+
+				// Send AuthenticationResult to the client
+				if err := sendAuthnResp(t, tp, tc.returnedStatus); err != nil {
+					return errors.Errorf("sending authn resp: %s", err)
+				}
+			}
+
+			// Wait for the conn to be closed
+			if err := waitConnClose(t, tp); err != nil {
+				return errors.Errorf("waiting for connection being closed: %s", err)
+			}
+
+			if err := st.ExpectStateWCause(StateWaitBeforeReconnect, tc.expectedCause); err != nil {
+				return errors.Trace(err)
+			}
+		}
+
+		// Now, finally connect successfully {{{
+		if err := st.ExpectState(StateConnecting); err != nil {
+			return errors.Trace(err)
+		}
+
+		// Wait for the new conn to be opened
+		if err := waitConnOpen(t, tp); err != nil {
+			return errors.Errorf("waiting for new conn to be opened: %s", err)
+		}
+
+		if err := st.ExpectState(StateAuthenticating); err != nil {
+			return errors.Trace(err)
+		}
+
+		// Wait for the authentication request
+		if err := waitAuthnReq(t, tp, testApiKey1, testSecretKey1); err == nil {
+			return errors.Errorf("authn request should be wrong")
+		}
+
+		// Send AuthenticationResult to the client
+		if err := sendAuthnResp(t, tp, pbs.AuthenticationResult_AUTHENTICATED); err != nil {
+			return errors.Errorf("sending authn resp: %s", err)
+		}
+		// }}}
+
+		return nil
+	})
+	if err != nil {
+		t.Log(errors.ErrorStack(err))
 		t.Error(err)
 		return
 	}
 }
 
 func TestStateListeners(t *testing.T) {
-	err := withTestServer(t, func(tp testServerParams) error {
+	err := withTestServer(t, func(tp *testServerParams) error {
 		c, err := NewStreamConn(&StreamParams{
 			URL:              tp.url,
 			Reconnect:        true,
 			ReconnectTimeout: 1 * time.Millisecond,
+
+			APIKey:    testApiKey1,
+			SecretKey: testSecretKey1,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -480,14 +698,17 @@ func TestStateListeners(t *testing.T) {
 				state: StateAny, oneOff: false, callImmediately: false,
 				wantTransitions: []string{
 					"disconnected->connecting",
-					"connecting->connected",
-					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+					"connecting->authenticating",
+					"authenticating->established",
+					"established->wait_before_reconnect(websocket: close 1005 (no status))",
 					"wait_before_reconnect->connecting",
-					"connecting->connected",
-					"connected->disconnected(websocket: close 1000 (normal))",
+					"connecting->authenticating",
+					"authenticating->established",
+					"established->disconnected(websocket: close 1000 (normal))",
 					"disconnected->connecting",
-					"connecting->connected",
-					"connected->disconnected(websocket: close 1000 (normal))",
+					"connecting->authenticating",
+					"authenticating->established",
+					"established->disconnected(websocket: close 1000 (normal))",
 				},
 			},
 			testCase{
@@ -495,14 +716,17 @@ func TestStateListeners(t *testing.T) {
 				wantTransitions: []string{
 					"disconnected->disconnected",
 					"disconnected->connecting",
-					"connecting->connected",
-					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+					"connecting->authenticating",
+					"authenticating->established",
+					"established->wait_before_reconnect(websocket: close 1005 (no status))",
 					"wait_before_reconnect->connecting",
-					"connecting->connected",
-					"connected->disconnected(websocket: close 1000 (normal))",
+					"connecting->authenticating",
+					"authenticating->established",
+					"established->disconnected(websocket: close 1000 (normal))",
 					"disconnected->connecting",
-					"connecting->connected",
-					"connected->disconnected(websocket: close 1000 (normal))",
+					"connecting->authenticating",
+					"authenticating->established",
+					"established->disconnected(websocket: close 1000 (normal))",
 				},
 			},
 			testCase{
@@ -519,53 +743,53 @@ func TestStateListeners(t *testing.T) {
 			},
 
 			testCase{
-				state: StateConnected, oneOff: false, callImmediately: false,
+				state: StateEstablished, oneOff: false, callImmediately: false,
 				wantTransitions: []string{
-					"connecting->connected",
-					"connecting->connected",
-					"connecting->connected",
+					"authenticating->established",
+					"authenticating->established",
+					"authenticating->established",
 				},
 			},
 			testCase{
-				state: StateConnected, oneOff: false, callImmediately: true,
+				state: StateEstablished, oneOff: false, callImmediately: true,
 				wantTransitions: []string{
-					"connecting->connected",
-					"connecting->connected",
-					"connecting->connected",
+					"authenticating->established",
+					"authenticating->established",
+					"authenticating->established",
 				},
 			},
 			testCase{
-				state: StateConnected, oneOff: true, callImmediately: false,
+				state: StateEstablished, oneOff: true, callImmediately: false,
 				wantTransitions: []string{
-					"connecting->connected",
+					"authenticating->established",
 				},
 			},
 			testCase{
-				state: StateConnected, oneOff: true, callImmediately: true,
+				state: StateEstablished, oneOff: true, callImmediately: true,
 				wantTransitions: []string{
-					"connecting->connected",
+					"authenticating->established",
 				},
 			},
 
 			testCase{
 				state: StateDisconnected, oneOff: false, callImmediately: false,
 				wantTransitions: []string{
-					"connected->disconnected(websocket: close 1000 (normal))",
-					"connected->disconnected(websocket: close 1000 (normal))",
+					"established->disconnected(websocket: close 1000 (normal))",
+					"established->disconnected(websocket: close 1000 (normal))",
 				},
 			},
 			testCase{
 				state: StateDisconnected, oneOff: false, callImmediately: true,
 				wantTransitions: []string{
 					"disconnected->disconnected",
-					"connected->disconnected(websocket: close 1000 (normal))",
-					"connected->disconnected(websocket: close 1000 (normal))",
+					"established->disconnected(websocket: close 1000 (normal))",
+					"established->disconnected(websocket: close 1000 (normal))",
 				},
 			},
 			testCase{
 				state: StateDisconnected, oneOff: true, callImmediately: false,
 				wantTransitions: []string{
-					"connected->disconnected(websocket: close 1000 (normal))",
+					"established->disconnected(websocket: close 1000 (normal))",
 				},
 			},
 			testCase{
@@ -578,25 +802,25 @@ func TestStateListeners(t *testing.T) {
 			testCase{
 				state: StateWaitBeforeReconnect, oneOff: false, callImmediately: false,
 				wantTransitions: []string{
-					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+					"established->wait_before_reconnect(websocket: close 1005 (no status))",
 				},
 			},
 			testCase{
 				state: StateWaitBeforeReconnect, oneOff: false, callImmediately: true,
 				wantTransitions: []string{
-					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+					"established->wait_before_reconnect(websocket: close 1005 (no status))",
 				},
 			},
 			testCase{
 				state: StateWaitBeforeReconnect, oneOff: true, callImmediately: false,
 				wantTransitions: []string{
-					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+					"established->wait_before_reconnect(websocket: close 1005 (no status))",
 				},
 			},
 			testCase{
 				state: StateWaitBeforeReconnect, oneOff: true, callImmediately: true,
 				wantTransitions: []string{
-					"connected->wait_before_reconnect(websocket: close 1005 (no status))",
+					"established->wait_before_reconnect(websocket: close 1005 (no status))",
 				},
 			},
 		}
@@ -620,24 +844,38 @@ func TestStateListeners(t *testing.T) {
 		}
 
 		// Wait for the new conn to be opened
-		if err := waitConnOpen(tp.rx); err != nil {
+		if err := waitConnOpen(t, tp); err != nil {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st[0].ExpectState(StateConnected); err != nil {
+		if err := st[0].ExpectState(StateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
+		// Wait for the authentication request
+		if err := waitAuthnReq(t, tp, testApiKey1, testSecretKey1); err != nil {
+			return errors.Errorf("waiting for authn request: %s", err)
+		}
+
+		// Send AuthenticationResult to the client
+		if err := sendAuthnResp(t, tp, pbs.AuthenticationResult_AUTHENTICATED); err != nil {
+			return errors.Errorf("sending authn resp: %s", err)
+		}
+
 		// Wait for the client identification message
-		if err := waitIdMsg(tp.rx, []string{}); err != nil {
+		if err := waitIdMsg(t, tp, []string{}); err != nil {
 			return errors.Errorf("waiting for client identification message: %s", err)
 		}
 
+		if err := st[0].ExpectState(StateEstablished); err != nil {
+			return errors.Trace(err)
+		}
+
 		// Reconnect
-		c.closeInternal(nil, false)
+		c.transport.CloseOpt(nil, false)
 
 		// Wait for the connection being closed
-		if err := waitConnClose(tp.rx); err != nil {
+		if err := waitConnClose(t, tp); err != nil {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
@@ -650,17 +888,31 @@ func TestStateListeners(t *testing.T) {
 		}
 
 		// Wait for the new conn to be opened
-		if err := waitConnOpen(tp.rx); err != nil {
+		if err := waitConnOpen(t, tp); err != nil {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st[0].ExpectState(StateConnected); err != nil {
+		if err := st[0].ExpectState(StateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
+		// Wait for the authentication request
+		if err := waitAuthnReq(t, tp, testApiKey1, testSecretKey1); err != nil {
+			return errors.Errorf("waiting for authn request: %s", err)
+		}
+
+		// Send AuthenticationResult to the client
+		if err := sendAuthnResp(t, tp, pbs.AuthenticationResult_AUTHENTICATED); err != nil {
+			return errors.Errorf("sending authn resp: %s", err)
+		}
+
 		// Wait for the client identification message
-		if err := waitIdMsg(tp.rx, []string{}); err != nil {
+		if err := waitIdMsg(t, tp, []string{}); err != nil {
 			return errors.Errorf("waiting for client identification message: %s", err)
+		}
+
+		if err := st[0].ExpectState(StateEstablished); err != nil {
+			return errors.Trace(err)
 		}
 
 		// Close and stop reconnecting
@@ -669,7 +921,7 @@ func TestStateListeners(t *testing.T) {
 		}
 
 		// Wait for the connection being closed
-		if err := waitConnClose(tp.rx); err != nil {
+		if err := waitConnClose(t, tp); err != nil {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
@@ -687,17 +939,31 @@ func TestStateListeners(t *testing.T) {
 		}
 
 		// Wait for the new conn to be opened
-		if err := waitConnOpen(tp.rx); err != nil {
+		if err := waitConnOpen(t, tp); err != nil {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st[0].ExpectState(StateConnected); err != nil {
+		if err := st[0].ExpectState(StateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
+		// Wait for the authentication request
+		if err := waitAuthnReq(t, tp, testApiKey1, testSecretKey1); err != nil {
+			return errors.Errorf("waiting for authn request: %s", err)
+		}
+
+		// Send AuthenticationResult to the client
+		if err := sendAuthnResp(t, tp, pbs.AuthenticationResult_AUTHENTICATED); err != nil {
+			return errors.Errorf("sending authn resp: %s", err)
+		}
+
 		// Wait for the client identification message
-		if err := waitIdMsg(tp.rx, []string{}); err != nil {
+		if err := waitIdMsg(t, tp, []string{}); err != nil {
 			return errors.Errorf("waiting for client identification message: %s", err)
+		}
+
+		if err := st[0].ExpectState(StateEstablished); err != nil {
+			return errors.Trace(err)
 		}
 
 		// Close and stop reconnecting
@@ -706,7 +972,7 @@ func TestStateListeners(t *testing.T) {
 		}
 
 		// Wait for the connection being closed
-		if err := waitConnClose(tp.rx); err != nil {
+		if err := waitConnClose(t, tp); err != nil {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
@@ -725,13 +991,14 @@ func TestStateListeners(t *testing.T) {
 		return nil
 	})
 	if err != nil {
+		t.Log(errors.ErrorStack(err))
 		t.Error(err)
 		return
 	}
 }
 
 func TestDefaultURL(t *testing.T) {
-	err := withTestServer(t, func(tp testServerParams) error {
+	err := withTestServer(t, func(tp *testServerParams) error {
 		conn, err := NewStreamConn(&StreamParams{
 			Reconnect:        true,
 			ReconnectTimeout: 1 * time.Millisecond,
@@ -752,29 +1019,11 @@ func TestDefaultURL(t *testing.T) {
 	}
 }
 
-type eventType int
-
-const (
-	eventTypeConnOpened eventType = iota
-	eventTypeMsg
-)
-
-// websocketEvent represents an event like new opened connection or new
-// received websocket message
-type websocketEvent struct {
-	eventType eventType
-
-	// The fields below are only relevant if eventType is eventTypeMsg
-	messageType int
-	data        []byte
-	err         error
-}
-
-func waitConnOpen(rx <-chan websocketEvent) error {
+func waitConnOpen(t *testing.T, tp *testServerParams) error {
 	select {
-	case event := <-rx:
+	case event := <-tp.rx:
 		if want, got := eventTypeConnOpened, event.eventType; want != got {
-			return errors.Errorf("event type: want: %v, got: %v", want, got)
+			return errors.Errorf("event type: want: %v, got: %v (%+v)", want, got, event)
 		}
 
 	case <-time.After(1 * time.Second):
@@ -784,14 +1033,14 @@ func waitConnOpen(rx <-chan websocketEvent) error {
 	return nil
 }
 
-func waitIdMsg(rx <-chan websocketEvent, subs []string) error {
+func waitIdMsg(t *testing.T, tp *testServerParams, subs []string) error {
 	select {
-	case event := <-rx:
+	case event := <-tp.rx:
 		if want, got := eventTypeMsg, event.eventType; want != got {
 			return errors.Errorf("event type: want: %v, got: %v", want, got)
 		}
 
-		var cm ProtobufClient.ClientMessage
+		var cm pbc.ClientMessage
 		if err := proto.Unmarshal(event.data, &cm); err != nil {
 			return errors.Trace(err)
 		}
@@ -827,14 +1076,72 @@ func waitIdMsg(rx <-chan websocketEvent, subs []string) error {
 	return nil
 }
 
-func waitSubscribeMsg(rx <-chan websocketEvent, subs []string) error {
+func waitAuthnReq(t *testing.T, tp *testServerParams, apiKey, secretKey string) error {
 	select {
-	case event := <-rx:
+	case event := <-tp.rx:
 		if want, got := eventTypeMsg, event.eventType; want != got {
 			return errors.Errorf("event type: want: %v, got: %v", want, got)
 		}
 
-		var cm ProtobufClient.ClientMessage
+		var cm pbc.ClientMessage
+		if err := proto.Unmarshal(event.data, &cm); err != nil {
+			return errors.Trace(err)
+		}
+
+		apiAuthn := cm.GetApiAuthentication()
+		if apiAuthn == nil {
+			return errors.Errorf("received something other than api authentication")
+		}
+
+		if got, want := apiAuthn.ApiKey, apiKey; got != want {
+			return errors.Errorf("ApiKey: want: %q, got: %q", want, got)
+		}
+
+		token := generateToken(apiKey, secretKey, apiAuthn.Nonce)
+		if !hmac.Equal([]byte(apiAuthn.Token), []byte(token)) {
+			return errors.Errorf("HMAC: want: % x, got: % x", token, apiAuthn.Token)
+		}
+
+		// TODO: when nonce is opaque to client, check here that nonce is correct
+
+	case <-time.After(1 * time.Second):
+		return errors.Errorf("didn't receive anything")
+	}
+
+	return nil
+}
+
+func sendAuthnResp(t *testing.T, tp *testServerParams, status pbs.AuthenticationResult_Status) error {
+	t.Logf("Sending authn response, status: %v", status)
+	sm := &pbs.StreamMessage{
+		Body: &pbs.StreamMessage_AuthenticationResult{
+			AuthenticationResult: &pbs.AuthenticationResult{
+				Status: status,
+			},
+		},
+	}
+
+	data, err := proto.Marshal(sm)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	tp.tx <- websocketTx{
+		messageType: websocket.BinaryMessage,
+		data:        data,
+	}
+
+	return nil
+}
+
+func waitSubscribeMsg(t *testing.T, tp *testServerParams, subs []string) error {
+	select {
+	case event := <-tp.rx:
+		if want, got := eventTypeMsg, event.eventType; want != got {
+			return errors.Errorf("event type: want: %v, got: %v", want, got)
+		}
+
+		var cm pbc.ClientMessage
 		if err := proto.Unmarshal(event.data, &cm); err != nil {
 			return errors.Trace(err)
 		}
@@ -859,11 +1166,11 @@ func waitSubscribeMsg(rx <-chan websocketEvent, subs []string) error {
 	return nil
 }
 
-func waitConnClose(rx <-chan websocketEvent) error {
+func waitConnClose(t *testing.T, tp *testServerParams) error {
 	select {
-	case event := <-rx:
+	case event := <-tp.rx:
 		if want, got := eventTypeMsg, event.eventType; want != got {
-			return errors.Errorf("event type: want: %v, got: %v", want, got)
+			return errors.Errorf("event type: want: %v, got: %v (%+v)", want, got, event)
 		}
 
 		if event.err == nil {
@@ -875,4 +1182,11 @@ func waitConnClose(rx <-chan websocketEvent) error {
 	}
 
 	return nil
+}
+
+func generateToken(apiKey, secretKey, nonce string) string {
+	h := hmac.New(sha512.New, []byte(secretKey))
+	payload := fmt.Sprintf("stream_access;access_key_id=%v;nonce=%v;", apiKey, nonce)
+	h.Write([]byte(payload))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }

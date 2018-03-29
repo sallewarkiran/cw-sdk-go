@@ -2,15 +2,72 @@ package streamclient
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha512"
+	"encoding/base64"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	pbc "github.com/cryptowatch/proto/client"
+	pbm "github.com/cryptowatch/proto/markets"
+	pbs "github.com/cryptowatch/proto/stream"
+	"github.com/cryptowatch/stream-client-go/internal"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/juju/errors"
 )
+
+const (
+	defaultURL = "wss://sb.cryptowat.ch"
+
+	// How many times to retry authentication in case of expired token
+	authnExpiredTokenRetryCnt = 3
+)
+
+var (
+	StateNames = make([]string, StatesCnt)
+
+	ErrNotConnected      = errors.New("not connected")
+	ErrConnLoopActive    = errors.New("connection loop is already active")
+	ErrBadCredentials    = errors.New("bad credentials")
+	ErrTokenExpired      = errors.New("token is expired")
+	ErrUnknownAuthnError = errors.New("unknown authentication error")
+)
+
+func init() {
+	StateNames[StateDisconnected] = "disconnected"
+	StateNames[StateWaitBeforeReconnect] = "wait_before_reconnect"
+	StateNames[StateConnecting] = "connecting"
+	StateNames[StateAuthenticating] = "authenticating"
+	StateNames[StateEstablished] = "established"
+}
+
+// StreamParams contains params for opening a client stream connection
+type StreamParams struct {
+	// Server URL, e.g. wss://sb.cryptowat.ch
+	URL string
+
+	// APIKey and SecretKey are stream credentials
+	APIKey    string
+	SecretKey string
+
+	// Initial set of subscription keys
+	Subscriptions []string
+
+	// Whether the library should reconnect automatically
+	Reconnect bool
+	// Reconnection backoff: if true, then the reconnection time will be
+	// initially ReconnectTimeout, then will become twice as long each
+	// unsuccessful connection attempt; but it won't be longer than
+	// MaxReconnectTimeout.
+	Backoff bool
+	// Initial reconnection timeout: if zero, then 1 second will be used
+	ReconnectTimeout time.Duration
+	// Max reconnect timeout. If zero, then 30 seconds will be used.
+	MaxReconnectTimeout time.Duration
+}
 
 type State int
 
@@ -30,8 +87,13 @@ const (
 	// now.
 	StateConnecting
 
-	// StateConnected means the websocket connection is established.
-	StateConnected
+	// StateAuthenticating means the transport (websocket) connection is
+	// established, and right now we're exchanging the authentication and
+	// identification messages
+	StateAuthenticating
+
+	// StateEstablished means the connection is ready
+	StateEstablished
 
 	// StatesCnt is a number of states
 	StatesCnt
@@ -41,146 +103,347 @@ const (
 	StateAny = -1
 )
 
-const (
-	defaultURL = "wss://sb.cryptowat.ch"
-)
-
-var (
-	StateNames = make([]string, StatesCnt)
-
-	ErrNotConnected   = errors.New("not connected")
-	ErrConnLoopActive = errors.New("connection loop is already active")
-)
-
-func init() {
-	StateNames[StateDisconnected] = "disconnected"
-	StateNames[StateWaitBeforeReconnect] = "wait_before_reconnect"
-	StateNames[StateConnecting] = "connecting"
-	StateNames[StateConnected] = "connected"
-}
-
-// StreamParams contains params for opening a client stream connection
-// (see StreamConn)
-type StreamParams struct {
-	// Server URL, e.g. wss://sb.cryptowat.ch
-	URL string
-	// Initial set of subscription keys
-	Subscriptions []string
-
-	// Whether the library should reconnect automatically
-	Reconnect bool
-	// Reconnection backoff: if true, then the reconnection time will be
-	// initially ReconnectTimeout, then will become twice as long each
-	// unsuccessful connection attempt; but it won't be longer than
-	// MaxReconnectTimeout.
-	Backoff bool
-	// Initial reconnection timeout: if zero, then 1 second will be used
-	ReconnectTimeout time.Duration
-	// Max reconnect timeout. If zero, then 30 seconds will be used.
-	MaxReconnectTimeout time.Duration
-}
-
-// StreamConn is a client stream connection; it's typically wrapped into more
-// specific type of connection: e.g. MarketConn, which knows how to unmarshal
-// the data being received.
+// StreamConn represents a stream connection, it contains unexported fields
 type StreamConn struct {
 	params StreamParams
 
-	connTx        chan websocketTx
-	callListeners chan callListenersReq
+	transport *internal.StreamTransportConn
 
-	stateListeners map[State][]stateListener
+	callStateListeners  chan callStateListenersReq
+	callMarketListeners chan callMarketListenersReq
+
+	authnResCh chan error
+
+	authnCtx       context.Context
+	authnCtxCancel context.CancelFunc
 
 	// Current state
 	state State
-	// Error caused the current state; only relevant for StateDisconnected and
-	// StateWaitBeforeReconnect, for other states it's always nil.
+	// Error caused the current state; only relevant for TransportStateDisconnected and
+	// TransportStateWaitBeforeReconnect, for other states it's always nil.
 	stateCause error
 
-	// onReadCB, if not nil, is called for each received websocket message.
-	onReadCB onReadCallback
+	// TODO: document
+	isExpectedCause func(cause error) bool
+	actualCause     error
 
-	// connCtx and connCtxCancel are context and its cancel func for the
-	// currently running connLoop. If no connLoop is running at the moment (i.e.
-	// the state is StateDisconnected), these are nil.
-	connCtx       context.Context
-	connCtxCancel context.CancelFunc
-
-	// wsConn is the currently active websocket connection, or nil if no
-	// connection is established.
-	wsConn *websocket.Conn
-
-	// reconnectNow is a channel which is only non-nil in the
-	// StateWaitBeforeReconnect state, and closing it causes the reconnection to
-	// happen immediately
-	reconnectNow chan struct{}
+	stateListeners  map[State][]stateListener
+	marketListeners []OnMarketUpdateCallback
 
 	mtx sync.Mutex
 }
 
-// stateListener wraps a state change callback and a flag of whether the
-// callback is one-off (one-off listeners are only called once, on the next
-// event)
-type stateListener struct {
-	cb  StateCallback
-	opt StateListenerOpt
-}
-
-// websocketTx represents message to send to the websocket
-type websocketTx struct {
-	messageType int
-	data        []byte
-	res         chan error
-}
-
-type callListenersReq struct {
-	listeners       []stateListener
-	oldState, state State
-	cause           error
-}
-
-// NewStreamConn creates a new stream connection. Typically not used directly
-// by the clients; see more concrete connection types, e.g. NewMarketConn.
+// NewStreamConn creates a new stream connection with the given params.
 //
 // Note that clients should manually call Connect on a newly created
 // connection; the rationale is that clients might register some state and/or
 // message handlers before the connection, to avoid any possible races.
 func NewStreamConn(params *StreamParams) (*StreamConn, error) {
+	p := *params
+
+	if p.URL == "" {
+		p.URL = defaultURL
+	}
+
+	transport, err := internal.NewStreamTransportConn(&internal.StreamTransportParams{
+		URL:                 p.URL,
+		Reconnect:           p.Reconnect,
+		Backoff:             p.Backoff,
+		ReconnectTimeout:    p.ReconnectTimeout,
+		MaxReconnectTimeout: p.MaxReconnectTimeout,
+	})
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	c := &StreamConn{
-		// Copy params defensively
-		params: *params,
+		params: p,
 
-		state:          StateDisconnected,
+		transport: transport,
+
+		callStateListeners:  make(chan callStateListenersReq, 1),
+		callMarketListeners: make(chan callMarketListenersReq, 1),
+
 		stateListeners: make(map[State][]stateListener),
-		connTx:         make(chan websocketTx, 1),
-		callListeners:  make(chan callListenersReq, 1),
 	}
 
-	if c.params.URL == "" {
-		c.params.URL = defaultURL
-	}
+	transport.OnStateChange(
+		func(_ *internal.StreamTransportConn, oldTransportState, transportState internal.TransportState, cause error) {
 
-	// By default, set reconnection time to 1 second, and max reconnection
-	// time to 30 seconds
-	if c.params.ReconnectTimeout == 0 {
-		c.params.ReconnectTimeout = 1 * time.Second
-	}
-	if c.params.MaxReconnectTimeout == 0 {
-		c.params.MaxReconnectTimeout = 30 * time.Second
-	}
+			switch transportState {
 
-	// When connected, will send client identification message
-	c.AddStateListener(StateConnected, sendClientID)
+			case
+				internal.TransportStateDisconnected,
+				internal.TransportStateWaitBeforeReconnect,
+				internal.TransportStateConnecting:
 
-	// Start writeLoop right away, before even connecting, so that an attempt to
-	// write something while not connected will result in a proper error.
-	go c.writeLoop()
+				var state State
+				switch transportState {
+				case internal.TransportStateDisconnected:
+					state = StateDisconnected
+				case internal.TransportStateWaitBeforeReconnect:
+					state = StateWaitBeforeReconnect
+				case internal.TransportStateConnecting:
+					state = StateConnecting
+				default:
+					// Should never be here
+					panic(fmt.Sprintf("unexpected transport state: %d", transportState))
+				}
+
+				c.mtx.Lock()
+				// See if we need to replace the cause returned by transport layer
+				// with another (more specific) one
+				if c.isExpectedCause != nil && c.isExpectedCause(cause) {
+					cause = c.actualCause
+				}
+
+				c.isExpectedCause = nil
+				c.actualCause = nil
+
+				c.updateState(state, errors.Trace(cause))
+				c.mtx.Unlock()
+
+			case internal.TransportStateConnected:
+				c.mtx.Lock()
+				c.updateState(StateAuthenticating, errors.Trace(cause))
+				authnResCh := c.authnResCh
+				ctx := c.authnCtx
+				c.mtx.Unlock()
+
+				go func() (authnErr error) {
+					defer func() {
+						if authnErr != nil {
+							// Failed to perform authentication; if the state is still
+							// "authenticating", disconnect
+							c.mtx.Lock()
+							defer c.mtx.Unlock()
+
+							if c.state == StateAuthenticating {
+								// And also substitute the generic websocket closing error
+								// with the specific error (authnErr)
+								c.substituteUpcomingCause(func(cause error) bool {
+									cause = errors.Cause(cause)
+									return websocket.IsCloseError(cause, websocket.CloseProtocolError) ||
+										isClosedConnError(cause)
+								}, authnErr)
+
+								c.transport.CloseOpt(
+									websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
+									false,
+								)
+							}
+						}
+					}()
+
+					// Authenticate {{{
+					var authnRes error
+				authnLoop:
+					for i := 0; i < authnExpiredTokenRetryCnt; i++ {
+						// TODO: use a non-opaque nonce from the server, when it's
+						// implemented
+						nonce := getNonce()
+						authMsg := &pbc.ClientMessage{
+							Body: &pbc.ClientMessage_ApiAuthentication{
+								ApiAuthentication: &pbc.APIAuthenticationMessage{
+									Token:  c.generateToken(nonce),
+									Nonce:  nonce,
+									ApiKey: c.params.APIKey,
+									Source: pbc.APIAuthenticationMessage_GOLANG_SDK,
+								},
+							},
+						}
+
+						select {
+						case <-ctx.Done():
+							return errors.Trace(ctx.Err())
+						default:
+						}
+
+						if err := c.sendProto(ctx, authMsg); err != nil {
+							return errors.Trace(err)
+						}
+
+						select {
+						case <-ctx.Done():
+							return errors.Trace(ctx.Err())
+						case authnRes = <-authnResCh:
+							if authnRes != nil {
+								if errors.Cause(authnRes) == ErrTokenExpired {
+									// Token is expired: try to authn again (if not tried too
+									// many times already)
+									continue authnLoop
+								}
+								return errors.Trace(authnRes)
+							}
+						}
+
+						break authnLoop
+					}
+					if authnRes != nil {
+						return errors.Trace(authnRes)
+					}
+					// }}}
+
+					// Send client ID {{{
+					cm := &pbc.ClientMessage{
+						Body: &pbc.ClientMessage_Identification{
+							Identification: &pbc.ClientIdentificationMessage{
+								Useragent: fmt.Sprintf("Cryptowatch Stream Client Golang/%s", version),
+
+								// TODO: probably pass revision via params so that it depends on a
+								// client application rather than a library, or just leave it always
+								// empty as it is now.
+								//
+								// It's not trivial to have a revision of the library repo, because it
+								// should be go-gettable and importable by other code, and for that,
+								// we'd need to include the revision constant into the repo. Obviously,
+								// even if we do autogenerate some file with the revision on every
+								// commit, it would actually represent previous commit, not the current
+								// one, and this would be just weird.
+								Revision:      "",
+								Integration:   "",      // Irrelevant
+								Locale:        "en_US", // TODO: get locale from the OS
+								Subscriptions: c.params.Subscriptions,
+							},
+						},
+					}
+
+					if err := c.sendProto(ctx, cm); err != nil {
+						return errors.Trace(err)
+					}
+					// }}}
+
+					select {
+					case <-ctx.Done():
+						return errors.Trace(ctx.Err())
+					default:
+					}
+
+					// NOTE: as we switch state to StateEstablished, ctx will be
+					// cancelled, so we shouldn't check it anymore and just return nil
+					c.mtx.Lock()
+					c.updateState(StateEstablished, errors.Trace(cause))
+					c.mtx.Unlock()
+					return nil
+				}()
+			}
+
+		},
+	)
+
+	transport.OnRead(func(sc *internal.StreamTransportConn, data []byte) {
+		var msg pbs.StreamMessage
+
+		if err := proto.Unmarshal(data, &msg); err != nil {
+			// Failed to parse incoming message: close connection (and if
+			// reconnection was requested, then reconnect)
+			c.transport.CloseOpt(
+				websocket.FormatCloseMessage(websocket.CloseUnsupportedData, ""),
+				false,
+			)
+			return
+		}
+
+		if authnResMsg := msg.GetAuthenticationResult(); authnResMsg != nil {
+			// Got authentication result message
+			var authnRes error
+
+			switch authnResMsg.Status {
+			case pbs.AuthenticationResult_AUTHENTICATED:
+				// Good news. no-op
+
+			case pbs.AuthenticationResult_TOKEN_EXPIRED:
+				// The token is expired, we'll probably try authenticating again
+				authnRes = ErrTokenExpired
+
+			case pbs.AuthenticationResult_TOKEN_MISMATCH:
+				// User provided bad creds
+				c.transport.CloseOpt(
+					websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
+					false,
+				)
+				authnRes = ErrBadCredentials
+
+			case pbs.AuthenticationResult_BAD_NONCE, pbs.AuthenticationResult_UNKNOWN:
+				// Shouldn't happen normally
+				c.transport.CloseOpt(
+					websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
+					false,
+				)
+				authnRes = ErrUnknownAuthnError
+			}
+
+			// If we are still waiting for the result, send it
+			c.mtx.Lock()
+			authnResCh := c.authnResCh
+			c.mtx.Unlock()
+
+			if authnResCh != nil {
+				authnResCh <- authnRes
+			}
+		} else if marketUpdMsg := msg.GetMarketUpdate(); marketUpdMsg != nil {
+			c.mtx.Lock()
+			listeners := make([]OnMarketUpdateCallback, len(c.marketListeners))
+			for i, v := range c.marketListeners {
+				listeners[i] = v
+			}
+			c.mtx.Unlock()
+
+			// Request listeners invocation (will be invoked by a dedicated goroutine)
+			c.callMarketListeners <- callMarketListenersReq{
+				listeners: listeners,
+				msg:       marketUpdMsg,
+			}
+		} else {
+			// Received some unknown kind of message; ignore it (probably the client
+			// is outdated)
+		}
+
+	})
 
 	// Start goroutine which will call state listeners. See comment for
 	// notifyLoop for the rationale of this design.
 	go c.notifyLoop()
 
 	return c, nil
+}
+
+// Connect either starts a connection goroutine (if state is
+// StateDisconnected), or makes it to stop waiting a timeout and connect right
+// now (if state is StateWaitBeforeReconnect). For other states, returns an
+// error.
+//
+// It doesn't wait for the connection to establish, and returns immediately.
+func (c *StreamConn) Connect() (err error) {
+	defer func() {
+		// Translate internal transport errors to public ones
+		if errors.Cause(err) == internal.ErrConnLoopActive {
+			err = errors.Trace(ErrConnLoopActive)
+		}
+	}()
+
+	if err := c.transport.Connect(); err != nil {
+		return errors.Trace(err)
+	}
+
+	return nil
+}
+
+// Close stops reconnection loop (if reconnection was requested), and if
+// websocket connection is active at the moment, closes it as well
+func (c *StreamConn) Close() (err error) {
+	defer func() {
+		// Translate internal transport errors to public ones
+		if errors.Cause(err) == internal.ErrNotConnected {
+			err = errors.Trace(ErrNotConnected)
+		}
+	}()
+
+	if err = c.transport.Close(); err != nil {
+		return errors.Trace(err)
+	}
+
+	return nil
 }
 
 // StateCallback is a signature of a state listener. Arguments conn, oldState
@@ -192,20 +455,6 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 // See AddStateListener.
 type StateCallback func(conn *StreamConn, oldState, state State, cause error)
 
-// AddStateListener registers a new listener for the given state. Listener is
-// registered with the default options (zero values of all fields in
-// StateListenerOpt). All registered callbacks for all states will be called by
-// the same internal goroutine, i.e. they are never called concurrently with
-// each other.
-//
-// The order of listeners invocation for the same state is unspecified, and
-// clients shouldn't rely on it.
-//
-// To subscribe to all state changes, use StateAny.
-func (c *StreamConn) AddStateListener(state State, cb StateCallback) {
-	c.AddStateListenerOpt(state, cb, StateListenerOpt{})
-}
-
 type StateListenerOpt struct {
 	// If OneOff is true, the listener will only be called once; otherwise it'll
 	// be called every time the requested state becomes active.
@@ -214,6 +463,24 @@ type StateListenerOpt struct {
 	// at the moment, the callback will be called immediately (with the "old"
 	// state being equal to the new one)
 	CallImmediately bool
+}
+
+// AddStateListener registers a new listener for the given state. Listener is
+// registered with the default options (zero values of all fields in
+// StateListenerOpt). All registered callbacks for all states (and all
+// messages, see AddMarketListener) will be called by the same internal
+// goroutine, i.e. they are never called concurrently with each other.
+//
+// The order of listeners invocation for the same state is unspecified, and
+// clients shouldn't rely on it.
+//
+// The listeners shouldn't block; a blocked listener will cause the whole
+// stream connection to stuck. If you need to block there, consider spawning a
+// goroutine for that.
+//
+// To subscribe to all state changes, use StateAny as a state.
+func (c *StreamConn) AddStateListener(state State, cb StateCallback) {
+	c.AddStateListenerOpt(state, cb, StateListenerOpt{})
 }
 
 // AddStateListenerOpt is like AddStateListener, but also takes additional
@@ -236,87 +503,13 @@ func (c *StreamConn) AddStateListenerOpt(state State, cb StateCallback, opt Stat
 	}
 
 	if callNow {
-		c.callListeners <- callListenersReq{
+		c.callStateListeners <- callStateListenersReq{
 			listeners: []stateListener{sl},
 			oldState:  c.state,
 			state:     c.state,
 			cause:     c.stateCause,
 		}
 	}
-}
-
-// Connect either starts a connection goroutine (if state is
-// StateDisconnected), or makes it to stop waiting a timeout and connect right
-// now (if state is StateWaitBeforeReconnect). For other states, returns an
-// error.
-//
-// It doesn't wait for the connection to establish, and returns immediately.
-func (c *StreamConn) Connect() error {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	switch c.state {
-	case StateDisconnected:
-		// NOTE that we need to enter the state StateConnecting here and not in
-		// connLoop, in order to prevent the race which would result in multiple
-		// running connLoops.
-		c.updateState(StateConnecting, nil)
-
-		go c.connLoop(c.connCtx, c.connCtxCancel)
-
-	case StateWaitBeforeReconnect:
-		// We're waiting for a timeout before reconnecting; force it to reconnect
-		// right now
-		close(c.reconnectNow)
-
-	case StateConnecting, StateConnected:
-		// Already connected or connecting
-		return errors.Trace(ErrConnLoopActive)
-	}
-
-	return nil
-}
-
-// Close stops reconnection loop (if reconnection was requested), and if
-// websocket connection is active at the moment, closes it as well (with the
-// code 1000, i.e. normal closure). If graceful websocket closure fails, the
-// forceful one is performed.
-func (c *StreamConn) Close() error {
-	if err := c.closeInternal(websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), true); err != nil {
-		return errors.Trace(err)
-	}
-
-	return nil
-}
-
-func (c *StreamConn) closeInternal(data []byte, stopReconnecting bool) error {
-	c.mtx.Lock()
-	wsConn := c.wsConn
-
-	if c.state == StateDisconnected {
-		c.mtx.Unlock()
-		return errors.Trace(ErrNotConnected)
-	}
-
-	// If asked to stop reconnection, cancel the conn context, which will
-	// cause connLoop to quit once the current websocket connection (if any)
-	// is closed
-	if stopReconnecting {
-		c.connCtxCancel()
-	}
-	c.mtx.Unlock()
-
-	// If websocket connection is active, close it, which will cause connLoop
-	// break out of readLoop (and then either reconnect or quit, depending on the
-	// stopReconnecting arg)
-	if wsConn != nil {
-		if err := wsConn.WriteControl(websocket.CloseMessage, data, time.Time{}); err != nil {
-			// Graceful close failed, try to close forcefully
-			return errors.Trace(wsConn.Close())
-		}
-	}
-
-	return nil
 }
 
 // Subscribe subscribes to the given set of keys
@@ -329,7 +522,7 @@ func (c *StreamConn) Subscribe(keys []string) error {
 		},
 	}
 
-	if err := c.sendProto(cm); err != nil {
+	if err := c.sendProto(context.Background(), cm); err != nil {
 		return errors.Annotatef(err, "subscribe")
 	}
 
@@ -346,11 +539,30 @@ func (c *StreamConn) Unsubscribe(keys []string) error {
 		},
 	}
 
-	if err := c.sendProto(cm); err != nil {
+	if err := c.sendProto(context.Background(), cm); err != nil {
 		return errors.Annotatef(err, "unsubscribe")
 	}
 
 	return nil
+}
+
+type OnMarketUpdateCallback func(conn *StreamConn, msg *pbm.MarketUpdateMessage)
+
+// AddMarketListener registers a new listener for all received market update
+// messages.
+func (c *StreamConn) AddMarketListener(cb OnMarketUpdateCallback) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	c.marketListeners = append(c.marketListeners, cb)
+}
+
+// State() returns current connection state
+func (c *StreamConn) State() State {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	return c.state
 }
 
 // URL returns an url used for connection
@@ -358,116 +570,26 @@ func (c *StreamConn) URL() string {
 	return c.params.URL
 }
 
-// GetState returns connection state
-func (c *StreamConn) GetState() State {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	return c.state
+// stateListener wraps a state change callback and a flag of whether the
+// callback is one-off (one-off listeners are only called once, on the next
+// event)
+type stateListener struct {
+	cb  StateCallback
+	opt StateListenerOpt
 }
 
-type onReadCallback func(conn *StreamConn, data []byte)
-
-// onRead sets on-read callback; it should be called once right after creation
-// of the StreamConn by a wrapper (like MarketConn), before the connection is
-// established.
-func (c *StreamConn) onRead(cb onReadCallback) {
-	c.onReadCB = cb
+type callStateListenersReq struct {
+	listeners       []stateListener
+	oldState, state State
+	cause           error
 }
 
-// send sends data to the websocket if it's connected
-func (c *StreamConn) send(data []byte) error {
-	// Note that we don't check here whether the socket is connected,
-	// as it's checked by the writeLoop() which will receive our message
-	// from c.connTx.
-
-	res := make(chan error)
-
-	// Request the websocket write
-	c.connTx <- websocketTx{
-		messageType: websocket.TextMessage,
-		data:        data,
-		res:         res,
-	}
-
-	// Wait for the resulting error
-	if err := <-res; err != nil {
-		return errors.Annotatef(err, "sending msg")
-	}
-
-	return nil
-}
-
-// sendProto marshals and sends a protobuf message to the websocket if it's
-// connected, or queues the data otherwise.
-func (c *StreamConn) sendProto(pb proto.Message) error {
-	data, err := proto.Marshal(pb)
-	if err != nil {
-		return errors.Annotatef(err, "marshalling protobuf msg")
-	}
-
-	if err := c.send(data); err != nil {
-		return errors.Trace(err)
-	}
-
-	return nil
-}
-
-// removeOneOff takes a slice of listeners and returns a new one, with one-off
-// listeners removed.
-func removeOneOff(listeners []stateListener) []stateListener {
-
-	newListeners := []stateListener{}
-
-	for _, sl := range listeners {
-		if !sl.opt.OneOff {
-			newListeners = append(newListeners, sl)
-		}
-	}
-
-	return newListeners
-}
-
-// enterLeaveState should be called on leaving and entering each state. So,
-// when changing state from A to B, it's called twice, like this:
-//
-//      enterLeaveState(A, false)
-//      enterLeaveState(B, true)
-func (c *StreamConn) enterLeaveState(state State, enter bool) {
-	switch state {
-
-	case StateDisconnected:
-		// connCtx and its cancel func should be present in all states but
-		// StateDisconnected
-		if enter {
-			c.connCtx = nil
-			c.connCtxCancel = nil
-		} else {
-			c.connCtx, c.connCtxCancel = context.WithCancel(context.Background())
-		}
-
-	case StateWaitBeforeReconnect:
-		// reconnectNow is present only in StateWaitBeforeReconnect
-		if enter {
-			c.reconnectNow = make(chan struct{})
-		} else {
-			c.reconnectNow = nil
-		}
-
-	case StateConnecting:
-		// Nothing special to do for the StateConnecting state
-
-	case StateConnected:
-		// wsConn is present only in StateConnected
-		if enter {
-			// wsConn is set by the calling code
-		} else {
-			c.wsConn = nil
-		}
-	}
+type callMarketListenersReq struct {
+	msg       *pbm.MarketUpdateMessage
+	listeners []OnMarketUpdateCallback
 }
 
 func (c *StreamConn) updateState(state State, cause error) {
-	// NOTE: c.mtx should be locked when updateState is called
 
 	if c.state == state {
 		// No need to do anything
@@ -493,7 +615,7 @@ func (c *StreamConn) updateState(state State, cause error) {
 	c.stateListeners[StateAny] = removeOneOff(c.stateListeners[StateAny])
 
 	// Request listeners invocation (will be invoked by a dedicated goroutine)
-	c.callListeners <- callListenersReq{
+	c.callStateListeners <- callStateListenersReq{
 		listeners: listeners,
 		oldState:  oldState,
 		state:     state,
@@ -501,178 +623,122 @@ func (c *StreamConn) updateState(state State, cause error) {
 	}
 }
 
-// connLoop establishes a connection, then keeps receiving all websocket
-// messages (and calls onReadCB for each of them) until the connection is
-// closed, then either waits for a timeout and connects again, or just quits.
-func (c *StreamConn) connLoop(connCtx context.Context, connCtxCancel context.CancelFunc) {
-	var connErr error
+// enterLeaveState should be called on leaving and entering each state. So,
+// when changing state from A to B, it's called twice, like this:
+//
+//      enterLeaveState(A, false)
+//      enterLeaveState(B, true)
+func (c *StreamConn) enterLeaveState(state State, enter bool) {
+	switch state {
 
-	nextReconnectTimeout := c.params.ReconnectTimeout
+	case StateAuthenticating:
+		// authnCtx and its cancel func should be present in all states but
+		// TransportStateDisconnected
+		if enter {
+			c.authnCtx, c.authnCtxCancel = context.WithCancel(context.Background())
+			c.authnResCh = make(chan error)
+		} else {
+			c.authnCtxCancel()
 
+			c.authnCtx = nil
+			c.authnCtxCancel = nil
+			c.authnResCh = nil
+		}
+	}
+}
+
+// removeOneOff takes a slice of listeners and returns a new one, with one-off
+// listeners removed.
+func removeOneOff(listeners []stateListener) []stateListener {
+
+	newListeners := []stateListener{}
+
+	for _, sl := range listeners {
+		if !sl.opt.OneOff {
+			newListeners = append(newListeners, sl)
+		}
+	}
+
+	return newListeners
+}
+
+// sendProto marshals and sends a protobuf message to the websocket if it's
+// connected, or queues the data otherwise.
+func (c *StreamConn) sendProto(ctx context.Context, pb proto.Message) (err error) {
 	defer func() {
-		c.mtx.Lock()
-		defer c.mtx.Unlock()
-		c.updateState(StateDisconnected, connErr)
+		if errors.Cause(err) == internal.ErrNotConnected {
+			err = errors.Trace(ErrNotConnected)
+		}
 	}()
 
-cloop:
-	for {
-		// When the goroutine is just started by Connect(), the state is already
-		// StateConnecting (see Connect() for the explanation on why), in which
-		// case the updateState below is a no-op. When reconnecting though, the
-		// state is different here, so it'll be changed to StateConnecting.
-		c.mtx.Lock()
-		c.updateState(StateConnecting, nil)
-		c.mtx.Unlock()
-
-		var wsConn *websocket.Conn
-		wsConn, _, connErr = websocket.DefaultDialer.Dial(c.params.URL, nil)
-		if connErr == nil {
-			// Connected successfully
-			nextReconnectTimeout = c.params.ReconnectTimeout
-
-			c.mtx.Lock()
-			c.wsConn = wsConn
-			c.updateState(StateConnected, nil)
-			c.mtx.Unlock()
-
-			// Will loop here until the websocket connection is closed
-		recvLoop:
-			for {
-				msgType, data, err := wsConn.ReadMessage()
-				if err != nil {
-					connErr = err
-					break recvLoop
-				}
-
-				switch msgType {
-				case websocket.TextMessage, websocket.BinaryMessage:
-					if len(data) == 1 && data[0] == 0x01 {
-						// Heartbeat, ignore
-						continue recvLoop
-					}
-
-					// Call on-read callback, if any
-					if c.onReadCB != nil {
-						c.onReadCB(c, data)
-					}
-
-				case websocket.CloseMessage:
-					// TODO: set connErr to something? So that the state listeners will
-					// see that the reason of disconnection is that we've got a close
-					// message.
-					break recvLoop
-				}
-			}
-		}
-
-		// If shouldn't reconnect, we're done
-		if !c.params.Reconnect {
-			connCtxCancel()
-		}
-
-		// Check if we need to enter state StateWaitBeforeReconnect
-		select {
-		case <-connCtx.Done():
-		default:
-			// Looks like we should reconnect (after a timeout), so set the
-			// appropriate state
-			c.mtx.Lock()
-			c.updateState(StateWaitBeforeReconnect, connErr)
-			c.mtx.Unlock()
-		}
-
-		// Either wait for the timeout before reconnection, or quit.
-	waitReconnect:
-		select {
-		case <-connCtx.Done():
-			// Enough reconnections, quit now.
-			break cloop
-
-		case <-time.After(nextReconnectTimeout):
-			// Will try to reconnect one more time
-			break waitReconnect
-
-		case <-c.reconnectNow:
-			// Will try to reconnect one more time
-			break waitReconnect
-		}
-
-		if c.params.Backoff {
-			nextReconnectTimeout *= 2
-			if nextReconnectTimeout > c.params.MaxReconnectTimeout {
-				nextReconnectTimeout = c.params.MaxReconnectTimeout
-			}
-		}
+	data, err := proto.Marshal(pb)
+	if err != nil {
+		return errors.Annotatef(err, "marshalling protobuf msg")
 	}
+
+	if err := c.transport.Send(ctx, data); err != nil {
+		return errors.Trace(err)
+	}
+
+	return nil
 }
 
-// writeLoop receives messages from c.connTx, and tries to send them
-// to the active websocket connection, if any.
-func (c *StreamConn) writeLoop() {
-cloop:
-	for {
-		msg := <-c.connTx
-
-		// Get currently active websocket connection
-		c.mtx.Lock()
-		wsConn := c.wsConn
-		c.mtx.Unlock()
-
-		if wsConn == nil {
-			msg.res <- errors.Trace(ErrNotConnected)
-			continue cloop
-		}
-
-		// Try to write the message
-		err := errors.Trace(wsConn.WriteMessage(msg.messageType, msg.data))
-
-		// Send resulting error to the requester
-		msg.res <- err
-	}
-}
-
-// notifyLoop calls state listeners. The rationale to have a separate goroutine
-// for that is that the listeners should be called with c.mtx unlocked, and we
-// don't want to unlock it in the middle of c.updateState()
+// notifyLoop calls state- and message-listeners.
 func (c *StreamConn) notifyLoop() {
 	for {
-		req := <-c.callListeners
+		select {
+		case req := <-c.callStateListeners:
+			for _, sl := range req.listeners {
+				sl.cb(c, req.oldState, req.state, req.cause)
+			}
 
-		for _, sl := range req.listeners {
-			sl.cb(c, req.oldState, req.state, req.cause)
+		case req := <-c.callMarketListeners:
+			for _, l := range req.listeners {
+				l(c, req.msg)
+			}
 		}
+
 	}
 }
 
-// sendClientID sends ClientIdentificationMessage, it's called on
-// entering StateConnected state.
-func sendClientID(c *StreamConn, oldState, new State, cause error) {
-	cm := &pbc.ClientMessage{
-		Body: &pbc.ClientMessage_Identification{
-			Identification: &pbc.ClientIdentificationMessage{
-				Useragent: fmt.Sprintf("Cryptowatch Stream Client Golang/%s", version),
+// generateToken creates an access token based on the user's secret access key
+func (c *StreamConn) generateToken(nonce string) string {
+	h := hmac.New(sha512.New, []byte(c.params.SecretKey))
+	payload := fmt.Sprintf("stream_access;access_key_id=%v;nonce=%v;", c.params.APIKey, nonce)
+	h.Write([]byte(payload))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+}
 
-				// TODO: probably pass revision via params so that it depends on a
-				// client application rather than a library, or just leave it always
-				// empty as it is now.
-				//
-				// It's not trivial to have a revision of the library repo, because it
-				// should be go-gettable and importable by other code, and for that,
-				// we'd need to include the revision constant into the repo. Obviously,
-				// even if we do autogenerate some file with the revision on every
-				// commit, it would actually represent previous commit, not the current
-				// one, and this would be just weird.
-				Revision:      "",
-				Integration:   "",      // Irrelevant
-				Locale:        "en_US", // TODO: get locale from the OS
-				Subscriptions: c.params.Subscriptions,
-			},
-		},
+// substituteUpcomingCause should be used when we're expecting the state to
+// change very soon (e.g. when closing a connection because of authentication
+// error), so it takes a predicate which checks the causing error returned from
+// the transport layer, and also the actual error. If predicate returns true
+// for the next state change cause, the actual one will be given to client's
+// listeners.
+func (c *StreamConn) substituteUpcomingCause(
+	isExpected func(cause error) bool,
+	actual error,
+) {
+	c.isExpectedCause = isExpected
+	c.actualCause = actual
+}
+
+// TODO: remove and use client-opaque nonce from the server
+func getNonce() string {
+	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
+// isClosedConnError is needed because we don't have a separate type for
+// that kind of error. Too bad.
+func isClosedConnError(err error) bool {
+	if err == nil {
+		return false
 	}
 
-	if err := c.sendProto(cm); err != nil {
-		// Not much we can do about the error here; and we shouldn't set state to
-		// Disconnected because it should be already done by the reader goroutine
+	str := err.Error()
+	if strings.Contains(str, "use of closed network connection") {
+		return true
 	}
+
+	return false
 }

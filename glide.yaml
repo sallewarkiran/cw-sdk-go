@@ -4,6 +4,7 @@ import:
   subpackages:
   - client
   - markets
+  version: stream-acl
 - package: github.com/golang/protobuf
   subpackages:
   - proto
