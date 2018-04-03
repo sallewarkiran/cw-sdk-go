@@ -1,14 +1,14 @@
-hash: 67891c14b55bdacdadb228a4123e6faa6d0ec264294bd1516c69d1ce0736805b
-updated: 2018-03-29T18:35:04.422059922+03:00
+hash: fe1c2c708d7322965c8ab4958fb4c772b5593d3998c93e519426999fc04affa6
+updated: 2018-04-03T17:02:30.580570423+03:00
 imports:
 - name: github.com/cryptowatch/proto
-  version: 8da95653e2e7a699463fcd2390e11c1010bd6b73
+  version: f061ecb7f204565285f1fb97d1f924c5b21484b2
   subpackages:
   - client
   - markets
   - stream
 - name: github.com/golang/protobuf
-  version: bbd03ef6da3a115852eaf24c8a1c46aeb39aa175
+  version: e09c5db296004fbe3f74490e84dcd62c3c5ddb1b
   subpackages:
   - proto
 - name: github.com/gorilla/websocket

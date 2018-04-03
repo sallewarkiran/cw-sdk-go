@@ -356,7 +356,7 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 				// The token is expired, we'll probably try authenticating again
 				authnRes = ErrTokenExpired
 
-			case pbs.AuthenticationResult_TOKEN_MISMATCH:
+			case pbs.AuthenticationResult_BAD_TOKEN:
 				// User provided bad creds
 				c.transport.CloseOpt(
 					websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),

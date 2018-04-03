@@ -595,7 +595,7 @@ func TestAuthnErrors(t *testing.T) {
 		}
 
 		testCases := []testCase{
-			testCase{pbs.AuthenticationResult_TOKEN_MISMATCH, 1, ErrBadCredentials},
+			testCase{pbs.AuthenticationResult_BAD_TOKEN, 1, ErrBadCredentials},
 			testCase{pbs.AuthenticationResult_BAD_NONCE, 1, ErrUnknownAuthnError},
 			testCase{pbs.AuthenticationResult_UNKNOWN, 1, ErrUnknownAuthnError},
 			testCase{pbs.AuthenticationResult_TOKEN_EXPIRED, 3, ErrTokenExpired},
