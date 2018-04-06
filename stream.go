@@ -239,8 +239,7 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 					var authnRes error
 				authnLoop:
 					for i := 0; i < authnExpiredTokenRetryCnt; i++ {
-						// TODO: use a non-opaque nonce from the server, when it's
-						// implemented
+						// TODO: use an opaque nonce from the server, when it's implemented
 						nonce := getNonce()
 						authMsg := &pbc.ClientMessage{
 							Body: &pbc.ClientMessage_ApiAuthentication{
@@ -636,7 +635,7 @@ func (c *StreamConn) enterLeaveState(state State, enter bool) {
 		// TransportStateDisconnected
 		if enter {
 			c.authnCtx, c.authnCtxCancel = context.WithCancel(context.Background())
-			c.authnResCh = make(chan error)
+			c.authnResCh = make(chan error, 1)
 		} else {
 			c.authnCtxCancel()
 
