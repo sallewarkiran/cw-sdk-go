@@ -3,35 +3,32 @@
 This library provides a Golang API to talk to Cryptowatch Stream WebSocket
 API.
 
-## Overview
+In order to use that API, one needs to obtain credentials: API key and secret
+key. TODO: explain how to get them.
 
-There are two layers:
+The typical workflow is to create an instance of the connection, setup some
+state- and message-listeners, and then kick off the connection. As events
+happen, registered listeners will be called (see the note below on
+concurrency).
 
-  - Stream connection itself: provides connection and automatic reconnection,
-    allows to listen for state transitions (disconnected, connecting, etc), and
-    to subscribe to and unsubscribe from topics. It doesn't interpret received
-    data in any way (other than the keepalive "heartbeat" messages);
-  - Format-aware wrapper connections: e.g. `MarketConn` is able to decode
-    Market Update messages: order book updates, trade updates, etc; and it
-    provides an API for the clients to subscribe to parsed messages.
-
-One possible workflow is as follows:
+Example:
 
 ```golang
+// Create a new stream connection instance. Note that the actual connection
+// will happen later.
+c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
+	URL: "wss://sb.cryptowat.ch",
 
-// Create a format-aware connection instance (in this case, MarketConn).
-// Note that the actual connection will happen later.
-c, err := streamclient.NewMarketConn(&streamclient.MarketParams{
-	StreamParams: streamclient.StreamParams{
-		URL: "wss://sb.cryptowat.ch",
-
-		Reconnect:        true,
-		ReconnectTimeout: 1 * time.Second,
-		Subscriptions:    []string{
-			"market:bitfinex:btcusd:orderbook:deltas",
-			"market:bitfinex:btceur:orderbook:deltas",
-		},
+	Reconnect:        true,
+	ReconnectTimeout: 1 * time.Second,
+	Backoff:          true,
+	Subscriptions:    []string{
+		"market:bitfinex:btcusd:orderbook:deltas",
+		"market:bitfinex:btceur:orderbook:deltas",
 	},
+
+	APIKey:    "myapikey",
+	SecretKey: "mysecretkey",
 })
 if err != nil {
 	log.Fatal("%s", err)
@@ -54,9 +51,9 @@ c.AddStateListener(
 	},
 )
 
-// Listen for received parsed market messages and print them
-c.AddMessageListener(
-	func(conn *streamclient.MarketConn, msg *ProtobufMarkets.MarketUpdateMessage) {
+// Listen for received market messages and print them
+c.AddMarketListener(
+	func(conn *streamclient.StreamConn, msg *ProtobufMarkets.MarketUpdateMessage) {
 		fmt.Printf("Message received: %s\n\n", proto.CompactTextString(msg))
 	},
 )
@@ -80,28 +77,12 @@ if err := c.Close(); err != nil {
 }
 ```
 
-Note that from the above, only `AddMessageListener` is provided by (and is
-specific to) the wrapper `MarketConn`; everything else is provided by the
-generic Stream connection.
-
-Other types of wrapper connections (say, `BrokerConn`) will have
-`AddMessageListener` which would call the callback accepting different type of
-message, and that's the only difference.
-
-The above design means that for different kinds of subscriptions (e.g. market
-updates and broker requests) one would have to create two wrapper connections,
-each wrapping a separate Stream connection. Currently there's no way to share a
-single Stream connection between wrappers.
-
 ## Concurrency
 
 All methods of the `StreamConn` and wrappers can be called concurrently from
 any number of goroutines.
 
 State listeners (registered with `AddStateListener` and `AddStateListenerOpt`)
-are called by the same internal goroutine (unique to each connection); that is,
-they are never called concurrently with each other.
-
-Message listeners (registered with `AddMessageListener`) are called from
-another internal goroutine. So, message listeners might be called concurrently
-with state listeners.
+and message listeners (registered with `AddMarketListener`) are called by the
+same internal goroutine (unique to each connection); that is, they are never
+called concurrently with each other.

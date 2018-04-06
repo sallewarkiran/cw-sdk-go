@@ -27,12 +27,27 @@ const (
 )
 
 var (
+	// StateNames contains human-readable names for connection states.
 	StateNames = make([]string, StatesCnt)
 
-	ErrNotConnected      = errors.New("not connected")
-	ErrConnLoopActive    = errors.New("connection loop is already active")
-	ErrBadCredentials    = errors.New("bad credentials")
-	ErrTokenExpired      = errors.New("token is expired")
+	// ErrNotConnected means the connection is not established when the client
+	// tried to e.g. send a message, or close the connection.
+	ErrNotConnected = errors.New("not connected")
+
+	// ErrConnLoopActive means the client tried to connect when the connection
+	// loop is already active.
+	ErrConnLoopActive = errors.New("connection loop is already active")
+
+	// ErrBadCredentials means the provided APIKey and/or SecretKey were invalid.
+	ErrBadCredentials = errors.New("bad credentials")
+
+	// ErrTokenExpired means the authentication procedure took too long and the
+	// token was already expired. The library tries to retry the authentication
+	// 3 times before actually passing that error to the client.
+	ErrTokenExpired = errors.New("token is expired")
+
+	// ErrUnknownAuthnError means some unexpected authentication problem;
+	// possibly caused by an internal error on stream server.
 	ErrUnknownAuthnError = errors.New("unknown authentication error")
 )
 
@@ -53,7 +68,8 @@ type StreamParams struct {
 	APIKey    string
 	SecretKey string
 
-	// Initial set of subscription keys
+	// Initial set of subscription keys. Client will automatically subscribe to
+	// those every time it's connected or reconnected.
 	Subscriptions []string
 
 	// Whether the library should reconnect automatically
@@ -511,7 +527,17 @@ func (c *StreamConn) AddStateListenerOpt(state State, cb StateCallback, opt Stat
 	}
 }
 
-// Subscribe subscribes to the given set of keys
+// Subscribe subscribes to the given set of keys. Example:
+//
+//   conn.Subscribe([]string{
+//           "market:bitfinex:btcusd:orderbook:deltas",
+//           "market:bitfinex:btceur:orderbook:deltas",
+//   })
+//
+// Note that the initial set of subscription keys can be given as params to
+// NewStreamConn. Also note that calling Subscribe() doesn't alter the initial
+// keys to subscribe to when the client reconnects; so after the reconnection
+// the effect of calling Subscribe is lost.
 func (c *StreamConn) Subscribe(keys []string) error {
 	cm := &pbc.ClientMessage{
 		Body: &pbc.ClientMessage_Subscribe{
@@ -528,7 +554,8 @@ func (c *StreamConn) Subscribe(keys []string) error {
 	return nil
 }
 
-// Unsubscribe unsubscribes from the given set of keys
+// Unsubscribe unsubscribes from the given set of keys. Also see notes for
+// Subscribe.
 func (c *StreamConn) Unsubscribe(keys []string) error {
 	cm := &pbc.ClientMessage{
 		Body: &pbc.ClientMessage_Unsubscribe{
@@ -545,6 +572,7 @@ func (c *StreamConn) Unsubscribe(keys []string) error {
 	return nil
 }
 
+// OnMarketUpdateCallback is a signature of a market update listener.
 type OnMarketUpdateCallback func(conn *StreamConn, msg *pbm.MarketUpdateMessage)
 
 // AddMarketListener registers a new listener for all received market update
@@ -556,7 +584,7 @@ func (c *StreamConn) AddMarketListener(cb OnMarketUpdateCallback) {
 	c.marketListeners = append(c.marketListeners, cb)
 }
 
-// State() returns current connection state
+// State() returns current connection state.
 func (c *StreamConn) State() State {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -564,7 +592,7 @@ func (c *StreamConn) State() State {
 	return c.state
 }
 
-// URL returns an url used for connection
+// URL returns an url used for connection.
 func (c *StreamConn) URL() string {
 	return c.params.URL
 }
