@@ -9,6 +9,8 @@ message ClientMessage {
     ClientIdentificationMessage identification = 1;
     ClientSubscribeMessage subscribe = 2;
     ClientUnsubscribeMessage unsubscribe = 3;
+    WebAuthenticationMessage webAuthentication = 4;
+    APIAuthenticationMessage apiAuthentication = 5;
   }
 }
 
@@ -20,6 +22,26 @@ message ClientIdentificationMessage {
   string integration = 3;
   string locale = 4;
   repeated string subscriptions = 5;
+}
+
+message WebAuthenticationMessage {
+  ClientIdentificationMessage identification = 1;
+  string token = 2;
+  string nonce = 3;
+  repeated string access_list = 4;
+}
+
+message APIAuthenticationMessage {
+  string token = 1;
+  string nonce = 2;
+  string api_key = 3;
+  Source source = 4;
+
+  enum Source {
+    UNKNOWN = 0;
+    GOLANG_SDK = 1;
+    JAVASCRIPT_SDK = 2;
+  }
 }
 
 message ClientSessionMessage {
