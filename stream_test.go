@@ -32,8 +32,8 @@ const (
 
 const (
 	testApiKey1        = "foo"
-	testSecretKey1     = "bar"
-	testSecretKeyWrong = "barbarbar"
+	testSecretKey1     = "YmFy"         // base64-encoded "bar"
+	testSecretKeyWrong = "YmFyYmFyYmFy" // base64-encoded "barbarbar"
 )
 
 // websocketEvent represents an event like new opened connection or new
@@ -167,8 +167,16 @@ func getRootHandler(
 		go func() {
 			for {
 				mt, message, err := ws.ReadMessage()
+				var unmarshalled pbs.StreamMessage
+				unmarshalledStr := ""
 
-				t.Logf("websocket rx: type=%d, data=%+v, err=%v", mt, message, err)
+				if err := proto.Unmarshal(message, &unmarshalled); err != nil {
+					unmarshalledStr = fmt.Sprintf("failed to unmarshal: %s", err)
+				} else {
+					unmarshalledStr = proto.CompactTextString(&unmarshalled)
+				}
+
+				t.Logf("websocket rx: type=%d, data=%+v (%s), err=%v", mt, message, unmarshalledStr, err)
 				rx <- websocketEvent{
 					eventType: eventTypeMsg,
 
@@ -190,7 +198,16 @@ func getRootHandler(
 		for {
 			select {
 			case msg := <-tx:
-				t.Logf("websocket tx: type=%d, data=%+v", msg.messageType, msg.data)
+				var unmarshalled pbs.StreamMessage
+				unmarshalledStr := ""
+
+				if err := proto.Unmarshal(msg.data, &unmarshalled); err != nil {
+					unmarshalledStr = fmt.Sprintf("failed to unmarshal: %s", err)
+				} else {
+					unmarshalledStr = proto.CompactTextString(&unmarshalled)
+				}
+
+				t.Logf("websocket tx: type=%d, data=%+v (%s)", msg.messageType, msg.data, unmarshalledStr)
 
 				if err := ws.WriteMessage(msg.messageType, msg.data); err != nil {
 					t.Logf("error writing to websocket: %s", err)
@@ -1097,7 +1114,11 @@ func waitAuthnReq(t *testing.T, tp *testServerParams, apiKey, secretKey string) 
 			return errors.Errorf("ApiKey: want: %q, got: %q", want, got)
 		}
 
-		token := generateToken(apiKey, secretKey, apiAuthn.Nonce)
+		token, err := generateToken(apiKey, secretKey, apiAuthn.Nonce)
+		if err != nil {
+			return errors.Trace(err)
+		}
+
 		if !hmac.Equal([]byte(apiAuthn.Token), []byte(token)) {
 			return errors.Errorf("HMAC: want: % x, got: % x", token, apiAuthn.Token)
 		}
@@ -1184,9 +1205,14 @@ func waitConnClose(t *testing.T, tp *testServerParams) error {
 	return nil
 }
 
-func generateToken(apiKey, secretKey, nonce string) string {
-	h := hmac.New(sha512.New, []byte(secretKey))
+func generateToken(apiKey, secretKey, nonce string) (string, error) {
+	secretKeyData, err := base64.StdEncoding.DecodeString(secretKey)
+	if err != nil {
+		return "", errors.Annotatef(err, "base64-decoding the secret key")
+	}
+
+	h := hmac.New(sha512.New, secretKeyData)
 	payload := fmt.Sprintf("stream_access;access_key_id=%v;nonce=%v;", apiKey, nonce)
 	h.Write([]byte(payload))
-	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
 }

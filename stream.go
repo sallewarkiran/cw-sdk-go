@@ -257,10 +257,15 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 					for i := 0; i < authnExpiredTokenRetryCnt; i++ {
 						// TODO: use an opaque nonce from the server, when it's implemented
 						nonce := getNonce()
+						token, err := c.generateToken(nonce)
+						if err != nil {
+							return errors.Trace(err)
+						}
+
 						authMsg := &pbc.ClientMessage{
 							Body: &pbc.ClientMessage_ApiAuthentication{
 								ApiAuthentication: &pbc.APIAuthenticationMessage{
-									Token:  c.generateToken(nonce),
+									Token:  token,
 									Nonce:  nonce,
 									ApiKey: c.params.APIKey,
 									Source: pbc.APIAuthenticationMessage_GOLANG_SDK,
@@ -729,11 +734,16 @@ func (c *StreamConn) notifyLoop() {
 }
 
 // generateToken creates an access token based on the user's secret access key
-func (c *StreamConn) generateToken(nonce string) string {
-	h := hmac.New(sha512.New, []byte(c.params.SecretKey))
+func (c *StreamConn) generateToken(nonce string) (string, error) {
+	secretKeyData, err := base64.StdEncoding.DecodeString(c.params.SecretKey)
+	if err != nil {
+		return "", errors.Annotatef(err, "base64-decoding the secret key")
+	}
+
+	h := hmac.New(sha512.New, secretKeyData)
 	payload := fmt.Sprintf("stream_access;access_key_id=%v;nonce=%v;", c.params.APIKey, nonce)
 	h.Write([]byte(payload))
-	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
 }
 
 // substituteUpcomingCause should be used when we're expecting the state to
