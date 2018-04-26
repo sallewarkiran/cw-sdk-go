@@ -11,7 +11,17 @@ state- and message-listeners, and then kick off the connection. As events
 happen, registered listeners will be called (see the note below on
 concurrency).
 
-Example:
+## Command line tool
+Use the command line tool `stream-client` to subscribe to live data feeds from the command line. To install the tool, run `make` from the root of the repo. This will create the executable `bin/stream-client`, which can be used as follows:
+```bash
+./stream-client \
+    -apikey=your_api_key \
+    -secretkey=your_secret_key \
+    -sub subscription_key \
+    -sub subscription_key2
+```
+
+## Code Sample
 
 ```golang
 // Create a new stream connection instance. Note that the actual connection
