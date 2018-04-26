@@ -10,23 +10,29 @@ import (
 
 	pbm "github.com/cryptowatch/proto/markets"
 	"github.com/cryptowatch/stream-client-go"
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/jsonpb"
 )
 
 var (
 	subs stringSlice
 
-	detailed  = flag.Bool("detailed", false, "Print detailed contents of received messages")
+	format    = flag.String("format", "json", "Data output format")
 	apiKey    = flag.String("apikey", "", "API key to use. Consider using -creds instead.")
 	secretKey = flag.String("secretkey", "", "Secret key to use. Consider using -creds instead.")
 
 	// TODO: -creds
 )
 
-func main() {
+func init() {
 	flag.Var(&subs, "sub", "Subscription key. This flag can be given multiple times")
 	flag.Parse()
 
+	if *format != "json" {
+		log.Fatalf("Invalid data format '%v'", *format)
+	}
+}
+
+func main() {
 	// Setup OS signal handler
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
@@ -51,8 +57,9 @@ func main() {
 		APIKey:    *apiKey,
 		SecretKey: *secretKey,
 	})
+
 	if err != nil {
-		log.Fatal("%s", err)
+		log.Fatalf("%s", err)
 	}
 
 	// Will print state changes to the user
@@ -70,13 +77,15 @@ func main() {
 	// Will print received market update messages
 	c.AddMarketListener(func(conn *streamclient.StreamConn, msg *pbm.MarketUpdateMessage) {
 		str := ""
-		if *detailed {
-			str = proto.MarshalTextString(msg)
-		} else {
-			str = proto.CompactTextString(msg)
+		switch *format {
+		case "json":
+			m := &jsonpb.Marshaler{}
+			str, err = m.MarshalToString(msg)
+			if err != nil {
+				panic(err)
+			}
 		}
-
-		fmt.Printf("Received market update: %s\n\n", str)
+		fmt.Println(str)
 	})
 
 	// Start connection loop
