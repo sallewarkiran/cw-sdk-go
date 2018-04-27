@@ -1,5 +1,5 @@
 hash: fe1c2c708d7322965c8ab4958fb4c772b5593d3998c93e519426999fc04affa6
-updated: 2018-04-26T14:40:28.757756-04:00
+updated: 2018-04-26T17:58:40.874963-04:00
 imports:
 - name: github.com/cryptowatch/proto
   version: 02bb26837baa9c90d8dcedafb9c2b874393da1ee
@@ -10,7 +10,9 @@ imports:
 - name: github.com/golang/protobuf
   version: e09c5db296004fbe3f74490e84dcd62c3c5ddb1b
   subpackages:
+  - jsonpb
   - proto
+  - ptypes/struct
 - name: github.com/gorilla/websocket
   version: 21ab95fa12b9bdd8fecf5fa3586aad941cc98785
 - name: github.com/juju/errors

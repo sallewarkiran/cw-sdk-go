@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	defaultURL = "wss://sb.cryptowat.ch"
+	defaultURL = "wss://stream.cryptowat.ch"
 
 	// How many times to retry authentication in case of expired token
 	authnExpiredTokenRetryCnt = 3

@@ -1024,7 +1024,7 @@ func TestDefaultURL(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		if want, got := "wss://sb.cryptowat.ch", conn.URL(); got != want {
+		if want, got := "wss://stream.cryptowat.ch", conn.URL(); got != want {
 			return errors.Errorf("want: %v, got: %v", want, got)
 		}
 
