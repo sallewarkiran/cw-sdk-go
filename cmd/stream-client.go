@@ -77,6 +77,7 @@ func main() {
 	// Will print received market update messages
 	c.AddMarketListener(func(conn *streamclient.StreamConn, msg *pbm.MarketUpdateMessage) {
 		str := ""
+		var err error
 		switch *format {
 		case "json":
 			m := &jsonpb.Marshaler{}
