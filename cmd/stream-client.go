@@ -89,6 +89,20 @@ func main() {
 		fmt.Println(str)
 	})
 
+	c.AddPairListener(func(conn *streamclient.StreamConn, msg *pbm.PairUpdateMessage) {
+		str := ""
+		var err error
+		switch *format {
+		case "json":
+			m := &jsonpb.Marshaler{}
+			str, err = m.MarshalToString(msg)
+			if err != nil {
+				panic(err)
+			}
+		}
+		fmt.Println(str)
+	})
+
 	// Start connection loop
 	fmt.Printf("Connecting to %s ...\n", c.URL())
 	c.Connect()

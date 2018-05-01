@@ -6,6 +6,7 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -127,6 +128,7 @@ type StreamConn struct {
 
 	callStateListeners  chan callStateListenersReq
 	callMarketListeners chan callMarketListenersReq
+	callPairListeners   chan callPairListenersReq
 
 	authnResCh chan error
 
@@ -145,6 +147,7 @@ type StreamConn struct {
 
 	stateListeners  map[State][]stateListener
 	marketListeners []OnMarketUpdateCallback
+	pairListeners   []OnPairUpdateCallback
 
 	mtx sync.Mutex
 }
@@ -364,59 +367,18 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 			return
 		}
 
-		if authnResMsg := msg.GetAuthenticationResult(); authnResMsg != nil {
-			// Got authentication result message
-			var authnRes error
-
-			switch authnResMsg.Status {
-			case pbs.AuthenticationResult_AUTHENTICATED:
-				// Good news. no-op
-
-			case pbs.AuthenticationResult_TOKEN_EXPIRED:
-				// The token is expired, we'll probably try authenticating again
-				authnRes = ErrTokenExpired
-
-			case pbs.AuthenticationResult_BAD_TOKEN:
-				// User provided bad creds
-				c.transport.CloseOpt(
-					websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
-					false,
-				)
-				authnRes = ErrBadCredentials
-
-			case pbs.AuthenticationResult_BAD_NONCE, pbs.AuthenticationResult_UNKNOWN:
-				// Shouldn't happen normally
-				c.transport.CloseOpt(
-					websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
-					false,
-				)
-				authnRes = ErrUnknownAuthnError
-			}
-
-			// If we are still waiting for the result, send it
-			c.mtx.Lock()
-			authnResCh := c.authnResCh
-			c.mtx.Unlock()
-
-			if authnResCh != nil {
-				authnResCh <- authnRes
-			}
-		} else if marketUpdMsg := msg.GetMarketUpdate(); marketUpdMsg != nil {
-			c.mtx.Lock()
-			listeners := make([]OnMarketUpdateCallback, len(c.marketListeners))
-			for i, v := range c.marketListeners {
-				listeners[i] = v
-			}
-			c.mtx.Unlock()
-
-			// Request listeners invocation (will be invoked by a dedicated goroutine)
-			c.callMarketListeners <- callMarketListenersReq{
-				listeners: listeners,
-				msg:       marketUpdMsg,
-			}
-		} else {
-			// Received some unknown kind of message; ignore it (probably the client
-			// is outdated)
+		switch msg.Body.(type) {
+		case *pbs.StreamMessage_AuthenticationResult:
+			c.authHandler(msg.GetAuthenticationResult())
+		case *pbs.StreamMessage_MarketUpdate:
+			fmt.Println("market update")
+			c.marketUpdateHandler(msg.GetMarketUpdate())
+		case *pbs.StreamMessage_PairUpdate:
+			fmt.Println("pair update")
+			c.pairUpdateHandler(msg.GetPairUpdate())
+		default:
+			// not a supported type
+			log.Println("Unsupported proto message")
 		}
 
 	})
@@ -464,6 +426,79 @@ func (c *StreamConn) Close() (err error) {
 	}
 
 	return nil
+}
+
+func (c *StreamConn) authHandler(result *pbs.AuthenticationResult) {
+	if result != nil {
+		// Got authentication result message
+		var authnRes error
+
+		switch result.Status {
+		case pbs.AuthenticationResult_AUTHENTICATED:
+			// Good news. no-op
+
+		case pbs.AuthenticationResult_TOKEN_EXPIRED:
+			// The token is expired, we'll probably try authenticating again
+			authnRes = ErrTokenExpired
+
+		case pbs.AuthenticationResult_BAD_TOKEN:
+			// User provided bad creds
+			c.transport.CloseOpt(
+				websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
+				false,
+			)
+			authnRes = ErrBadCredentials
+
+		case pbs.AuthenticationResult_BAD_NONCE, pbs.AuthenticationResult_UNKNOWN:
+			// Shouldn't happen normally
+			c.transport.CloseOpt(
+				websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
+				false,
+			)
+			authnRes = ErrUnknownAuthnError
+		}
+
+		// If we are still waiting for the result, send it
+		c.mtx.Lock()
+		authnResCh := c.authnResCh
+		c.mtx.Unlock()
+
+		if authnResCh != nil {
+			authnResCh <- authnRes
+		}
+	}
+}
+
+func (c *StreamConn) marketUpdateHandler(update *pbm.MarketUpdateMessage) {
+	if update != nil {
+		c.mtx.Lock()
+		listeners := make([]OnMarketUpdateCallback, len(c.marketListeners))
+		for i, v := range c.marketListeners {
+			listeners[i] = v
+		}
+		c.mtx.Unlock()
+
+		// Request listeners invocation (will be invoked by a dedicated goroutine)
+		c.callMarketListeners <- callMarketListenersReq{
+			listeners: listeners,
+			msg:       update,
+		}
+	}
+}
+
+func (c *StreamConn) pairUpdateHandler(update *pbm.PairUpdateMessage) {
+	if update != nil {
+		c.mtx.Lock()
+		listeners := make([]OnPairUpdateCallback, len(c.pairListeners))
+		for i, v := range c.pairListeners {
+			listeners[i] = v
+		}
+		c.mtx.Unlock()
+		c.callPairListeners <- callPairListenersReq{
+			listeners: listeners,
+			msg:       update,
+		}
+	}
 }
 
 // StateCallback is a signature of a state listener. Arguments conn, oldState
@@ -579,6 +614,7 @@ func (c *StreamConn) Unsubscribe(keys []string) error {
 
 // OnMarketUpdateCallback is a signature of a market update listener.
 type OnMarketUpdateCallback func(conn *StreamConn, msg *pbm.MarketUpdateMessage)
+type OnPairUpdateCallback func(conn *StreamConn, msg *pbm.PairUpdateMessage)
 
 // AddMarketListener registers a new listener for all received market update
 // messages.
@@ -587,6 +623,15 @@ func (c *StreamConn) AddMarketListener(cb OnMarketUpdateCallback) {
 	defer c.mtx.Unlock()
 
 	c.marketListeners = append(c.marketListeners, cb)
+}
+
+// AddMarketListener registers a new listener for all received market update
+// messages.
+func (c *StreamConn) AddPairListener(cb OnPairUpdateCallback) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	c.pairListeners = append(c.pairListeners, cb)
 }
 
 // State() returns current connection state.
@@ -619,6 +664,11 @@ type callStateListenersReq struct {
 type callMarketListenersReq struct {
 	msg       *pbm.MarketUpdateMessage
 	listeners []OnMarketUpdateCallback
+}
+
+type callPairListenersReq struct {
+	msg       *pbm.PairUpdateMessage
+	listeners []OnPairUpdateCallback
 }
 
 func (c *StreamConn) updateState(state State, cause error) {
@@ -725,6 +775,11 @@ func (c *StreamConn) notifyLoop() {
 			}
 
 		case req := <-c.callMarketListeners:
+			for _, l := range req.listeners {
+				l(c, req.msg)
+			}
+
+		case req := <-c.callPairListeners:
 			for _, l := range req.listeners {
 				l(c, req.msg)
 			}
