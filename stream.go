@@ -6,7 +6,6 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -182,6 +181,7 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 
 		callStateListeners:  make(chan callStateListenersReq, 1),
 		callMarketListeners: make(chan callMarketListenersReq, 1),
+		callPairListeners:   make(chan callPairListenersReq, 1),
 
 		stateListeners: make(map[State][]stateListener),
 	}
@@ -371,14 +371,11 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 		case *pbs.StreamMessage_AuthenticationResult:
 			c.authHandler(msg.GetAuthenticationResult())
 		case *pbs.StreamMessage_MarketUpdate:
-			fmt.Println("market update")
 			c.marketUpdateHandler(msg.GetMarketUpdate())
 		case *pbs.StreamMessage_PairUpdate:
-			fmt.Println("pair update")
 			c.pairUpdateHandler(msg.GetPairUpdate())
 		default:
 			// not a supported type
-			log.Println("Unsupported proto message")
 		}
 
 	})
