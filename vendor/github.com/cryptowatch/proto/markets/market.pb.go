@@ -27,6 +27,7 @@ It has these top-level messages:
 	PairUpdateMessage
 	PairVwapUpdate
 	PairPerformanceUpdate
+	PairTrendlineUpdate
 */
 package ProtobufMarkets
 
