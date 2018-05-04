@@ -16,6 +16,7 @@ import (
 var (
 	subs stringSlice
 
+	quiet     = flag.Bool("quiet", true, "Ignore state change messages, only output data.")
 	format    = flag.String("format", "json", "Data output format")
 	apiKey    = flag.String("apikey", "", "API key to use. Consider using -creds instead.")
 	secretKey = flag.String("secretkey", "", "Secret key to use. Consider using -creds instead.")
@@ -63,16 +64,18 @@ func main() {
 	}
 
 	// Will print state changes to the user
-	c.AddStateListener(
-		streamclient.StateAny,
-		func(conn *streamclient.StreamConn, oldState, state streamclient.State, cause error) {
-			fmt.Printf("State updated: %s -> %s", streamclient.StateNames[oldState], streamclient.StateNames[state])
-			if cause != nil {
-				fmt.Printf(" (%s)", cause)
-			}
-			fmt.Printf("\n")
-		},
-	)
+	if !*quiet {
+		c.AddStateListener(
+			streamclient.StateAny,
+			func(conn *streamclient.StreamConn, oldState, state streamclient.State, cause error) {
+				fmt.Printf("State updated: %s -> %s", streamclient.StateNames[oldState], streamclient.StateNames[state])
+				if cause != nil {
+					fmt.Printf(" (%s)", cause)
+				}
+				fmt.Printf("\n")
+			},
+		)
+	}
 
 	// Will print received market update messages
 	c.AddMarketListener(func(conn *streamclient.StreamConn, msg *pbm.MarketUpdateMessage) {
@@ -104,7 +107,9 @@ func main() {
 	})
 
 	// Start connection loop
-	fmt.Printf("Connecting to %s ...\n", c.URL())
+	if !*quiet {
+		fmt.Printf("Connecting to %s ...\n", c.URL())
+	}
 	c.Connect()
 
 	// Wait until the OS signal is received, at which point we'll close the
