@@ -16,7 +16,7 @@ import (
 var (
 	subs stringSlice
 
-	quiet     = flag.Bool("quiet", true, "Ignore state change messages, only output data.")
+	verbose   = flag.Bool("verbose", false, "Prints all debug messages to stdout.")
 	format    = flag.String("format", "json", "Data output format")
 	apiKey    = flag.String("apikey", "", "API key to use. Consider using -creds instead.")
 	secretKey = flag.String("secretkey", "", "Secret key to use. Consider using -creds instead.")
@@ -64,7 +64,7 @@ func main() {
 	}
 
 	// Will print state changes to the user
-	if !*quiet {
+	if *verbose {
 		c.AddStateListener(
 			streamclient.StateAny,
 			func(conn *streamclient.StreamConn, oldState, state streamclient.State, cause error) {
@@ -107,7 +107,7 @@ func main() {
 	})
 
 	// Start connection loop
-	if !*quiet {
+	if *verbose {
 		fmt.Printf("Connecting to %s ...\n", c.URL())
 	}
 	c.Connect()
