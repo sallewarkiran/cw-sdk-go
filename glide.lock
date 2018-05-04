@@ -1,8 +1,8 @@
 hash: 2beb595431634deea87f64355cb7e4f630a2845149fadb156eee964f691cdc1a
-updated: 2018-05-01T15:31:02.5518-04:00
+updated: 2018-05-04T17:35:47.281207-04:00
 imports:
 - name: github.com/cryptowatch/proto
-  version: 3821ea59972867f0f784fcdfbf168e02319c6c14
+  version: 89800a20f9541d6c3aa360bc58e9481534ac3ae2
   subpackages:
   - client
   - markets
