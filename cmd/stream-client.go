@@ -11,6 +11,7 @@ import (
 	pbm "github.com/cryptowatch/proto/markets"
 	"github.com/cryptowatch/stream-client-go"
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 )
 
 var (
@@ -79,31 +80,17 @@ func main() {
 
 	// Will print received market update messages
 	c.AddMarketListener(func(conn *streamclient.StreamConn, msg *pbm.MarketUpdateMessage) {
-		str := ""
-		var err error
 		switch *format {
 		case "json":
-			m := &jsonpb.Marshaler{}
-			str, err = m.MarshalToString(msg)
-			if err != nil {
-				panic(err)
-			}
+			outputProtoJSON(msg)
 		}
-		fmt.Println(str)
 	})
 
 	c.AddPairListener(func(conn *streamclient.StreamConn, msg *pbm.PairUpdateMessage) {
-		str := ""
-		var err error
 		switch *format {
 		case "json":
-			m := &jsonpb.Marshaler{}
-			str, err = m.MarshalToString(msg)
-			if err != nil {
-				panic(err)
-			}
+			outputProtoJSON(msg)
 		}
-		fmt.Println(str)
 	})
 
 	// Start connection loop
@@ -119,5 +106,20 @@ func main() {
 
 	if err := c.Close(); err != nil {
 		fmt.Printf("Failed to close connection: %s", err)
+	}
+}
+
+// Output a protobuf message as a JSON string to stdout
+func outputProtoJSON(msg interface{}) {
+	m := &jsonpb.Marshaler{EmitDefaults: true}
+	if pMsg, ok := msg.(proto.Message); ok {
+		str, err := m.MarshalToString(pMsg)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(str)
+	} else {
+		fmt.Println(msg)
+		panic("Error: bad data received")
 	}
 }
