@@ -4,10 +4,11 @@ package ProtobufMarkets;
 
 message PairUpdateMessage {
   uint64 pair = 1;
-  
+
   oneof Update {
     PairVwapUpdate vwapUpdate = 2;
     PairPerformanceUpdate performanceUpdate = 3;
+    PairTrendlineUpdate trendlineUpdate = 4;
   }
 }
 
@@ -18,4 +19,11 @@ message PairVwapUpdate {
 message PairPerformanceUpdate {
   string window = 1;
   double performance = 2;
+}
+
+message PairTrendlineUpdate {
+  string window = 1;
+  int64 time = 2;
+  string price = 3;
+  string volume = 4;
 }

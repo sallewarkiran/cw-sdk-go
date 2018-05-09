@@ -1,14 +1,14 @@
 hash: fe1c2c708d7322965c8ab4958fb4c772b5593d3998c93e519426999fc04affa6
-updated: 2018-04-26T17:58:40.874963-04:00
+updated: 2018-05-09T17:36:20.388942-04:00
 imports:
 - name: github.com/cryptowatch/proto
-  version: 02bb26837baa9c90d8dcedafb9c2b874393da1ee
+  version: b0a6793a38f341fdbede3b15ee57563f77cc05bd
   subpackages:
   - client
   - markets
   - stream
 - name: github.com/golang/protobuf
-  version: e09c5db296004fbe3f74490e84dcd62c3c5ddb1b
+  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
   subpackages:
   - jsonpb
   - proto

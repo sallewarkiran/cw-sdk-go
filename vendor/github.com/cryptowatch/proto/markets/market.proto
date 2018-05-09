@@ -179,4 +179,8 @@ message SpreadHistoryUpdate {
 
   repeated SpreadHistoryPoint asks = 1;
   repeated SpreadHistoryPoint bids = 2;
+
+  int64 timestamp = 3;
+  Order bid = 4;
+  Order ask = 5;
 }
