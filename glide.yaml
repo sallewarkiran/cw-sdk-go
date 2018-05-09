@@ -1,7 +1,6 @@
 package: github.com/cryptowatch/stream-client-go
 import:
 - package: github.com/cryptowatch/proto
-  version: wells/subs-refactor
   subpackages:
   - client
   - markets
