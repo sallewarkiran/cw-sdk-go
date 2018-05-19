@@ -46,6 +46,10 @@ var (
 	// 3 times before actually passing that error to the client.
 	ErrTokenExpired = errors.New("token is expired")
 
+	// ErrBadNonce means the nonce used in the authentication request is not
+	// larger than the last used nonce.
+	ErrBadNonce = errors.New("bad nonce")
+
 	// ErrUnknownAuthnError means some unexpected authentication problem;
 	// possibly caused by an internal error on stream server.
 	ErrUnknownAuthnError = errors.New("unknown authentication error")
@@ -446,8 +450,16 @@ func (c *StreamConn) authHandler(result *pbs.AuthenticationResult) {
 			)
 			authnRes = ErrBadCredentials
 
-		case pbs.AuthenticationResult_BAD_NONCE, pbs.AuthenticationResult_UNKNOWN:
-			// Shouldn't happen normally
+		case pbs.AuthenticationResult_BAD_NONCE:
+			c.transport.CloseOpt(
+				websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
+				false,
+			)
+			authnRes = ErrBadNonce
+
+		case pbs.AuthenticationResult_UNKNOWN:
+			// Shouldn't happen normally; it can happen e.g. if stream has failed
+			// to connect to biller, or failed to call biller's methods.
 			c.transport.CloseOpt(
 				websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
 				false,
