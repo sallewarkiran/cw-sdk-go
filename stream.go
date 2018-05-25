@@ -262,7 +262,6 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 					var authnRes error
 				authnLoop:
 					for i := 0; i < authnExpiredTokenRetryCnt; i++ {
-						// TODO: use an opaque nonce from the server, when it's implemented
 						nonce := getNonce()
 						token, err := c.generateToken(nonce)
 						if err != nil {
@@ -824,7 +823,6 @@ func (c *StreamConn) substituteUpcomingCause(
 	c.actualCause = actual
 }
 
-// TODO: remove and use client-opaque nonce from the server
 func getNonce() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
