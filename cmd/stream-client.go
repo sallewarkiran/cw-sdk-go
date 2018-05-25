@@ -17,12 +17,13 @@ import (
 var (
 	subs stringSlice
 
-	verbose   = flag.Bool("verbose", false, "Prints all debug messages to stdout.")
-	format    = flag.String("format", "json", "Data output format")
+	verbose = flag.Bool("verbose", false, "Prints all debug messages to stdout.")
+	format  = flag.String("format", "json", "Data output format")
+
+	credsFilename = flag.String("creds", "", "JSON file with credentials: the file must contain an object with two properties: \"api_key\" and \"secret_key\".")
+
 	apiKey    = flag.String("apikey", "", "API key to use. Consider using -creds instead.")
 	secretKey = flag.String("secretkey", "", "Secret key to use. Consider using -creds instead.")
-
-	// TODO: -creds
 )
 
 func init() {
@@ -47,6 +48,21 @@ func main() {
 		u = args[0]
 	}
 
+	// If --creds was given, use it; otherwise use --api-key and --secret-key.
+	var cr *creds
+	if *credsFilename != "" {
+		var err error
+		cr, err = parseCreds(*credsFilename)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		cr = &creds{
+			APIKey:    *apiKey,
+			SecretKey: *secretKey,
+		}
+	}
+
 	// Setup market connection (but don't connect just yet)
 	c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
 		URL: u,
@@ -56,8 +72,8 @@ func main() {
 		Backoff:          true,
 		Subscriptions:    subs,
 
-		APIKey:    *apiKey,
-		SecretKey: *secretKey,
+		APIKey:    cr.APIKey,
+		SecretKey: cr.SecretKey,
 	})
 
 	if err != nil {
