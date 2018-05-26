@@ -3,9 +3,9 @@
 This library provides a Golang API to talk to the Cryptowatch Websocket
 Streaming API. This product is in alpha.
 
-In order to use that API, one needs to obtain credentials: API key and secret
-key; [please click here](https://docs.google.com/forms/d/e/1FAIpQLSdhv_ceVtKA0qQcW6zQzBniRBaZ_cC4al31lDCeZirntkmWQw/viewform?c=0&w=1)
-to inquire about getting these credentials.
+The Cryptowatch Stream API is not a public API, like our [REST API](https://cryptowat.ch/docs/api).
+Please [click here](https://docs.google.com/forms/d/e/1FAIpQLSdhv_ceVtKA0qQcW6zQzBniRBaZ_cC4al31lDCeZirntkmWQw/viewform?c=0&w=1)
+to inquire about getting access to it.
 
 ## Using the library
 
@@ -27,8 +27,8 @@ c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
 	ReconnectTimeout: 1 * time.Second,
 	Backoff:          true,
 	Subscriptions:    []string{
-		"market:bitfinex:btcusd:orderbook:deltas",
-		"market:bitfinex:btceur:orderbook:deltas",
+		"market:86:trades", // Trade feed for Kraken BTCEUR
+		"market:87:trades", // Trade feed for Kraken BTCUSD
 	},
 
 	APIKey:    "myapikey",
