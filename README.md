@@ -3,7 +3,7 @@
 This library provides a Golang API to talk to the Cryptowatch Websocket
 Streaming API. This product is in alpha.
 
-The Cryptowatch Stream API is not a public API, like our [REST API](https://cryptowat.ch/docs/api).
+The Cryptowatch Websocket Streaming API is not public like our [REST API](https://cryptowat.ch/docs/api).
 Please [click here](https://docs.google.com/forms/d/e/1FAIpQLSdhv_ceVtKA0qQcW6zQzBniRBaZ_cC4al31lDCeZirntkmWQw/viewform?c=0&w=1)
 to inquire about getting access to it.
 
