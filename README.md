@@ -27,8 +27,8 @@ c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
 	ReconnectTimeout: 1 * time.Second,
 	Backoff:          true,
 	Subscriptions:    []string{
-		"market:86:trades", // Trade feed for Kraken BTCEUR
-		"market:87:trades", // Trade feed for Kraken BTCUSD
+		"markets:86:trades", // Trade feed for Kraken BTCEUR
+		"markets:87:trades", // Trade feed for Kraken BTCUSD
 	},
 
 	APIKey:    "myapikey",
