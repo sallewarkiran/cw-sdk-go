@@ -79,3 +79,21 @@ func (c *CWRESTClient) GetExchangeMarketsDescr(exchangeSymbol string) ([]MarketD
 
 	return res.Result, nil
 }
+
+func (c *CWRESTClient) GetMarketsIndex() ([]MarketDescr, error) {
+	resp, err := http.Get(fmt.Sprintf("%s/markets", c.APIURL))
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	defer resp.Body.Close()
+
+	res := marketsDescrServer{}
+
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&res); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return res.Result, nil
+}
