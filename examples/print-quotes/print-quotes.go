@@ -18,6 +18,8 @@ import (
 var (
 	apiKey    = flag.String("apikey", "", "API key to use.")
 	secretKey = flag.String("secretkey", "", "Secret key to use.")
+
+	pair = flag.String("pair", "", "Pair to watch")
 )
 
 func init() {
@@ -35,6 +37,17 @@ func main() {
 		marketSymbols = make(map[uint64]string)
 	)
 
+	if *pair == "" {
+		panic("Need -pair arg")
+	}
+
+	pairDescr, pairDescrErr := rest.GetPairDescr(*pair)
+	if pairDescrErr != nil {
+		panic(pairDescrErr)
+	}
+
+	marketsIndex, marketsIndexErr = rest.GetMarketsIndex()
+
 	if marketsIndexErr != nil {
 		panic(marketsIndexErr)
 	}
@@ -50,7 +63,7 @@ func main() {
 		ReconnectTimeout: 1 * time.Second,
 		Backoff:          true,
 		Subscriptions: []string{
-			"pairs:9:trades",
+			fmt.Sprintf("pairs:%d:trades", pairDescr.ID),
 		},
 
 		APIKey:    *apiKey,
@@ -66,11 +79,6 @@ func main() {
 
 			update := msg.GetTradesUpdate()
 			if update == nil {
-				return
-			}
-
-			// Ignore BTC-e BTCUSD - very divergent quotes from rest of the market
-			if msg.Market.MarketId == 148 {
 				return
 			}
 
