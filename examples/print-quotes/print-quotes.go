@@ -122,6 +122,10 @@ func (qs quotes) Less(i, j int) bool {
 	ival, _ := strconv.ParseFloat(qs[i].value, 32)
 	jval, _ := strconv.ParseFloat(qs[j].value, 32)
 
+	if ival == jval {
+		return qs[i].symbol < qs[j].symbol
+	}
+
 	return ival < jval
 }
 
