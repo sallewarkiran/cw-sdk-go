@@ -1,4 +1,4 @@
-package streamclient
+package streamclient // import "code.cryptowat.ch/stream-client-go"
 
 import (
 	"context"
