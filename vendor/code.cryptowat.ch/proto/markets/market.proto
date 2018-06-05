@@ -71,6 +71,8 @@ message OrderBookUpdate {
   float aggregationModulus = 3;
   string aggregationModulusStr = 4;
 
+  int32 seqNum = 5;
+
   repeated Order bids = 1;
   repeated Order asks = 2;
 }
@@ -83,6 +85,8 @@ message OrderBookDeltaUpdate {
   // 50, 100, etc. Exact possible values are set for each market individually.
   float aggregationModulus = 3;
   string aggregationModulusStr = 4;
+
+  int32 seqNum = 5;
 
   message OrderDeltas {
     // Either add a new order at a particular price, or replace existing one

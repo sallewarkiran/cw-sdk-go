@@ -11,12 +11,12 @@ fi
 
 # Set up GOPATH
 export GOPATH=$WORKSPACE/.go
-mkdir -p $GOPATH/src/github.com/cryptowatch
+mkdir -p $GOPATH/src/code.cryptowat.ch
 mkdir -p $GOPATH/bin
 export PATH=$PATH:$GOPATH/bin
 
-ln -s -f $WORKSPACE $GOPATH/src/github.com/cryptowatch/stream-client-go
-cd $GOPATH/src/github.com/cryptowatch/stream-client-go
+ln -s -f $WORKSPACE $GOPATH/src/code.cryptowat.ch/stream-client-go
+cd $GOPATH/src/code.cryptowat.ch/stream-client-go
 
 # Set up go get creds
 git config --global url."git@github.com:".insteadOf "https://github.com/"

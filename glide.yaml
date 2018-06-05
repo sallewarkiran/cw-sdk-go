@@ -1,6 +1,6 @@
-package: github.com/cryptowatch/stream-client-go
+package: code.cryptowat.ch/stream-client-go
 import:
-- package: github.com/cryptowatch/proto
+- package: code.cryptowat.ch/proto
   subpackages:
   - client
   - markets

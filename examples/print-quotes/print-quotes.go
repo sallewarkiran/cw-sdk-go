@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
-	pbm "github.com/cryptowatch/proto/markets"
-	streamclient "github.com/cryptowatch/stream-client-go"
-	"github.com/cryptowatch/stream-client-go/examples/kraken-trades/cwrest"
+	pbm "code.cryptowat.ch/proto/markets"
+	streamclient "code.cryptowat.ch/stream-client-go"
+	"code.cryptowat.ch/stream-client-go/examples/kraken-trades/cwrest"
 )
 
 var (

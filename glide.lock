@@ -1,8 +1,8 @@
-hash: fe1c2c708d7322965c8ab4958fb4c772b5593d3998c93e519426999fc04affa6
-updated: 2018-05-09T17:36:20.388942-04:00
+hash: e8d4944ace07de0870036ac43366932d2674e4cd21d6950523696ac0849a2196
+updated: 2018-06-05T18:41:50.637407795+03:00
 imports:
-- name: github.com/cryptowatch/proto
-  version: b0a6793a38f341fdbede3b15ee57563f77cc05bd
+- name: code.cryptowat.ch/proto
+  version: 019c606900b9dc5bffd9d399f9fb34061099b992
   subpackages:
   - client
   - markets
@@ -14,7 +14,7 @@ imports:
   - proto
   - ptypes/struct
 - name: github.com/gorilla/websocket
-  version: 21ab95fa12b9bdd8fecf5fa3586aad941cc98785
+  version: ea4d1f681babbce9545c9c5f3d5194a789c89f5b
 - name: github.com/juju/errors
   version: c7d06af17c68cd34c835053720b21f6549d9b0ee
 testImports: []
