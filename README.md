@@ -9,6 +9,10 @@ to inquire about getting access to it.
 
 ## Using the library
 
+```
+go get code.cryptowat.ch/stream-client-go
+```
+
 The typical workflow is to create an instance of the connection, setup some
 state- and message-listeners, and then kick off the connection. As events
 happen, registered listeners will be called (see the note below on
