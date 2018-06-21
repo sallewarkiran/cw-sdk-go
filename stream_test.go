@@ -36,6 +36,8 @@ const (
 	testSecretKeyWrong = "YmFyYmFyYmFy" // base64-encoded "barbarbar"
 )
 
+var testSubscriptions = []string{"foo", "bar"}
+
 // websocketEvent represents an event like new opened connection or new
 // received websocket message
 type websocketEvent struct {
@@ -353,7 +355,7 @@ func TestStreamConn(t *testing.T) {
 			URL:              tp.url,
 			Reconnect:        true,
 			ReconnectTimeout: 1 * time.Millisecond,
-			Subscriptions:    []string{"foo", "bar"},
+			Subscriptions:    testSubscriptions,
 
 			APIKey:    testApiKey1,
 			SecretKey: testSecretKey1,
@@ -397,11 +399,6 @@ func TestStreamConn(t *testing.T) {
 		// Send AuthenticationResult to the client
 		if err := sendAuthnResp(t, tp, pbs.AuthenticationResult_AUTHENTICATED); err != nil {
 			return errors.Errorf("sending authn resp: %s", err)
-		}
-
-		// Wait for the client identification message
-		if err := waitIdMsg(t, tp, []string{"foo", "bar"}); err != nil {
-			return errors.Errorf("waiting for client identification message: %s", err)
 		}
 
 		if err := st.ExpectState(StateEstablished); err != nil {
@@ -541,11 +538,6 @@ func TestStreamConn(t *testing.T) {
 			return errors.Errorf("sending authn resp: %s", err)
 		}
 
-		// Wait for the client identification message
-		if err := waitIdMsg(t, tp, []string{"foo", "bar"}); err != nil {
-			return errors.Errorf("waiting for client identification message: %s", err)
-		}
-
 		if err := st.ExpectState(StateEstablished); err != nil {
 			return errors.Trace(err)
 		}
@@ -582,7 +574,7 @@ func TestAuthnErrors(t *testing.T) {
 			URL:              tp.url,
 			Reconnect:        true,
 			ReconnectTimeout: 1 * time.Millisecond,
-			Subscriptions:    []string{"foo", "bar"},
+			Subscriptions:    testSubscriptions,
 
 			APIKey:    testApiKey1,
 			SecretKey: testSecretKeyWrong,
@@ -696,8 +688,9 @@ func TestStateListeners(t *testing.T) {
 			Reconnect:        true,
 			ReconnectTimeout: 1 * time.Millisecond,
 
-			APIKey:    testApiKey1,
-			SecretKey: testSecretKey1,
+			APIKey:        testApiKey1,
+			SecretKey:     testSecretKey1,
+			Subscriptions: testSubscriptions,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -879,11 +872,6 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("sending authn resp: %s", err)
 		}
 
-		// Wait for the client identification message
-		if err := waitIdMsg(t, tp, []string{}); err != nil {
-			return errors.Errorf("waiting for client identification message: %s", err)
-		}
-
 		if err := st[0].ExpectState(StateEstablished); err != nil {
 			return errors.Trace(err)
 		}
@@ -921,11 +909,6 @@ func TestStateListeners(t *testing.T) {
 		// Send AuthenticationResult to the client
 		if err := sendAuthnResp(t, tp, pbs.AuthenticationResult_AUTHENTICATED); err != nil {
 			return errors.Errorf("sending authn resp: %s", err)
-		}
-
-		// Wait for the client identification message
-		if err := waitIdMsg(t, tp, []string{}); err != nil {
-			return errors.Errorf("waiting for client identification message: %s", err)
 		}
 
 		if err := st[0].ExpectState(StateEstablished); err != nil {
@@ -972,11 +955,6 @@ func TestStateListeners(t *testing.T) {
 		// Send AuthenticationResult to the client
 		if err := sendAuthnResp(t, tp, pbs.AuthenticationResult_AUTHENTICATED); err != nil {
 			return errors.Errorf("sending authn resp: %s", err)
-		}
-
-		// Wait for the client identification message
-		if err := waitIdMsg(t, tp, []string{}); err != nil {
-			return errors.Errorf("waiting for client identification message: %s", err)
 		}
 
 		if err := st[0].ExpectState(StateEstablished); err != nil {
@@ -1050,49 +1028,6 @@ func waitConnOpen(t *testing.T, tp *testServerParams) error {
 	return nil
 }
 
-func waitIdMsg(t *testing.T, tp *testServerParams, subs []string) error {
-	select {
-	case event := <-tp.rx:
-		if want, got := eventTypeMsg, event.eventType; want != got {
-			return errors.Errorf("event type: want: %v, got: %v", want, got)
-		}
-
-		var cm pbc.ClientMessage
-		if err := proto.Unmarshal(event.data, &cm); err != nil {
-			return errors.Trace(err)
-		}
-
-		cid := cm.GetIdentification()
-		if cid == nil {
-			return errors.Errorf("received something other than client identification")
-		}
-
-		// Check useragent
-		{
-			want := "Cryptowatch Stream Client Golang"
-			got := strings.Split(cid.Useragent, "/")[0]
-			if got != want {
-				return errors.Errorf("Useragent: want: %q, got: %q", want, got)
-			}
-		}
-
-		// Check subscriptions
-		{
-			want := subs
-			if !(len(want) == 0 && len(subs) == 0) {
-				if !reflect.DeepEqual(want, cid.Subscriptions) {
-					return errors.Errorf("Subscriptions: want: %+v, got: %+v", want, cid.Subscriptions)
-				}
-			}
-		}
-
-	case <-time.After(1 * time.Second):
-		return errors.Errorf("didn't receive anything")
-	}
-
-	return nil
-}
-
 func waitAuthnReq(t *testing.T, tp *testServerParams, apiKey, secretKey string) error {
 	select {
 	case event := <-tp.rx:
@@ -1117,6 +1052,16 @@ func waitAuthnReq(t *testing.T, tp *testServerParams, apiKey, secretKey string) 
 		token, err := generateToken(apiKey, secretKey, apiAuthn.Nonce)
 		if err != nil {
 			return errors.Trace(err)
+		}
+
+		subscriptions := apiAuthn.GetSubscriptions()
+		if !reflect.DeepEqual(subscriptions, testSubscriptions) {
+			return errors.Errorf("Subscriptions not set properly in auth message")
+		}
+
+		version := apiAuthn.GetVersion()
+		if version == "" {
+			return errors.Errorf("Client version not set in auth message")
 		}
 
 		if !hmac.Equal([]byte(apiAuthn.Token), []byte(token)) {
