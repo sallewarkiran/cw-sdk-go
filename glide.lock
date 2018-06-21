@@ -1,20 +1,20 @@
 hash: e8d4944ace07de0870036ac43366932d2674e4cd21d6950523696ac0849a2196
-updated: 2018-06-05T18:41:50.637407795+03:00
+updated: 2018-06-21T09:47:17.931207-04:00
 imports:
 - name: code.cryptowat.ch/proto
-  version: 019c606900b9dc5bffd9d399f9fb34061099b992
+  version: 2edc497491e8e231e0f8ad4d03b0b1d38dbe8185
   subpackages:
   - client
   - markets
   - stream
 - name: github.com/golang/protobuf
-  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
+  version: 9f81198da99b79e14d70ca2c3cc1bbe44c6e69b6
   subpackages:
   - jsonpb
   - proto
   - ptypes/struct
 - name: github.com/gorilla/websocket
-  version: ea4d1f681babbce9545c9c5f3d5194a789c89f5b
+  version: 5ed622c449da6d44c3c8329331ff47a9e5844f71
 - name: github.com/juju/errors
   version: c7d06af17c68cd34c835053720b21f6549d9b0ee
 testImports: []
