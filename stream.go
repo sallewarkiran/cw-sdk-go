@@ -271,10 +271,12 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 						authMsg := &pbc.ClientMessage{
 							Body: &pbc.ClientMessage_ApiAuthentication{
 								ApiAuthentication: &pbc.APIAuthenticationMessage{
-									Token:  token,
-									Nonce:  nonce,
-									ApiKey: c.params.APIKey,
-									Source: pbc.APIAuthenticationMessage_GOLANG_SDK,
+									Token:         token,
+									Nonce:         nonce,
+									ApiKey:        c.params.APIKey,
+									Source:        pbc.APIAuthenticationMessage_GOLANG_SDK,
+									Version:       version,
+									Subscriptions: c.params.Subscriptions,
 								},
 							},
 						}
@@ -308,36 +310,6 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 					if authnRes != nil {
 						return errors.Trace(authnRes)
 					}
-					// }}}
-
-					// Send client ID {{{
-					cm := &pbc.ClientMessage{
-						Body: &pbc.ClientMessage_Identification{
-							Identification: &pbc.ClientIdentificationMessage{
-								Useragent: fmt.Sprintf("Cryptowatch Stream Client Golang/%s", version),
-
-								// TODO: probably pass revision via params so that it depends on a
-								// client application rather than a library, or just leave it always
-								// empty as it is now.
-								//
-								// It's not trivial to have a revision of the library repo, because it
-								// should be go-gettable and importable by other code, and for that,
-								// we'd need to include the revision constant into the repo. Obviously,
-								// even if we do autogenerate some file with the revision on every
-								// commit, it would actually represent previous commit, not the current
-								// one, and this would be just weird.
-								Revision:      "",
-								Integration:   "",      // Irrelevant
-								Locale:        "en_US", // TODO: get locale from the OS
-								Subscriptions: c.params.Subscriptions,
-							},
-						},
-					}
-
-					if err := c.sendProto(ctx, cm); err != nil {
-						return errors.Trace(err)
-					}
-					// }}}
 
 					select {
 					case <-ctx.Done():
