@@ -36,6 +36,8 @@ const (
 	testSecretKeyWrong = "YmFyYmFyYmFy" // base64-encoded "barbarbar"
 )
 
+var testSubscriptions = []string{"foo", "bar"}
+
 // websocketEvent represents an event like new opened connection or new
 // received websocket message
 type websocketEvent struct {
@@ -353,7 +355,7 @@ func TestStreamConn(t *testing.T) {
 			URL:              tp.url,
 			Reconnect:        true,
 			ReconnectTimeout: 1 * time.Millisecond,
-			Subscriptions:    []string{"foo", "bar"},
+			Subscriptions:    testSubscriptions,
 
 			APIKey:    testApiKey1,
 			SecretKey: testSecretKey1,
@@ -572,7 +574,7 @@ func TestAuthnErrors(t *testing.T) {
 			URL:              tp.url,
 			Reconnect:        true,
 			ReconnectTimeout: 1 * time.Millisecond,
-			Subscriptions:    []string{"foo", "bar"},
+			Subscriptions:    testSubscriptions,
 
 			APIKey:    testApiKey1,
 			SecretKey: testSecretKeyWrong,
@@ -686,8 +688,9 @@ func TestStateListeners(t *testing.T) {
 			Reconnect:        true,
 			ReconnectTimeout: 1 * time.Millisecond,
 
-			APIKey:    testApiKey1,
-			SecretKey: testSecretKey1,
+			APIKey:        testApiKey1,
+			SecretKey:     testSecretKey1,
+			Subscriptions: testSubscriptions,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -1049,6 +1052,16 @@ func waitAuthnReq(t *testing.T, tp *testServerParams, apiKey, secretKey string) 
 		token, err := generateToken(apiKey, secretKey, apiAuthn.Nonce)
 		if err != nil {
 			return errors.Trace(err)
+		}
+
+		subscriptions := apiAuthn.GetSubscriptions()
+		if !reflect.DeepEqual(subscriptions, testSubscriptions) {
+			return errors.Errorf("Subscriptions not set properly in auth message")
+		}
+
+		version := apiAuthn.GetVersion()
+		if version == "" {
+			return errors.Errorf("Client version not set in auth message")
 		}
 
 		if !hmac.Equal([]byte(apiAuthn.Token), []byte(token)) {
