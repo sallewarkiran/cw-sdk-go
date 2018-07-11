@@ -2,13 +2,10 @@
 
 
 [[projects]]
-  name = "code.cryptowat.ch/proto"
-  packages = [
-    "client",
-    "markets",
-    "stream"
-  ]
-  revision = "2edc497491e8e231e0f8ad4d03b0b1d38dbe8185"
+  name = "github.com/davecgh/go-spew"
+  packages = ["spew"]
+  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
+  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -31,9 +28,21 @@
   packages = ["."]
   revision = "c7d06af17c68cd34c835053720b21f6549d9b0ee"
 
+[[projects]]
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
+  version = "v1.2.2"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "cfe88496decdfceecfe2ed40ea2d00703e661d8fcef59f439d59a1318dc036f4"
+  inputs-digest = "1ec7027e4bd3ac3e90e7f364e98cd92b04e15dd6d313b993d8811043e69c00c3"
   solver-name = "gps-cdcl"
   solver-version = 1

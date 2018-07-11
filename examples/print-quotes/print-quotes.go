@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	pbm "code.cryptowat.ch/proto/markets"
+	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
 	streamclient "code.cryptowat.ch/stream-client-go"
 	"code.cryptowat.ch/stream-client-go/examples/kraken-trades/cwrest"
 )

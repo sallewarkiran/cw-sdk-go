@@ -26,10 +26,6 @@
 
 
 [[constraint]]
-  name = "code.cryptowat.ch/proto"
-  revision = "2edc497491e8e231e0f8ad4d03b0b1d38dbe8185"
-
-[[constraint]]
   name = "github.com/gorilla/websocket"
   branch = "master"
 

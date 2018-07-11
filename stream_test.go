@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	pbc "code.cryptowat.ch/proto/client"
-	pbm "code.cryptowat.ch/proto/markets"
-	pbs "code.cryptowat.ch/proto/stream"
+	pbc "code.cryptowat.ch/stream-client-go/proto/client"
+	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
+	pbs "code.cryptowat.ch/stream-client-go/proto/stream"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/juju/errors"

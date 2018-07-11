@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"time"
 
-	pbm "code.cryptowat.ch/proto/markets"
+	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
 	"code.cryptowat.ch/stream-client-go"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"

@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	pbc "code.cryptowat.ch/proto/client"
-	pbm "code.cryptowat.ch/proto/markets"
-	pbs "code.cryptowat.ch/proto/stream"
+	pbc "code.cryptowat.ch/stream-client-go/proto/client"
+	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
+	pbs "code.cryptowat.ch/stream-client-go/proto/stream"
 	"code.cryptowat.ch/stream-client-go/internal"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
