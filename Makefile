@@ -9,7 +9,7 @@ client:
 # says --cound=1 is the idiomatic way to do that. Doesn't look too obvious
 # though, but okay.
 test:
-	go test --count=1 --race .
+	go test --count=1 --race ./...
 
 clean:
 	rm -rf bin

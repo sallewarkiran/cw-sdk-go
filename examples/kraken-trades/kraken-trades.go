@@ -63,7 +63,7 @@ func main() {
 		SecretKey: *secretKey,
 	})
 	if err != nil {
-		log.Fatal("%s", err)
+		log.Fatalf("%s", err)
 	}
 
 	// Ask for the state transition updates, and present them to the user somehow
