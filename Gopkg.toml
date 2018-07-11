@@ -26,12 +26,16 @@
 
 
 [[constraint]]
+  name = "github.com/golang/protobuf"
+  revision = "9f81198da99b79e14d70ca2c3cc1bbe44c6e69b6"
+
+[[constraint]]
   name = "github.com/gorilla/websocket"
-  branch = "master"
+  revision = "5ed622c449da6d44c3c8329331ff47a9e5844f71"
 
 [[constraint]]
   name = "github.com/juju/errors"
-  branch = "master"
+  revision = "c7d06af17c68cd34c835053720b21f6549d9b0ee"
 
 [prune]
   go-tests = true
