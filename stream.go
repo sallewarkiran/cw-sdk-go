@@ -310,6 +310,7 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 					if authnRes != nil {
 						return errors.Trace(authnRes)
 					}
+					// }}}
 
 					select {
 					case <-ctx.Done():
