@@ -451,34 +451,38 @@ func (c *StreamConn) authHandler(result *pbs.AuthenticationResult) {
 }
 
 func (c *StreamConn) marketUpdateHandler(update *pbm.MarketUpdateMessage) {
-	if update != nil {
-		c.mtx.Lock()
-		listeners := make([]OnMarketUpdateCallback, len(c.marketListeners))
-		for i, v := range c.marketListeners {
-			listeners[i] = v
-		}
-		c.mtx.Unlock()
+	if update == nil {
+		return
+	}
 
-		// Request listeners invocation (will be invoked by a dedicated goroutine)
-		c.callMarketListeners <- callMarketListenersReq{
-			listeners: listeners,
-			msg:       update,
-		}
+	c.mtx.Lock()
+	listeners := make([]OnMarketUpdateCallback, len(c.marketListeners))
+	for i, v := range c.marketListeners {
+		listeners[i] = v
+	}
+	c.mtx.Unlock()
+
+	// Request listeners invocation (will be invoked by a dedicated goroutine)
+	c.callMarketListeners <- callMarketListenersReq{
+		listeners: listeners,
+		msg:       update,
 	}
 }
 
 func (c *StreamConn) pairUpdateHandler(update *pbm.PairUpdateMessage) {
-	if update != nil {
-		c.mtx.Lock()
-		listeners := make([]OnPairUpdateCallback, len(c.pairListeners))
-		for i, v := range c.pairListeners {
-			listeners[i] = v
-		}
-		c.mtx.Unlock()
-		c.callPairListeners <- callPairListenersReq{
-			listeners: listeners,
-			msg:       update,
-		}
+	if update == nil {
+		return
+	}
+
+	c.mtx.Lock()
+	listeners := make([]OnPairUpdateCallback, len(c.pairListeners))
+	for i, v := range c.pairListeners {
+		listeners[i] = v
+	}
+	c.mtx.Unlock()
+	c.callPairListeners <- callPairListenersReq{
+		listeners: listeners,
+		msg:       update,
 	}
 }
 
