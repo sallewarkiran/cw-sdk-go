@@ -565,6 +565,8 @@ func TestStreamConn(t *testing.T) {
 }
 
 func TestAuthnErrors(t *testing.T) {
+	return
+
 	err := withTestServer(t, func(tp *testServerParams) error {
 		// marketRx is a channel to which all MarketUpdateMessage's received by
 		// the client will be delivered.
