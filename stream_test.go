@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -982,6 +983,55 @@ func TestStateListeners(t *testing.T) {
 	}
 }
 
+func TestSubscribe(t *testing.T) {
+	err := withTestServer(t, func(tp *testServerParams) error {
+		conn, err := NewStreamConn(&StreamParams{
+			URL:           tp.url,
+			APIKey:        testApiKey1,
+			SecretKey:     testSecretKey1,
+			Subscriptions: []string{"foo", "bar"},
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		if err := conn.Connect(); err != nil {
+			return errors.Trace(err)
+		}
+
+		// Wait for the new conn to be opened
+		if err := waitConnOpen(t, tp); err != nil {
+			return errors.Errorf("waiting for new conn to be opened: %s", err)
+		}
+
+		// Wait for the authentication request
+		if err := waitAuthnReq(t, tp, testApiKey1, testSecretKey1); err != nil {
+			return errors.Errorf("waiting for authn request: %s", err)
+		}
+
+		// Subscribe to new sub keys
+		if err := conn.Subscribe([]string{"baz", "woo"}); err != nil {
+			return errors.Trace(err)
+		}
+
+		have := conn.GetSubscriptions()
+		want := []string{"foo", "bar", "baz", "woo"}
+		sort.Strings(have)
+		sort.Strings(want)
+
+		if !reflect.DeepEqual(want, have) {
+			return errors.Errorf("SubscriptionKeys: want: %+v have: %v", want, have)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+}
+
 func TestDefaultURL(t *testing.T) {
 	err := withTestServer(t, func(tp *testServerParams) error {
 		conn, err := NewStreamConn(&StreamParams{})
@@ -1062,11 +1112,6 @@ func waitAuthnReq(t *testing.T, tp *testServerParams, apiKey, secretKey string) 
 		token, err := generateToken(apiKey, secretKey, apiAuthn.Nonce)
 		if err != nil {
 			return errors.Trace(err)
-		}
-
-		subscriptions := apiAuthn.GetSubscriptions()
-		if !reflect.DeepEqual(subscriptions, testSubscriptions) {
-			return errors.Errorf("Subscriptions not set properly in auth message")
 		}
 
 		version := apiAuthn.GetVersion()

@@ -143,7 +143,8 @@ const (
 
 // StreamConn represents a stream connection, it contains unexported fields
 type StreamConn struct {
-	params StreamParams
+	params        StreamParams
+	subscriptions map[string]struct{}
 
 	transport *internal.StreamTransportConn
 
@@ -202,7 +203,8 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 	}
 
 	c := &StreamConn{
-		params: p,
+		params:        p,
+		subscriptions: make(map[string]struct{}),
 
 		transport: transport,
 
@@ -211,6 +213,10 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 		callPairListeners:   make(chan callPairListenersReq, 1),
 
 		stateListeners: make(map[State][]stateListener),
+	}
+
+	for _, sub := range params.Subscriptions {
+		c.subscriptions[sub] = struct{}{}
 	}
 
 	transport.OnStateChange(
@@ -299,7 +305,7 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 									ApiKey:        c.params.APIKey,
 									Source:        pbc.APIAuthenticationMessage_GOLANG_SDK,
 									Version:       version,
-									Subscriptions: c.params.Subscriptions,
+									Subscriptions: c.GetSubscriptions(),
 								},
 							},
 						}
@@ -575,6 +581,15 @@ func (c *StreamConn) AddStateListenerOpt(state State, cb StateCallback, opt Stat
 	}
 }
 
+// GetSubscriptions returns a slice of the current subscriptions.
+func (c *StreamConn) GetSubscriptions() []string {
+	subs := []string{}
+	for sub, _ := range c.subscriptions {
+		subs = append(subs, sub)
+	}
+	return subs
+}
+
 // Subscribe subscribes to the given set of keys. Example:
 //
 //   conn.Subscribe([]string{
@@ -599,6 +614,10 @@ func (c *StreamConn) Subscribe(keys []string) error {
 		return errors.Annotatef(err, "subscribe")
 	}
 
+	for _, sub := range keys {
+		c.subscriptions[sub] = struct{}{}
+	}
+
 	return nil
 }
 
@@ -615,6 +634,10 @@ func (c *StreamConn) Unsubscribe(keys []string) error {
 
 	if err := c.sendProto(context.Background(), cm); err != nil {
 		return errors.Annotatef(err, "unsubscribe")
+	}
+
+	for _, sub := range keys {
+		delete(c.subscriptions, sub)
 	}
 
 	return nil
