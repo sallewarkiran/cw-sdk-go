@@ -129,7 +129,7 @@ func (st *stateTracker) ExpectStateWCause(state State, cause error) error {
 			return errors.Errorf("expect state cause: want: %s, got: %s (%v)", cause, change.cause, change)
 		}
 
-	case <-time.After(1 * time.Second):
+	case <-time.After(2 * time.Second):
 		return errors.Errorf("expect state change: want: %s, but nothing happened", StateNames[state])
 	}
 
@@ -268,9 +268,7 @@ func withTestServer(
 func TestWriteToNonConnected(t *testing.T) {
 	err := withTestServer(t, func(tp *testServerParams) error {
 		conn, err := NewStreamConn(&StreamParams{
-			URL:              tp.url,
-			Reconnect:        true,
-			ReconnectTimeout: 1 * time.Millisecond,
+			URL: tp.url,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -294,9 +292,7 @@ func TestWriteToNonConnected(t *testing.T) {
 func TestConnectConnected(t *testing.T) {
 	err := withTestServer(t, func(tp *testServerParams) error {
 		c, err := NewStreamConn(&StreamParams{
-			URL:              tp.url,
-			Reconnect:        true,
-			ReconnectTimeout: 1 * time.Millisecond,
+			URL: tp.url,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -324,9 +320,7 @@ func TestConnectConnected(t *testing.T) {
 func TestCloseClosed(t *testing.T) {
 	err := withTestServer(t, func(tp *testServerParams) error {
 		c, err := NewStreamConn(&StreamParams{
-			URL:              tp.url,
-			Reconnect:        true,
-			ReconnectTimeout: 1 * time.Millisecond,
+			URL: tp.url,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -352,10 +346,8 @@ func TestStreamConn(t *testing.T) {
 		marketRx := make(chan *pbm.MarketUpdateMessage, 128)
 
 		conn, err := NewStreamConn(&StreamParams{
-			URL:              tp.url,
-			Reconnect:        true,
-			ReconnectTimeout: 1 * time.Millisecond,
-			Subscriptions:    testSubscriptions,
+			URL:           tp.url,
+			Subscriptions: testSubscriptions,
 
 			APIKey:    testApiKey1,
 			SecretKey: testSecretKey1,
@@ -573,10 +565,8 @@ func TestAuthnErrors(t *testing.T) {
 		marketRx := make(chan *pbm.MarketUpdateMessage, 128)
 
 		conn, err := NewStreamConn(&StreamParams{
-			URL:              tp.url,
-			Reconnect:        true,
-			ReconnectTimeout: 1 * time.Millisecond,
-			Subscriptions:    testSubscriptions,
+			URL:           tp.url,
+			Subscriptions: testSubscriptions,
 
 			APIKey:    testApiKey1,
 			SecretKey: testSecretKeyWrong,
@@ -686,9 +676,7 @@ func TestAuthnErrors(t *testing.T) {
 func TestStateListeners(t *testing.T) {
 	err := withTestServer(t, func(tp *testServerParams) error {
 		c, err := NewStreamConn(&StreamParams{
-			URL:              tp.url,
-			Reconnect:        true,
-			ReconnectTimeout: 1 * time.Millisecond,
+			URL: tp.url,
 
 			APIKey:        testApiKey1,
 			SecretKey:     testSecretKey1,
@@ -996,10 +984,7 @@ func TestStateListeners(t *testing.T) {
 
 func TestDefaultURL(t *testing.T) {
 	err := withTestServer(t, func(tp *testServerParams) error {
-		conn, err := NewStreamConn(&StreamParams{
-			Reconnect:        true,
-			ReconnectTimeout: 1 * time.Millisecond,
-		})
+		conn, err := NewStreamConn(&StreamParams{})
 		if err != nil {
 			return errors.Trace(err)
 		}

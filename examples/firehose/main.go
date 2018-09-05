@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"time"
 
 	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
 	streamclient "code.cryptowat.ch/stream-client-go"
@@ -49,9 +48,6 @@ func main() {
 	c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
 		URL: "wss://stream.cryptowat.ch",
 
-		Reconnect:        true,
-		ReconnectTimeout: 1 * time.Second,
-		Backoff:          true,
 		Subscriptions: []string{
 			"markets:*:trades",
 		},

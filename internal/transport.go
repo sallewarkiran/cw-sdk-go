@@ -29,6 +29,10 @@ const (
 
 	// TransportStateConnected means the websocket connection is established.
 	TransportStateConnected
+
+	defaultBackoff             = true
+	defaultReconnectTimeout    = 1 * time.Second
+	defaultMaxReconnectTimeout = 30 * time.Second
 )
 
 var (
@@ -39,20 +43,12 @@ var (
 // StreamTransportParams contains params for opening a client stream connection
 // (see StreamTransportConn)
 type StreamTransportParams struct {
-	// Server URL, e.g. wss://sb.cryptowat.ch
+	// Server URL, e.g. wss://stream.cryptowat.ch
 	URL string
 
-	// Whether the library should reconnect automatically
-	Reconnect bool
-	// Reconnection backoff: if true, then the reconnection time will be
-	// initially ReconnectTimeout, then will become twice as long each
-	// unsuccessful connection attempt; but it won't be longer than
-	// MaxReconnectTimeout.
-	Backoff bool
-	// Initial reconnection timeout: if zero, then 1 second will be used
-	ReconnectTimeout time.Duration
-	// Max reconnect timeout. If zero, then 30 seconds will be used.
-	MaxReconnectTimeout time.Duration
+	// Whether the library should reconnect automatically. Defaults to true, so
+	// the client must explicitly request to not retry connections.
+	NoReconnect bool
 }
 
 // StreamTransportConn is a client stream connection; it's typically wrapped into more
@@ -90,6 +86,16 @@ type StreamTransportConn struct {
 	// happen immediately
 	reconnectNow chan struct{}
 
+	// Reconnection backoff: if true, then the reconnection time will be
+	// initially ReconnectTimeout, then will become twice as long each
+	// unsuccessful connection attempt; but it won't be longer than
+	// MaxReconnectTimeout.
+	backoff bool
+	// Initial reconnection timeout: if zero, then 1 second will be used
+	reconnectTimeout time.Duration
+	// Max reconnect timeout. If zero, then 30 seconds will be used.
+	maxReconnectTimeout time.Duration
+
 	mtx sync.Mutex
 }
 
@@ -116,11 +122,10 @@ func NewStreamTransportConn(params *StreamTransportParams) (*StreamTransportConn
 
 	// By default, set reconnection time to 1 second, and max reconnection
 	// time to 30 seconds
-	if c.params.ReconnectTimeout == 0 {
-		c.params.ReconnectTimeout = 1 * time.Second
-	}
-	if c.params.MaxReconnectTimeout == 0 {
-		c.params.MaxReconnectTimeout = 30 * time.Second
+	if !c.params.NoReconnect {
+		c.backoff = true
+		c.reconnectTimeout = defaultReconnectTimeout
+		c.maxReconnectTimeout = defaultMaxReconnectTimeout
 	}
 
 	// Start writeLoop right away, before even connecting, so that an attempt to
@@ -325,7 +330,7 @@ func (c *StreamTransportConn) updateState(state TransportState, cause error) {
 func (c *StreamTransportConn) connLoop(connCtx context.Context, connCtxCancel context.CancelFunc) {
 	var connErr error
 
-	nextReconnectTimeout := c.params.ReconnectTimeout
+	nextReconnectTimeout := c.reconnectTimeout
 
 	defer func() {
 		c.mtx.Lock()
@@ -347,7 +352,7 @@ cloop:
 		wsConn, _, connErr = websocket.DefaultDialer.Dial(c.params.URL, nil)
 		if connErr == nil {
 			// Connected successfully
-			nextReconnectTimeout = c.params.ReconnectTimeout
+			nextReconnectTimeout = c.reconnectTimeout
 
 			c.mtx.Lock()
 			c.wsConn = wsConn
@@ -382,7 +387,7 @@ cloop:
 		}
 
 		// If shouldn't reconnect, we're done
-		if !c.params.Reconnect {
+		if c.params.NoReconnect {
 			connCtxCancel()
 		}
 
@@ -413,10 +418,10 @@ cloop:
 			break waitReconnect
 		}
 
-		if c.params.Backoff {
+		if c.backoff {
 			nextReconnectTimeout *= 2
-			if nextReconnectTimeout > c.params.MaxReconnectTimeout {
-				nextReconnectTimeout = c.params.MaxReconnectTimeout
+			if nextReconnectTimeout > c.maxReconnectTimeout {
+				nextReconnectTimeout = c.maxReconnectTimeout
 			}
 		}
 	}

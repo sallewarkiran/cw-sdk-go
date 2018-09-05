@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"time"
 
 	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
 	"code.cryptowat.ch/stream-client-go"
@@ -67,10 +66,7 @@ func main() {
 	c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
 		URL: u,
 
-		Reconnect:        true,
-		ReconnectTimeout: 1 * time.Second,
-		Backoff:          true,
-		Subscriptions:    subs,
+		Subscriptions: subs,
 
 		APIKey:    cr.APIKey,
 		SecretKey: cr.SecretKey,

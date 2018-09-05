@@ -33,7 +33,6 @@ var (
 	// ErrNotConnected means the connection is not established when the client
 	// tried to e.g. send a message, or close the connection.
 	ErrNotConnected = errors.New("not connected")
-
 	// ErrConnLoopActive means the client tried to connect when the connection
 	// loop is already active.
 	ErrConnLoopActive = errors.New("connection loop is already active")
@@ -65,7 +64,7 @@ func init() {
 
 // StreamParams contains params for opening a client stream connection
 type StreamParams struct {
-	// Server URL, e.g. wss://sb.cryptowat.ch
+	// Server URL, e.g. wss://stream.cryptowat.ch
 	URL string
 
 	// APIKey and SecretKey are stream credentials
@@ -76,17 +75,7 @@ type StreamParams struct {
 	// those every time it's connected or reconnected.
 	Subscriptions []string
 
-	// Whether the library should reconnect automatically
-	Reconnect bool
-	// Reconnection backoff: if true, then the reconnection time will be
-	// initially ReconnectTimeout, then will become twice as long each
-	// unsuccessful connection attempt; but it won't be longer than
-	// MaxReconnectTimeout.
-	Backoff bool
-	// Initial reconnection timeout: if zero, then 1 second will be used
-	ReconnectTimeout time.Duration
-	// Max reconnect timeout. If zero, then 30 seconds will be used.
-	MaxReconnectTimeout time.Duration
+	NoReconnect bool
 }
 
 type State int
@@ -168,11 +157,8 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 	}
 
 	transport, err := internal.NewStreamTransportConn(&internal.StreamTransportParams{
-		URL:                 p.URL,
-		Reconnect:           p.Reconnect,
-		Backoff:             p.Backoff,
-		ReconnectTimeout:    p.ReconnectTimeout,
-		MaxReconnectTimeout: p.MaxReconnectTimeout,
+		URL:         p.URL,
+		NoReconnect: p.NoReconnect,
 	})
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -610,7 +596,7 @@ func (c *StreamConn) AddMarketListener(cb OnMarketUpdateCallback) {
 	c.marketListeners = append(c.marketListeners, cb)
 }
 
-// AddMarketListener registers a new listener for all received market update
+// AddMarketListener registers a new listener for all received pair update
 // messages.
 func (c *StreamConn) AddPairListener(cb OnPairUpdateCallback) {
 	c.mtx.Lock()
@@ -627,7 +613,7 @@ func (c *StreamConn) State() State {
 	return c.state
 }
 
-// URL returns an url used for connection.
+// URL returns the url used for connecting.
 func (c *StreamConn) URL() string {
 	return c.params.URL
 }

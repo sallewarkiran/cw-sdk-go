@@ -7,36 +7,30 @@ The Cryptowatch Websocket Streaming API is not public like our [REST API](https:
 Please [click here](https://docs.google.com/forms/d/e/1FAIpQLSdhv_ceVtKA0qQcW6zQzBniRBaZ_cC4al31lDCeZirntkmWQw/viewform?c=0&w=1)
 to inquire about getting access to it.
 
-## Using the library
+## Install
 
 ```
 go get code.cryptowat.ch/stream-client-go
 ```
 
-The typical workflow is to create an instance of the connection, setup some
-state- and message-listeners, and then kick off the connection. As events
-happen, registered listeners will be called (see the note below on
-concurrency).
+## Usage
+The typical workflow is to create an instance of the connection, setup listeners, then initiate the connection. As events happen (such as state changes or data received), registered listeners will be called (see the note below on concurrency). 
 
-
-### Code Sample
+The following code connects to the stream api and listens on market data for `btc:usd` and `btc:eur`.
 
 ```golang
+
+import streamclient "code.cryptowat.ch/stream-client-go"
+
 // Create a new stream connection instance. Note that the actual connection
 // will happen later.
 c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
-	URL: "wss://sb.cryptowat.ch",
-
-	Reconnect:        true,
-	ReconnectTimeout: 1 * time.Second,
-	Backoff:          true,
+	APIKey:    "myapikey",
+	SecretKey: "mysecretkey",
 	Subscriptions:    []string{
 		"markets:86:trades", // Trade feed for Kraken BTCEUR
 		"markets:87:trades", // Trade feed for Kraken BTCUSD
 	},
-
-	APIKey:    "myapikey",
-	SecretKey: "mysecretkey",
 })
 if err != nil {
 	log.Fatal("%s", err)
@@ -85,6 +79,100 @@ if err := c.Close(); err != nil {
 }
 ```
 
+## Settings
+The following struct is used as the settings parameter for `streamclient.NewStreamConn(params)`. The only required values are `APIKey` and `SecretKey`; all other settings have sensible defaults.
+
+```golang
+type StreamParams struct {
+	// Required. APIKey and SecretKey are stream credentials
+	APIKey    string
+	SecretKey string
+
+	// Stream url to connect to; default is wss://stream.cryptowat.ch
+	URL string
+
+	// Initial set of subscription keys. Client will automatically subscribe to
+	// those every time it's connected or reconnected.
+	Subscriptions []string
+
+	// Setting NoReconnect to true will disable the default reconnect behavior,
+	// and stop the connecting if it is ever disrupted. We do not recommend this. 
+	// The default reconnect behavior will retry after 1 second, then subsequent
+	// attempts will use exponential backoff until 30 seconds is reached (where 
+	// it will keep trying).
+	NoReconnect bool
+}
+```
+
+## Methods
+The following methods are available on an instance of `StreamConn`.
+
+#### Connect()
+Initiates connection to the stream api.
+
+#### Close()
+Stops the current connection (or any attempts to reconnect).
+
+#### Subscribe(keys []string)
+Subscribes the client to the given keys.
+
+#### Unsubscribe(keys []string)
+Unsubscribes the client from the given keys.
+
+#### AddStateListener(state State, cb StateCallback)
+Registers a new listener for the given state. Listener is registered with the default options (zero values of all fields in StateListenerOpt). All registered callbacks for all states (and all messages, see AddMarketListener) will be called by the same internal goroutine, i.e. they are never called concurrently with each other.
+
+#### AddStateListenerOpt(state State, cb StateCallback, opt StateListenerOpt)
+AddStateListenerOpt is like AddStateListener, but also takes additional options `OneOff` and `CallImmediately` (see definition for details).
+
+#### AddMarketListener(cb OnMarketUpdateCallback)
+Registers a new listener for all received market update messages.
+
+#### AddPairListener(cb OnPairUpdateCallback)
+Registers a new listener for all received pair update messages.
+
+#### State() State
+Returns the current connection state.
+
+#### URL() string
+Returns the url used for connecting.
+
+## States
+The `streamclient` package exports the following states which can be used for listeners with `AddStateListener(state, cb)`.
+```golang
+const (
+	// StateDisconnected means we're disconnected and not trying to connect.
+	// connLoop is not running.
+	StateDisconnected State = iota
+
+	// StateWaitBeforeReconnect means we already tried to connect, but then
+	// either the connection failed, or succeeded but later disconnected for some
+	// reason (see stateCause), and now we're waiting for a timeout before
+	// connecting again. wsConn is nil, but connCtx and connCtxCancel are not,
+	// and connLoop is running.
+	StateWaitBeforeReconnect
+
+	// StateConnecting means we're calling websocket.DefaultDialer.Dial() right
+	// now.
+	StateConnecting
+
+	// StateAuthenticating means the transport (websocket) connection is
+	// established, and right now we're exchanging the authentication and
+	// identification messages
+	StateAuthenticating
+
+	// StateEstablished means the connection is ready
+	StateEstablished
+
+	// StatesCnt is a number of states
+	StatesCnt
+
+	// StateAny can be used with AddStateListener() and AddStateListenerOpt()
+	// in order to listen for all states.
+	StateAny = -1
+)
+```
+
 ### Concurrency
 
 All methods of the `StreamConn` and wrappers can be called concurrently from
@@ -110,3 +198,5 @@ follows:
     -sub subscription_key2
 ```
 
+## License
+[BSD-2-Clause](LICENSE)
