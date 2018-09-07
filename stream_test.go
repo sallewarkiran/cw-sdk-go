@@ -1001,6 +1001,29 @@ func TestDefaultURL(t *testing.T) {
 	}
 }
 
+func TestDefaultOptions(t *testing.T) {
+	err := withTestServer(t, func(tp *testServerParams) error {
+		conn, err := NewStreamConn(&StreamParams{})
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		// If the reconnect options aren't the defaults, something is wrong
+		if !(conn.params.ReconnectOpts.Reconnect == defaultReconnectOpts.Reconnect &&
+			conn.params.ReconnectOpts.Backoff == defaultReconnectOpts.Backoff &&
+			conn.params.ReconnectOpts.ReconnectTimeout == defaultReconnectOpts.ReconnectTimeout &&
+			conn.params.ReconnectOpts.MaxReconnectTimeout == defaultReconnectOpts.MaxReconnectTimeout) {
+			return errors.New("default parameters not set properly")
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+}
+
 func waitConnOpen(t *testing.T, tp *testServerParams) error {
 	select {
 	case event := <-tp.rx:

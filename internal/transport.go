@@ -30,9 +30,7 @@ const (
 	// TransportStateConnected means the websocket connection is established.
 	TransportStateConnected
 
-	defaultBackoff             = true
-	defaultReconnectTimeout    = 1 * time.Second
-	defaultMaxReconnectTimeout = 30 * time.Second
+	backoffIncrement = 500 * time.Millisecond
 )
 
 var (
@@ -46,9 +44,10 @@ type StreamTransportParams struct {
 	// Server URL, e.g. wss://stream.cryptowat.ch
 	URL string
 
-	// Whether the library should reconnect automatically. Defaults to true, so
-	// the client must explicitly request to not retry connections.
-	NoReconnect bool
+	Reconnect           bool
+	Backoff             bool
+	ReconnectTimeout    time.Duration
+	MaxReconnectTimeout time.Duration
 }
 
 // StreamTransportConn is a client stream connection; it's typically wrapped into more
@@ -86,14 +85,8 @@ type StreamTransportConn struct {
 	// happen immediately
 	reconnectNow chan struct{}
 
-	// Reconnection backoff: if true, then the reconnection time will be
-	// initially ReconnectTimeout, then will become twice as long each
-	// unsuccessful connection attempt; but it won't be longer than
-	// MaxReconnectTimeout.
-	backoff bool
-	// Initial reconnection timeout: if zero, then 1 second will be used
-	reconnectTimeout time.Duration
-	// Max reconnect timeout. If zero, then 30 seconds will be used.
+	backoff             bool
+	reconnectTimeout    time.Duration
 	maxReconnectTimeout time.Duration
 
 	mtx sync.Mutex
@@ -120,12 +113,14 @@ func NewStreamTransportConn(params *StreamTransportParams) (*StreamTransportConn
 		connTx: make(chan websocketTx, 1),
 	}
 
-	// By default, set reconnection time to 1 second, and max reconnection
-	// time to 30 seconds
-	if !c.params.NoReconnect {
-		c.backoff = true
-		c.reconnectTimeout = defaultReconnectTimeout
-		c.maxReconnectTimeout = defaultMaxReconnectTimeout
+	if c.params.Reconnect {
+		// Set minimum ReconnectTimeout to 1 second if Backoff=false
+		if !c.params.Backoff && c.params.ReconnectTimeout < 1*time.Second {
+			c.params.ReconnectTimeout = 1 * time.Second
+		}
+		c.backoff = c.params.Backoff
+		c.reconnectTimeout = c.params.ReconnectTimeout
+		c.maxReconnectTimeout = c.params.MaxReconnectTimeout
 	}
 
 	// Start writeLoop right away, before even connecting, so that an attempt to
@@ -387,7 +382,7 @@ cloop:
 		}
 
 		// If shouldn't reconnect, we're done
-		if c.params.NoReconnect {
+		if !c.params.Reconnect {
 			connCtxCancel()
 		}
 
@@ -419,7 +414,7 @@ cloop:
 		}
 
 		if c.backoff {
-			nextReconnectTimeout *= 2
+			nextReconnectTimeout += backoffIncrement
 			if nextReconnectTimeout > c.maxReconnectTimeout {
 				nextReconnectTimeout = c.maxReconnectTimeout
 			}

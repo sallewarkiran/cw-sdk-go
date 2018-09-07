@@ -19,7 +19,6 @@ The typical workflow is to create an instance of the connection, setup listeners
 The following code connects to the stream api and listens on market data for `btc:usd` and `btc:eur`.
 
 ```golang
-
 import streamclient "code.cryptowat.ch/stream-client-go"
 
 // Create a new stream connection instance. Note that the actual connection
@@ -80,7 +79,7 @@ if err := c.Close(); err != nil {
 ```
 
 ## Settings
-The following struct is used as the settings parameter for `streamclient.NewStreamConn(params)`. The only required values are `APIKey` and `SecretKey`; all other settings have sensible defaults.
+The following struct `StreamParams` is used as the settings parameter for `streamclient.NewStreamConn(params)`. The only required values are `APIKey` and `SecretKey`; all other settings have sensible defaults.
 
 ```golang
 type StreamParams struct {
@@ -95,12 +94,24 @@ type StreamParams struct {
 	// those every time it's connected or reconnected.
 	Subscriptions []string
 
-	// Setting NoReconnect to true will disable the default reconnect behavior,
-	// and stop the connecting if it is ever disrupted. We do not recommend this. 
-	// The default reconnect behavior will retry after 1 second, then subsequent
-	// attempts will use exponential backoff until 30 seconds is reached (where 
-	// it will keep trying).
-	NoReconnect bool
+	// If not supplied, sensible defaults will be used.
+	ReconnectOpts *ReconnectOpts
+}
+
+type ReconnectOpts struct {
+	// Reconnect switch; if true, the client will attempt to reconnect to the
+	// stream if it gets disconnected. Defaults to true.
+	Reconnect bool
+	// Reconnection backoff: if true, then the reconnection time will be
+	// initially ReconnectTimeout, then will grow by 500ms on each unsuccessful
+	// connection attempt; but it won't be longer than MaxReconnectTimeout.
+	// Defaults to true.
+	Backoff bool
+	// Initial reconnection timeout: defaults to 0 seconds. If backoff=false,
+	// a minimum reconnectTimeout of 1 second will be used. Defaults to 0s.
+	ReconnectTimeout time.Duration
+	// Max reconnect timeout. Defaults to 30s.
+	MaxReconnectTimeout time.Duration
 }
 ```
 

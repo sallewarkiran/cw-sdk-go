@@ -75,7 +75,36 @@ type StreamParams struct {
 	// those every time it's connected or reconnected.
 	Subscriptions []string
 
-	NoReconnect bool
+	ReconnectOpts *ReconnectOpts
+
+	// The following are deprecated, but kept for forwards-compatibility;
+	// defaultReconnectOpts will be used if ReconnectOpts isn't supplied.
+	Reconnect           bool
+	Backoff             bool
+	ReconnectTimeout    time.Duration
+	MaxReconnectTimeout time.Duration
+}
+
+type ReconnectOpts struct {
+	// Reconnect switch; if true, the client will attempt to reconnect to the
+	// stream if it gets disconnected.
+	Reconnect bool
+	// Reconnection backoff: if true, then the reconnection time will be
+	// initially ReconnectTimeout, then will grow by 500ms on each unsuccessful
+	// connection attempt; but it won't be longer than MaxReconnectTimeout.
+	Backoff bool
+	// Initial reconnection timeout: defaults to 0 seconds. If backoff=false,
+	// a minimum reconnectTimeout of 1 second will be used.
+	ReconnectTimeout time.Duration
+	// Max reconnect timeout. If zero, then 30 seconds will be used.
+	MaxReconnectTimeout time.Duration
+}
+
+var defaultReconnectOpts = &ReconnectOpts{
+	Reconnect:           true,
+	Backoff:             true,
+	ReconnectTimeout:    0,
+	MaxReconnectTimeout: 30 * time.Second,
 }
 
 type State int
@@ -156,9 +185,17 @@ func NewStreamConn(params *StreamParams) (*StreamConn, error) {
 		p.URL = defaultURL
 	}
 
+	if p.ReconnectOpts == nil {
+		p.ReconnectOpts = defaultReconnectOpts
+	}
+
 	transport, err := internal.NewStreamTransportConn(&internal.StreamTransportParams{
-		URL:         p.URL,
-		NoReconnect: p.NoReconnect,
+		URL: p.URL,
+
+		Reconnect:           p.ReconnectOpts.Reconnect,
+		Backoff:             p.ReconnectOpts.Backoff,
+		ReconnectTimeout:    p.ReconnectOpts.ReconnectTimeout,
+		MaxReconnectTimeout: p.ReconnectOpts.MaxReconnectTimeout,
 	})
 	if err != nil {
 		return nil, errors.Trace(err)
