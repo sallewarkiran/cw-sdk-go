@@ -184,7 +184,7 @@ const (
 )
 ```
 
-### Concurrency
+## Concurrency
 
 All methods of the `StreamConn` and wrappers can be called concurrently from
 any number of goroutines.
