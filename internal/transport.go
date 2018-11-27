@@ -41,7 +41,6 @@ var (
 // StreamTransportParams contains params for opening a client stream connection
 // (see StreamTransportConn)
 type StreamTransportParams struct {
-	// Server URL, e.g. wss://stream.cryptowat.ch
 	URL string
 
 	Reconnect           bool
@@ -56,7 +55,7 @@ type StreamTransportParams struct {
 type StreamTransportConn struct {
 	params StreamTransportParams
 
-	connTx chan websocketTx
+	connTx chan WebsocketTx
 
 	// Current state
 	state TransportState
@@ -85,18 +84,19 @@ type StreamTransportConn struct {
 	// happen immediately
 	reconnectNow chan struct{}
 
-	backoff             bool
-	reconnectTimeout    time.Duration
-	maxReconnectTimeout time.Duration
+	backoff              bool
+	reconnectTimeout     time.Duration
+	maxReconnectTimeout  time.Duration
+	nextReconnectTimeout time.Duration
 
 	mtx sync.Mutex
 }
 
 // websocketTx represents message to send to the websocket
-type websocketTx struct {
-	messageType int
-	data        []byte
-	res         chan error
+type WebsocketTx struct {
+	MessageType int
+	Data        []byte
+	Res         chan error
 }
 
 // NewStreamTransportConn creates a new stream transport connection.
@@ -110,7 +110,7 @@ func NewStreamTransportConn(params *StreamTransportParams) (*StreamTransportConn
 		params: *params,
 
 		state:  TransportStateDisconnected,
-		connTx: make(chan websocketTx, 1),
+		connTx: make(chan WebsocketTx, 1),
 	}
 
 	if c.params.Reconnect {
@@ -239,10 +239,10 @@ func (c *StreamTransportConn) Send(ctx context.Context, data []byte) error {
 	res := make(chan error)
 
 	// Request the websocket write
-	c.connTx <- websocketTx{
-		messageType: websocket.TextMessage,
-		data:        data,
-		res:         res,
+	c.connTx <- WebsocketTx{
+		MessageType: websocket.TextMessage,
+		Data:        data,
+		Res:         res,
 	}
 
 	select {
@@ -325,7 +325,7 @@ func (c *StreamTransportConn) updateState(state TransportState, cause error) {
 func (c *StreamTransportConn) connLoop(connCtx context.Context, connCtxCancel context.CancelFunc) {
 	var connErr error
 
-	nextReconnectTimeout := c.reconnectTimeout
+	c.ResetTimeout()
 
 	defer func() {
 		c.mtx.Lock()
@@ -346,9 +346,6 @@ cloop:
 		var wsConn *websocket.Conn
 		wsConn, _, connErr = websocket.DefaultDialer.Dial(c.params.URL, nil)
 		if connErr == nil {
-			// Connected successfully
-			nextReconnectTimeout = c.reconnectTimeout
-
 			c.mtx.Lock()
 			c.wsConn = wsConn
 			c.updateState(TransportStateConnected, nil)
@@ -404,7 +401,7 @@ cloop:
 			// Enough reconnections, quit now.
 			break cloop
 
-		case <-time.After(nextReconnectTimeout):
+		case <-time.After(c.nextReconnectTimeout):
 			// Will try to reconnect one more time
 			break waitReconnect
 
@@ -414,9 +411,9 @@ cloop:
 		}
 
 		if c.backoff {
-			nextReconnectTimeout += backoffIncrement
-			if nextReconnectTimeout > c.maxReconnectTimeout {
-				nextReconnectTimeout = c.maxReconnectTimeout
+			c.nextReconnectTimeout += backoffIncrement
+			if c.nextReconnectTimeout > c.maxReconnectTimeout {
+				c.nextReconnectTimeout = c.maxReconnectTimeout
 			}
 		}
 	}
@@ -435,14 +432,18 @@ cloop:
 		c.mtx.Unlock()
 
 		if wsConn == nil {
-			msg.res <- errors.Trace(ErrNotConnected)
+			msg.Res <- errors.Trace(ErrNotConnected)
 			continue cloop
 		}
 
 		// Try to write the message
-		err := errors.Trace(wsConn.WriteMessage(msg.messageType, msg.data))
+		err := errors.Trace(wsConn.WriteMessage(msg.MessageType, msg.Data))
 
 		// Send resulting error to the requester
-		msg.res <- err
+		msg.Res <- err
 	}
+}
+
+func (c *StreamTransportConn) ResetTimeout() {
+	c.nextReconnectTimeout = c.reconnectTimeout
 }

@@ -7,8 +7,7 @@ import (
 	"os"
 	"os/signal"
 
-	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
-	"code.cryptowat.ch/stream-client-go"
+	"code.cryptowat.ch/ws-client-go"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 )
@@ -63,7 +62,7 @@ func main() {
 	}
 
 	// Setup market connection (but don't connect just yet)
-	c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
+	c, err := wsclient.NewStreamClient(&wsclient.WSParams{
 		URL: u,
 
 		Subscriptions: subs,
@@ -79,9 +78,9 @@ func main() {
 	// Will print state changes to the user
 	if *verbose {
 		c.AddStateListener(
-			streamclient.StateAny,
-			func(conn *streamclient.StreamConn, oldState, state streamclient.State, cause error) {
-				fmt.Printf("State updated: %s -> %s", streamclient.StateNames[oldState], streamclient.StateNames[state])
+			wsclient.ConnStateAny,
+			func(oldState, state wsclient.ConnState, cause error) {
+				fmt.Printf("State updated: %s -> %s", wsclient.ConnStateNames[oldState], wsclient.ConnStateNames[state])
 				if cause != nil {
 					fmt.Printf(" (%s)", cause)
 				}
@@ -90,20 +89,21 @@ func main() {
 		)
 	}
 
+	// TODO fix this
 	// Will print received market update messages
-	c.AddMarketListener(func(conn *streamclient.StreamConn, msg *pbm.MarketUpdateMessage) {
-		switch *format {
-		case "json":
-			outputProtoJSON(msg)
-		}
-	})
+	// c.AddMarketListener(func(msg *pbm.MarketUpdateMessage) {
+	// 	switch *format {
+	// 	case "json":
+	// 		outputProtoJSON(msg)
+	// 	}
+	// })
 
-	c.AddPairListener(func(conn *streamclient.StreamConn, msg *pbm.PairUpdateMessage) {
-		switch *format {
-		case "json":
-			outputProtoJSON(msg)
-		}
-	})
+	// c.AddPairListener(func(msg *pbm.PairUpdateMessage) {
+	// 	switch *format {
+	// 	case "json":
+	// 		outputProtoJSON(msg)
+	// 	}
+	// })
 
 	// Start connection loop
 	if *verbose {

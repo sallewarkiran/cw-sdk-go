@@ -9,9 +9,8 @@ import (
 	"sort"
 	"strconv"
 
-	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
-	streamclient "code.cryptowat.ch/stream-client-go"
-	"code.cryptowat.ch/stream-client-go/examples/kraken-trades/cwrest"
+	"code.cryptowat.ch/ws-client-go"
+	"code.cryptowat.ch/ws-client-go/examples/kraken-trades/cwrest"
 )
 
 var (
@@ -27,13 +26,13 @@ func init() {
 
 func main() {
 	var (
-		quoteVals = make(map[uint64]string)
+		quoteVals = make(map[wsclient.MarketID]string)
 
 		rest = cwrest.NewCWRESTClient("https://api.cryptowat.ch")
 
 		marketsIndex, marketsIndexErr = rest.GetMarketsIndex()
 
-		marketSymbols = make(map[uint64]string)
+		marketSymbols = make(map[wsclient.MarketID]string)
 	)
 
 	if *pair == "" {
@@ -52,10 +51,10 @@ func main() {
 	}
 
 	for _, market := range marketsIndex {
-		marketSymbols[uint64(market.ID)] = market.Exchange + " " + market.Pair
+		marketSymbols[wsclient.MarketID(fmt.Sprintf("%d", market.ID))] = market.Exchange + " " + market.Pair
 	}
 
-	c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
+	c, err := wsclient.NewStreamClient(&wsclient.WSParams{
 		URL: "wss://stream.cryptowat.ch",
 
 		Subscriptions: []string{
@@ -70,22 +69,12 @@ func main() {
 		panic(err)
 	}
 
-	c.AddMarketListener(
-		func(conn *streamclient.StreamConn, msg *pbm.MarketUpdateMessage) {
+	c.OnTradesUpdate(func(market wsclient.Market, tradesUpdate wsclient.TradesUpdate) {
+		trades := tradesUpdate.Trades
+		quoteVals[market.ID] = trades[len(trades)-1].Price
 
-			update := msg.GetTradesUpdate()
-			if update == nil {
-				return
-			}
-
-			trades := update.Trades
-
-			quoteVals[msg.Market.MarketId] = trades[len(trades)-1].PriceStr
-
-			printQuotes(marketSymbols, quoteVals)
-
-		},
-	)
+		printQuotes(marketSymbols, quoteVals)
+	})
 
 	c.Connect()
 
@@ -134,7 +123,7 @@ func (qs quotes) Swap(i, j int) {
 }
 
 // printQuotes draws all of the quotes we have received to the screen
-func printQuotes(marketSymbols, quoteVals map[uint64]string) {
+func printQuotes(marketSymbols, quoteVals map[wsclient.MarketID]string) {
 	var lines quotes
 
 	for k, v := range quoteVals {

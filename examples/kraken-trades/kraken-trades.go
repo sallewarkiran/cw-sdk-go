@@ -7,9 +7,8 @@ import (
 	"os"
 	"os/signal"
 
-	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
-	streamclient "code.cryptowat.ch/stream-client-go"
-	"code.cryptowat.ch/stream-client-go/examples/kraken-trades/cwrest"
+	"code.cryptowat.ch/ws-client-go"
+	"code.cryptowat.ch/ws-client-go/examples/kraken-trades/cwrest"
 )
 
 const (
@@ -48,7 +47,7 @@ func main() {
 
 	// Create a new stream connection instance. Note that the actual connection
 	// will happen later.
-	c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
+	c, err := wsclient.NewStreamClient(&wsclient.WSParams{
 		URL: "wss://stream.cryptowat.ch",
 
 		Subscriptions: []string{
@@ -64,39 +63,30 @@ func main() {
 
 	// Ask for the state transition updates, and present them to the user somehow
 	c.AddStateListener(
-		streamclient.StateAny,
-		func(conn *streamclient.StreamConn, oldState, state streamclient.State, cause error) {
+		wsclient.ConnStateAny,
+		func(oldState, state wsclient.ConnState, cause error) {
 			causeStr := ""
 			if cause != nil {
 				causeStr = fmt.Sprintf(" (%s)", cause)
 			}
 			log.Printf(
 				"State updated: %s -> %s%s",
-				streamclient.StateNames[oldState],
-				streamclient.StateNames[state],
+				wsclient.ConnStateNames[oldState],
+				wsclient.ConnStateNames[state],
 				causeStr,
 			)
 		},
 	)
 
 	// Listen for received market messages and print them
-	c.AddMarketListener(
-		func(conn *streamclient.StreamConn, msg *pbm.MarketUpdateMessage) {
-			market := markets[int(msg.Market.MarketId)]
-
-			tradesUpdate := msg.GetTradesUpdate()
-			if tradesUpdate == nil {
-				// Got some market update other than trades, we're not interested in it
-				return
-			}
-
-			for _, trade := range tradesUpdate.Trades {
-				log.Printf(
-					"Trade: %s: price: %s, amount: %s",
-					market.Pair, trade.PriceStr, trade.AmountStr,
-				)
-			}
-		},
+	c.OnTradesUpdate(func(market wsclient.Market, tradesUpdate wsclient.TradesUpdate) {
+		for _, trade := range tradesUpdate.Trades {
+			log.Printf(
+				"Trade: %s: price: %s, amount: %s",
+				market.CurrencyPairID, trade.Price, trade.Amount,
+			)
+		}
+	},
 	)
 
 	// Finally, connect.

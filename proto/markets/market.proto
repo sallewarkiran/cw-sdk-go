@@ -32,8 +32,10 @@ message Order {
 message Trade {
   // Exchange-specific ID
   int64 id = 1;
+  string externalId = 11;
   int64 timestamp = 2;
   int64 timestampMillis = 5;
+  int64 timestampNano = 10;
 
   string priceStr = 8;
   string amountStr = 9;
