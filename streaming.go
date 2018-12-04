@@ -47,7 +47,7 @@ type OrderBookSnapshotUpdate struct {
 
 // OrderBookDeltaUpdate represents an order book delta update, which is
 // the minimum amount of data necessary to keep a local order book up to date.
-// since order book snapshots are throttled at 1 per minute, subscribing to
+// Since order book snapshots are throttled at 1 per minute, subscribing to
 // the delta updates is the best way to keep an order book up to date.
 type OrderBookDeltaUpdate struct {
 	// SeqNum is used to make sure deltas are processed in order.

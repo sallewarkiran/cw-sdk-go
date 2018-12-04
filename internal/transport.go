@@ -220,8 +220,7 @@ type onReadCallback func(conn *StreamTransportConn, data []byte)
 type onStateChangeCallback func(conn *StreamTransportConn, oldState, state TransportState, cause error)
 
 // OnRead sets on-read callback; it should be called once right after creation
-// of the StreamTransportConn by a wrapper (like MarketConn), before the connection is
-// established.
+// of the StreamTransportConn, before the connection is established.
 func (c *StreamTransportConn) OnRead(cb onReadCallback) {
 	c.onReadCB = cb
 }
@@ -386,6 +385,10 @@ cloop:
 		// Check if we need to enter state TransportStateWaitBeforeReconnect
 		select {
 		case <-connCtx.Done():
+			// Even though we have the same case in the select below, we want to
+			// break cloop here, because if reconnection timeout is _also_ done, we
+			// still want to break cloop instead of trying to reconnect.
+			break cloop
 		default:
 			// Looks like we should reconnect (after a timeout), so set the
 			// appropriate state

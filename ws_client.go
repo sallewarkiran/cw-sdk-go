@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	pbc "code.cryptowat.ch/ws-client-go/proto/client"
@@ -20,9 +19,6 @@ import (
 
 const (
 	defaultURL = "wss://stream.cryptowat.ch"
-
-	// How many times to retry authentication in case of expired token
-	authnExpiredTokenRetryCnt = 3
 )
 
 // The following errors are returned from wsConn, which applies to both
@@ -73,6 +69,10 @@ type WSParams struct {
 	// ReconnectOpts contains settings for how to reconnect if the client becomes disconnected.
 	// Sensible defaults are used.
 	ReconnectOpts *ReconnectOpts
+}
+
+type wsConnParamsInternal struct {
+	unmarshalAuthnResult func(data []byte) (*pbs.AuthenticationResult, error)
 }
 
 // ReconnectOpts are settings used to reconnect after being disconnected. By default, the client will reconnect
@@ -147,14 +147,12 @@ var ConnStateNames = map[ConnState]string{
 
 // wsConn represents a stream connection, it contains unexported fields
 type wsConn struct {
-	params        WSParams
+	params         WSParams
+	paramsInternal wsConnParamsInternal
+
 	subscriptions map[string]struct{}
 
 	transport *internal.StreamTransportConn
-
-	callStateListeners chan callStateListenersReq
-
-	authnResCh chan error
 
 	authnCtx       context.Context
 	authnCtxCancel context.CancelFunc
@@ -162,17 +160,77 @@ type wsConn struct {
 	// Current state
 	state ConnState
 
-	// Error caused the current state; only relevant for TransportStateDisconnected and
-	// TransportStateWaitBeforeReconnect, for other states it's always nil.
+	// Error caused the current state; only relevant for
+	// TransportStateDisconnected and TransportStateWaitBeforeReconnect, for
+	// other states it's always nil.
 	stateCause error
 
-	// TODO: document
-	isExpectedCause func(cause error) bool
-	actualCause     error
+	// actualCauseOfDisconnection is set whenever the client initiates the
+	// disconnection; it's set to the specific error causing the disconnection.
+	//
+	// When the disconnection happens, and actualCauseOfDisconnection is not nil,
+	// then this error is passed to the clients instead of the generic websocket
+	// disconnection error.
+	actualCauseOfDisconnection error
 
 	stateListeners map[ConnState][]stateListener
 
-	mtx sync.Mutex
+	// onReadCB, if not nil, is called for each received websocket message.
+	onReadCB onReadCallback
+
+	// internalEvents is a channel of events handled by eventLoop. See
+	// internalEvent struct.
+	internalEvents chan internalEvent
+}
+
+// internalEvent represents an event handled in eventLoop. Each field
+// represents one kind of the event, and only a single field should be non-nil.
+type internalEvent struct {
+	// rxData contains data received from the server via websocket.
+	rxData []byte
+	// transportStateUpdate represents an update of transport layer state.
+	transportStateUpdate *transportStateUpdate
+
+	// reqAddStateListener is the result of the clients call to AddStateListener
+	// or AddStateListenerOpt.
+	reqAddStateListener *reqAddStateListener
+	reqConnState        *reqConnState
+	reqSubscribe        *reqSubscribe
+	reqUnsubscribe      *reqUnsubscribe
+}
+
+// reqAddStateListener is a request to add state listener
+type reqAddStateListener struct {
+	state ConnState
+	cb    StateCallback
+	opt   StateListenerOpt
+
+	result chan<- struct{}
+}
+
+// reqConnState is a client request of conn state via ConnState().
+type reqConnState struct {
+	result chan<- ConnState
+}
+
+// reqSubscribe is a client request of conn state via Subscribe().
+type reqSubscribe struct {
+	keys   []string
+	result chan<- error
+}
+
+// reqUnsubscribe is a client request of conn state via Unsubscribe().
+type reqUnsubscribe struct {
+	keys   []string
+	result chan<- error
+}
+
+// transportStateUpdate is an update of transport layer state.
+type transportStateUpdate struct {
+	oldState internal.TransportState
+	state    internal.TransportState
+
+	cause error
 }
 
 // newWsConn creates a new websocket connection with the given params.
@@ -180,7 +238,7 @@ type wsConn struct {
 // Note that clients should manually call Connect on a newly created
 // connection; the rationale is that clients might register some state and/or
 // message handlers before the connection, to avoid any possible races.
-func newWsConn(params *WSParams) (*wsConn, error) {
+func newWsConn(params *WSParams, paramsInternal *wsConnParamsInternal) (*wsConn, error) {
 	p := *params
 
 	if p.URL == "" {
@@ -204,14 +262,12 @@ func newWsConn(params *WSParams) (*wsConn, error) {
 	}
 
 	c := &wsConn{
-		params:        p,
-		subscriptions: make(map[string]struct{}),
-
-		transport: transport,
-
-		callStateListeners: make(chan callStateListenersReq, 1),
-
+		params:         p,
+		paramsInternal: *paramsInternal,
+		subscriptions:  make(map[string]struct{}),
+		transport:      transport,
 		stateListeners: make(map[ConnState][]stateListener),
+		internalEvents: make(chan internalEvent, 8),
 	}
 
 	for _, sub := range params.Subscriptions {
@@ -220,156 +276,43 @@ func newWsConn(params *WSParams) (*wsConn, error) {
 
 	transport.OnStateChange(
 		func(_ *internal.StreamTransportConn, oldTransportState, transportState internal.TransportState, cause error) {
-
-			switch transportState {
-
-			case
-				internal.TransportStateDisconnected,
-				internal.TransportStateWaitBeforeReconnect,
-				internal.TransportStateConnecting:
-
-				var state ConnState
-				switch transportState {
-				case internal.TransportStateDisconnected:
-					state = ConnStateDisconnected
-				case internal.TransportStateWaitBeforeReconnect:
-					state = ConnStateWaitBeforeReconnect
-				case internal.TransportStateConnecting:
-					state = ConnStateConnecting
-				default:
-					// Should never be here
-					panic(fmt.Sprintf("unexpected transport state: %d", transportState))
-				}
-
-				c.mtx.Lock()
-				// See if we need to replace the cause returned by transport layer
-				// with another (more specific) one
-				if c.isExpectedCause != nil && c.isExpectedCause(cause) {
-					cause = c.actualCause
-				}
-
-				c.isExpectedCause = nil
-				c.actualCause = nil
-
-				c.updateState(state, errors.Trace(cause))
-				c.mtx.Unlock()
-
-			case internal.TransportStateConnected:
-				c.mtx.Lock()
-				c.updateState(ConnStateAuthenticating, errors.Trace(cause))
-				authnResCh := c.authnResCh
-				ctx := c.authnCtx
-				c.mtx.Unlock()
-
-				go func() (authnErr error) {
-					defer func() {
-						if authnErr != nil {
-							// Failed to perform authentication; if the state is still
-							// "authenticating", disconnect
-							c.mtx.Lock()
-							defer c.mtx.Unlock()
-
-							if c.state == ConnStateAuthenticating {
-								// And also substitute the generic websocket closing error
-								// with the specific error (authnErr)
-								c.substituteUpcomingCause(func(cause error) bool {
-									cause = errors.Cause(cause)
-									return websocket.IsCloseError(cause, websocket.CloseProtocolError) ||
-										isClosedConnError(cause)
-								}, authnErr)
-
-								c.transport.CloseOpt(
-									websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
-									false,
-								)
-							}
-						}
-					}()
-
-					// Authenticate {{{
-					var authnRes error
-				authnLoop:
-					for i := 0; i < authnExpiredTokenRetryCnt; i++ {
-						nonce := getNonce()
-						token, err := c.generateToken(nonce)
-						if err != nil {
-							return errors.Trace(err)
-						}
-
-						authMsg := &pbc.ClientMessage{
-							Body: &pbc.ClientMessage_ApiAuthentication{
-								ApiAuthentication: &pbc.APIAuthenticationMessage{
-									Token:         token,
-									Nonce:         nonce,
-									ApiKey:        c.params.APIKey,
-									Source:        pbc.APIAuthenticationMessage_GOLANG_SDK,
-									Version:       version,
-									Subscriptions: c.GetSubscriptions(),
-								},
-							},
-						}
-
-						select {
-						case <-ctx.Done():
-							return errors.Trace(ctx.Err())
-						default:
-						}
-
-						if err := c.sendProto(ctx, authMsg); err != nil {
-							return errors.Trace(err)
-						}
-
-						select {
-						case <-ctx.Done():
-							return errors.Trace(ctx.Err())
-						case authnRes = <-authnResCh:
-							if authnRes != nil {
-								if errors.Cause(authnRes) == ErrTokenExpired {
-									// Token is expired: try to authn again (if not tried too
-									// many times already)
-									continue authnLoop
-								}
-								return errors.Trace(authnRes)
-							}
-						}
-
-						break authnLoop
-					}
-					if authnRes != nil {
-						return errors.Trace(authnRes)
-					}
-					// }}}
-
-					select {
-					case <-ctx.Done():
-						return errors.Trace(ctx.Err())
-					default:
-					}
-
-					// NOTE: as we switch state to ConnStateEstablished, ctx will be
-					// cancelled, so we shouldn't check it anymore and just return nil
-					c.mtx.Lock()
-					c.updateState(ConnStateEstablished, errors.Trace(cause))
-					c.mtx.Unlock()
-					return nil
-				}()
+			c.internalEvents <- internalEvent{
+				transportStateUpdate: &transportStateUpdate{
+					oldState: oldTransportState,
+					state:    transportState,
+					cause:    cause,
+				},
 			}
+		},
+	)
 
+	transport.OnRead(
+		func(tc *internal.StreamTransportConn, data []byte) {
+			c.internalEvents <- internalEvent{
+				rxData: data,
+			}
 		},
 	)
 
 	// Start goroutine which will call state listeners
-	go c.stateListenerLoop()
+	go c.eventLoop()
 
 	return c, nil
 }
 
+// onRead sets on-read callback; it should be called once right after creation
+// of the wsConn by a wrapper (like StreamClient), before the connection is
+// established.
+func (c *wsConn) onRead(cb onReadCallback) {
+	c.onReadCB = cb
+}
+
 // Connect either starts a connection goroutine (if state is
-// ConnStateDisconnected), or makes it to stop waiting a timeout and connect right
-// now (if state is ConnStateWaitBeforeReconnect). For other states, returns an
+// ConnStateDisconnected), or makes it connect immediately, ignoring timeout
+// (if the state is ConnStateWaitBeforeReconnect). For other states, this returns an
 // error.
 //
-// It doesn't wait for the connection to establish, and returns immediately.
+// Connect doesn't wait for the connection to establish; it returns immediately.
 func (c *wsConn) Connect() (err error) {
 	defer func() {
 		// Translate internal transport errors to public ones
@@ -383,6 +326,39 @@ func (c *wsConn) Connect() (err error) {
 	}
 
 	return nil
+}
+
+// disconnect sends a "normal closure" websocket message to the server,
+// causing it to disconnect, and when we receive the actual disconnection soon,
+// the cause error given to the clients will be the cause given to disconnect.
+//
+// If cause is nil, then the upcoming disconnection error will be passed to
+// clients as is.
+//
+// NOTE: disconnect should only be called from the eventLoop.
+func (c *wsConn) disconnect(cause error) {
+	c.disconnectOpt(cause, websocket.CloseNormalClosure, "")
+}
+
+// disconnectOpt sends a websocket closure message (with given closeCode and
+// text) to the server, causing it to disconnect, and when we receive the
+// actual disconnection soon, the cause error given to the clients will be the
+// cause given to disconnectOpt.
+//
+// If passed cause is nil, then the upcoming disconnection error will be passed
+// to clients as is.
+//
+// NOTE: disconnectOpt should only be called from the eventLoop.
+func (c *wsConn) disconnectOpt(cause error, closeCode int, text string) {
+	closeErr := c.transport.CloseOpt(
+		websocket.FormatCloseMessage(closeCode, text),
+		false,
+	)
+	if closeErr != nil {
+		return
+	}
+
+	c.actualCauseOfDisconnection = cause
 }
 
 // Close stops reconnection loop (if reconnection was requested), and if
@@ -402,53 +378,31 @@ func (c *wsConn) Close() (err error) {
 	return nil
 }
 
-func (c *wsConn) authHandler(result *pbs.AuthenticationResult) {
-	if result != nil {
-		// Got authentication result message
-		var authnRes error
+func (c *wsConn) handleAuthnResult(result *pbs.AuthenticationResult) error {
+	// Got authentication result message
+	switch result.Status {
+	case pbs.AuthenticationResult_AUTHENTICATED:
+		return nil
 
-		switch result.Status {
-		case pbs.AuthenticationResult_AUTHENTICATED:
-			// We can now reset any backoff that has been applied
-			c.transport.ResetTimeout()
+	case pbs.AuthenticationResult_TOKEN_EXPIRED:
+		// The token is expired
+		return ErrTokenExpired
 
-		case pbs.AuthenticationResult_TOKEN_EXPIRED:
-			// The token is expired, we'll probably try authenticating again
-			authnRes = ErrTokenExpired
+	case pbs.AuthenticationResult_BAD_TOKEN:
+		// User provided bad creds
+		return ErrBadCredentials
 
-		case pbs.AuthenticationResult_BAD_TOKEN:
-			// User provided bad creds
-			c.transport.CloseOpt(
-				websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
-				false,
-			)
-			authnRes = ErrBadCredentials
+	case pbs.AuthenticationResult_BAD_NONCE:
+		return ErrBadNonce
 
-		case pbs.AuthenticationResult_BAD_NONCE:
-			c.transport.CloseOpt(
-				websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
-				false,
-			)
-			authnRes = ErrBadNonce
+	case pbs.AuthenticationResult_UNKNOWN:
+		// Shouldn't happen normally; it can happen e.g. if stream has failed
+		// to connect to biller, or failed to call biller's methods.
+		return ErrUnknownAuthnError
 
-		case pbs.AuthenticationResult_UNKNOWN:
-			// Shouldn't happen normally; it can happen e.g. if stream has failed
-			// to connect to biller, or failed to call biller's methods.
-			c.transport.CloseOpt(
-				websocket.FormatCloseMessage(websocket.CloseProtocolError, ""),
-				false,
-			)
-			authnRes = ErrUnknownAuthnError
-		}
-
-		// If we are still waiting for the result, send it
-		c.mtx.Lock()
-		authnResCh := c.authnResCh
-		c.mtx.Unlock()
-
-		if authnResCh != nil {
-			authnResCh <- authnRes
-		}
+	default:
+		// Client problem
+		return ErrUnknownAuthnError
 	}
 }
 
@@ -460,6 +414,9 @@ func (c *wsConn) authHandler(result *pbs.AuthenticationResult) {
 //
 // See AddStateListener.
 type StateCallback func(prevState, curState ConnState, cause error)
+
+// onReadCallback is a signature of (internal) incoming messages listener.
+type onReadCallback func(data []byte)
 
 type StateListenerOpt struct {
 	// If OneOff is true, the listener will only be called once; otherwise it'll
@@ -493,30 +450,19 @@ func (c *wsConn) AddStateListener(state ConnState, cb StateCallback) {
 // AddStateListenerOpt is like AddStateListener, but also takes additional
 // options; see StateListenerOpt for details.
 func (c *wsConn) AddStateListenerOpt(state ConnState, cb StateCallback, opt StateListenerOpt) {
-	sl := stateListener{
-		cb:  cb,
-		opt: opt,
+	result := make(chan struct{})
+
+	c.internalEvents <- internalEvent{
+		reqAddStateListener: &reqAddStateListener{
+			state: state,
+			cb:    cb,
+			opt:   opt,
+
+			result: result,
+		},
 	}
 
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	// Determine whether the callback should be called right now
-	callNow := opt.CallImmediately && (state == c.state || state == ConnStateAny)
-
-	// Update stored listeners if needed
-	if !opt.OneOff || !callNow {
-		c.stateListeners[state] = append(c.stateListeners[state], sl)
-	}
-
-	if callNow {
-		c.callStateListeners <- callStateListenersReq{
-			listeners: []stateListener{sl},
-			oldState:  c.state,
-			state:     c.state,
-			cause:     c.stateCause,
-		}
-	}
+	<-result
 }
 
 // ConnClosedCallback defines the callback function for OnConnClosed.
@@ -549,58 +495,48 @@ func (c *wsConn) GetSubscriptions() []string {
 //           "market:1:book:spread",
 //   })
 //
+// For that, the client should already be connected and authenticated.
 // Note that the initial set of subscription keys can be given as params to
-// newWsConn. Also note that calling Subscribe() doesn't alter the initial
-// keys to subscribe to when the client reconnects; so after the reconnection
-// the effect of calling Subscribe is lost.
+// newWsConn.
 func (c *wsConn) Subscribe(keys []string) error {
-	cm := &pbc.ClientMessage{
-		Body: &pbc.ClientMessage_Subscribe{
-			Subscribe: &pbc.ClientSubscribeMessage{
-				SubscriptionKeys: keys,
-			},
+	result := make(chan error, 1)
+
+	c.internalEvents <- internalEvent{
+		reqSubscribe: &reqSubscribe{
+			keys:   keys,
+			result: result,
 		},
 	}
 
-	if err := c.sendProto(context.Background(), cm); err != nil {
-		return errors.Annotatef(err, "subscribe")
-	}
-
-	for _, sub := range keys {
-		c.subscriptions[sub] = struct{}{}
-	}
-
-	return nil
+	return <-result
 }
 
 // Unsubscribe unsubscribes from the given set of keys. Also see notes for
 // Subscribe.
 func (c *wsConn) Unsubscribe(keys []string) error {
-	cm := &pbc.ClientMessage{
-		Body: &pbc.ClientMessage_Unsubscribe{
-			Unsubscribe: &pbc.ClientUnsubscribeMessage{
-				SubscriptionKeys: keys,
-			},
+	result := make(chan error, 1)
+
+	c.internalEvents <- internalEvent{
+		reqUnsubscribe: &reqUnsubscribe{
+			keys:   keys,
+			result: result,
 		},
 	}
 
-	if err := c.sendProto(context.Background(), cm); err != nil {
-		return errors.Annotatef(err, "unsubscribe")
-	}
-
-	for _, sub := range keys {
-		delete(c.subscriptions, sub)
-	}
-
-	return nil
+	return <-result
 }
 
 // ConnState returns current client connection state.
 func (c *wsConn) ConnState() ConnState {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	result := make(chan ConnState, 1)
 
-	return c.state
+	c.internalEvents <- internalEvent{
+		reqConnState: &reqConnState{
+			result: result,
+		},
+	}
+
+	return <-result
 }
 
 // URL returns the url the client is connected to, e.g. wss://stream.cryptowat.ch.
@@ -622,8 +558,8 @@ type callStateListenersReq struct {
 	cause           error
 }
 
+// NOTE: updateState should only be called from the eventLoop.
 func (c *wsConn) updateState(state ConnState, cause error) {
-
 	if c.state == state {
 		// No need to do anything
 		return
@@ -648,12 +584,12 @@ func (c *wsConn) updateState(state ConnState, cause error) {
 	c.stateListeners[ConnStateAny] = removeOneOff(c.stateListeners[ConnStateAny])
 
 	// Request listeners invocation (will be invoked by a dedicated goroutine)
-	c.callStateListeners <- callStateListenersReq{
+	c.callStateListeners(&callStateListenersReq{
 		listeners: listeners,
 		oldState:  oldState,
 		state:     state,
 		cause:     cause,
-	}
+	})
 }
 
 // enterLeaveState should be called on leaving and entering each state. So,
@@ -661,21 +597,21 @@ func (c *wsConn) updateState(state ConnState, cause error) {
 //
 //      enterLeaveState(A, false)
 //      enterLeaveState(B, true)
+//
+// NOTE: enterLeaveState should only be called from eventLoop.
 func (c *wsConn) enterLeaveState(state ConnState, enter bool) {
 	switch state {
 
 	case ConnStateAuthenticating:
-		// authnCtx and its cancel func should be present in all states but
-		// TransportStateDisconnected
+		// authnCtx and its cancel func should only be present in the
+		// ConnStateAuthenticating state.
 		if enter {
 			c.authnCtx, c.authnCtxCancel = context.WithCancel(context.Background())
-			c.authnResCh = make(chan error, 1)
 		} else {
 			c.authnCtxCancel()
 
 			c.authnCtx = nil
 			c.authnCtxCancel = nil
-			c.authnResCh = nil
 		}
 	}
 }
@@ -693,6 +629,48 @@ func removeOneOff(listeners []stateListener) []stateListener {
 	}
 
 	return newListeners
+}
+
+// NOTE: subscribeInternal should only be called from eventLoop.
+func (c *wsConn) subscribeInternal(keys []string) error {
+	cm := &pbc.ClientMessage{
+		Body: &pbc.ClientMessage_Subscribe{
+			Subscribe: &pbc.ClientSubscribeMessage{
+				SubscriptionKeys: keys,
+			},
+		},
+	}
+
+	if err := c.sendProto(context.Background(), cm); err != nil {
+		return errors.Annotatef(err, "subscribe")
+	}
+
+	for _, sub := range keys {
+		c.subscriptions[sub] = struct{}{}
+	}
+
+	return nil
+}
+
+// NOTE: unsubscribeInternal should only be called from eventLoop.
+func (c *wsConn) unsubscribeInternal(keys []string) error {
+	cm := &pbc.ClientMessage{
+		Body: &pbc.ClientMessage_Unsubscribe{
+			Unsubscribe: &pbc.ClientUnsubscribeMessage{
+				SubscriptionKeys: keys,
+			},
+		},
+	}
+
+	if err := c.sendProto(context.Background(), cm); err != nil {
+		return errors.Annotatef(err, "unsubscribe")
+	}
+
+	for _, sub := range keys {
+		delete(c.subscriptions, sub)
+	}
+
+	return nil
 }
 
 // sendProto marshals and sends a protobuf message to the websocket if it's
@@ -716,12 +694,176 @@ func (c *wsConn) sendProto(ctx context.Context, pb proto.Message) (err error) {
 	return nil
 }
 
-func (c *wsConn) stateListenerLoop() {
+// eventLoop handles all internal events like transport state change, received
+// data, or client calls to add state listener. See internalEvent struct.
+func (c *wsConn) eventLoop() {
+loop:
 	for {
-		req := <-c.callStateListeners
-		for _, sl := range req.listeners {
-			sl.cb(req.oldState, req.state, req.cause)
+		event := <-c.internalEvents
+
+		if tsu := event.transportStateUpdate; tsu != nil {
+			// Transport layer state changed.
+
+			switch tsu.state {
+			case
+				internal.TransportStateDisconnected,
+				internal.TransportStateWaitBeforeReconnect,
+				internal.TransportStateConnecting:
+
+				// Disconnected, WaitBeforeReconnect and Connecting are easy: they
+				// translate 1-to-1 to the wsClient-level state.
+
+				var state ConnState
+				switch tsu.state {
+				case internal.TransportStateDisconnected:
+					state = ConnStateDisconnected
+				case internal.TransportStateWaitBeforeReconnect:
+					state = ConnStateWaitBeforeReconnect
+				case internal.TransportStateConnecting:
+					state = ConnStateConnecting
+				default:
+					// Should never be here
+					panic(fmt.Sprintf("unexpected transport state: %d", tsu.state))
+				}
+
+				cause := tsu.cause
+				if c.actualCauseOfDisconnection != nil {
+					cause = c.actualCauseOfDisconnection
+					c.actualCauseOfDisconnection = nil
+				}
+
+				c.updateState(state, errors.Trace(cause))
+
+			case internal.TransportStateConnected:
+				// When transport layer is Connected, we need to set wsClient state to
+				// Authenticating, and send authentication data to the server.
+
+				c.updateState(ConnStateAuthenticating, errors.Trace(tsu.cause))
+				ctx := c.authnCtx
+
+				nonce := getNonce()
+				token, err := c.generateToken(nonce)
+				if err != nil {
+					c.disconnect(errors.Trace(err))
+					continue loop
+				}
+
+				authMsg := &pbc.ClientMessage{
+					Body: &pbc.ClientMessage_ApiAuthentication{
+						ApiAuthentication: &pbc.APIAuthenticationMessage{
+							Token:         token,
+							Nonce:         nonce,
+							ApiKey:        c.params.APIKey,
+							Source:        pbc.APIAuthenticationMessage_GOLANG_SDK,
+							Version:       version,
+							Subscriptions: c.GetSubscriptions(),
+						},
+					},
+				}
+
+				if err := c.sendProto(ctx, authMsg); err != nil {
+					c.disconnect(errors.Trace(err))
+					continue loop
+				}
+
+			default:
+				panic(fmt.Sprintf("Invalid transport layer state %v", tsu.state))
+			}
+		} else if data := event.rxData; data != nil {
+			// Received some data. The way we handle it depends on the state:
+			//
+			// - Authenticating: interpret the data as authentication result,
+			//   and if it's successful, then finally set state to Established.
+			//   If not, initiate disconnection (and the state will be changed
+			//   when we actually disconnect).
+			// - Established: pass the data to clients (StreamClient or TradeClient)
+			//   via OnRead callback
+			// - Any other state: ignore. TODO: also call some error handler to
+			//   notify the client.
+
+			switch c.state {
+			case ConnStateAuthenticating:
+				// Expect authentication result, so try to unmarshal it
+				unmarshalAuthnResult := c.paramsInternal.unmarshalAuthnResult
+				if unmarshalAuthnResult == nil {
+					c.disconnect(errors.Errorf("unmarshalAuthnResult is not set"))
+					continue loop
+				}
+
+				authnResult, err := unmarshalAuthnResult(data)
+				if err != nil {
+					c.disconnect(errors.Trace(err))
+					continue loop
+				}
+
+				if err := c.handleAuthnResult(authnResult); err != nil {
+					c.disconnect(errors.Trace(err))
+					continue loop
+				}
+
+				// Authentication is successful
+				// We can now reset any backoff that has been applied
+				c.transport.ResetTimeout()
+
+				c.updateState(ConnStateEstablished, nil)
+
+			case ConnStateEstablished:
+				// Pass message up to the client
+				if c.onReadCB != nil {
+					c.onReadCB(data)
+				}
+
+			default:
+				// We don't expect to receive any messages in this state
+				// TODO: report error to the client, but don't disconnect
+			}
+
+		} else if al := event.reqAddStateListener; al != nil {
+			// Request to add a new state listener.
+
+			sl := stateListener{
+				cb:  al.cb,
+				opt: al.opt,
+			}
+
+			// Determine whether the callback should be called right now
+			callNow := al.opt.CallImmediately && (al.state == c.state || al.state == ConnStateAny)
+
+			// Update stored listeners if needed
+			if !al.opt.OneOff || !callNow {
+				c.stateListeners[al.state] = append(c.stateListeners[al.state], sl)
+			}
+
+			if callNow {
+				c.callStateListeners(&callStateListenersReq{
+					listeners: []stateListener{sl},
+					oldState:  c.state,
+					state:     c.state,
+					cause:     c.stateCause,
+				})
+			}
+
+			al.result <- struct{}{}
+		} else if req := event.reqConnState; req != nil {
+			// Request to add a new state listener.
+			req.result <- c.state
+		} else if req := event.reqSubscribe; req != nil {
+			// Request to subscribe
+			err := c.subscribeInternal(req.keys)
+			req.result <- err
+		} else if req := event.reqUnsubscribe; req != nil {
+			// Request to unsubscribe
+			err := c.unsubscribeInternal(req.keys)
+			req.result <- err
 		}
+	}
+}
+
+// NOTE: callStateListeners should only be called from the eventLoop, to ensure
+// that all callbacks are only invoked from a single goroutine.
+func (c *wsConn) callStateListeners(req *callStateListenersReq) {
+	for _, sl := range req.listeners {
+		sl.cb(req.oldState, req.state, req.cause)
 	}
 }
 
@@ -736,20 +878,6 @@ func (c *wsConn) generateToken(nonce string) (string, error) {
 	payload := fmt.Sprintf("stream_access;access_key_id=%v;nonce=%v;", c.params.APIKey, nonce)
 	h.Write([]byte(payload))
 	return base64.StdEncoding.EncodeToString(h.Sum(nil)), nil
-}
-
-// substituteUpcomingCause should be used when we're expecting the state to
-// change very soon (e.g. when closing a connection because of authentication
-// error), so it takes a predicate which checks the causing error returned from
-// the transport layer, and also the actual error. If predicate returns true
-// for the next state change cause, the actual one will be given to client's
-// listeners.
-func (c *wsConn) substituteUpcomingCause(
-	isExpected func(cause error) bool,
-	actual error,
-) {
-	c.isExpectedCause = isExpected
-	c.actualCause = actual
 }
 
 func getNonce() string {

@@ -73,9 +73,23 @@ func withTestServer(
 	rx := make(chan websocketEvent, 128)
 	tx := make(chan internal.WebsocketTx, 128)
 
+	// connLimiter is needed to limit the amount of connections opened at a time.
+	// We use no timeout when reconnecting first time, and without a limit this
+	// becomes possible:
+	//
+	// - Mocked server causes some failure so the connection should be closed
+	// - Client closes the connection and immediately opens another one
+	// - Due to OS scheduler, mocked server sees the opening of a new connection
+	//   earlier than the closure of the old connection. But since we expect
+	//   the "conn closed" event, test fails.
+	//
+	// So to prevent that, we just ensure that we don't have more than one conn
+	// opened.
+	connLimiter := make(chan struct{}, 1)
+
 	// Create test server with a single root endpoint which upgrades connection
 	// to websocket
-	ts := httptest.NewServer(http.HandlerFunc(getStreamHandler(server, t, rx, tx)))
+	ts := httptest.NewServer(http.HandlerFunc(getStreamHandler(server, t, rx, tx, connLimiter)))
 	defer ts.Close()
 
 	// Replace the scheme in url to "ws"
@@ -108,8 +122,18 @@ func getStreamHandler(
 	t *testing.T,
 	rx chan<- websocketEvent,
 	tx <-chan internal.WebsocketTx,
+	connLimiter chan struct{},
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		// Ensure the limit of simultaneously opened connections
+		// (see comment for connLimiter above)
+		connLimiter <- struct{}{}
+		defer func() {
+			// This will run after Tx loop exits (and thus Rx loop already exited)
+			<-connLimiter
+		}()
+
 		ctx, cancel := context.WithCancel(context.Background())
 		upgrader := websocket.Upgrader{}
 		ws, err := upgrader.Upgrade(w, r, nil)
@@ -238,7 +262,7 @@ func TestWsConn(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		if err := st.expectState(ConnStateConnecting); err != nil {
+		if err := st.expectState(t, ConnStateConnecting); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -247,7 +271,7 @@ func TestWsConn(t *testing.T) {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st.expectState(ConnStateAuthenticating); err != nil {
+		if err := st.expectState(t, ConnStateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -261,7 +285,7 @@ func TestWsConn(t *testing.T) {
 			return errors.Errorf("sending authn resp: %s", err)
 		}
 
-		if err := st.expectState(ConnStateEstablished); err != nil {
+		if err := st.expectState(t, ConnStateEstablished); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -311,9 +335,9 @@ func TestWsConn(t *testing.T) {
 						TradesUpdate: &pbm.TradesUpdate{
 							Trades: []*pbm.Trade{
 								&pbm.Trade{
-									Id:     1,
-									Price:  2,
-									Amount: 3,
+									ExternalId: "1234",
+									Price:      2,
+									Amount:     3,
 								},
 							},
 						},
@@ -344,8 +368,8 @@ func TestWsConn(t *testing.T) {
 		// 		}
 
 		// 		// Check message contents
-		// 		if want, got := int64(1), tu.Trades[0].Id; want != got {
-		// 			return errors.Errorf("Id: want: %v, got: %v", want, got)
+		// 		if want, got := "1234", tu.Trades[0].ExternalId; want != got {
+		// 			return errors.Errorf("ExternalId: want: %v, got: %v", want, got)
 		// 		}
 
 		// 		if want, got := float32(2), tu.Trades[0].Price; want != got {
@@ -377,11 +401,11 @@ func TestWsConn(t *testing.T) {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
-		if err := st.expectState(ConnStateWaitBeforeReconnect); err != nil {
+		if err := st.expectState(t, ConnStateWaitBeforeReconnect); err != nil {
 			return errors.Trace(err)
 		}
 
-		if err := st.expectState(ConnStateConnecting); err != nil {
+		if err := st.expectState(t, ConnStateConnecting); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -390,7 +414,7 @@ func TestWsConn(t *testing.T) {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st.expectState(ConnStateAuthenticating); err != nil {
+		if err := st.expectState(t, ConnStateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -404,7 +428,7 @@ func TestWsConn(t *testing.T) {
 			return errors.Errorf("sending authn resp: %s", err)
 		}
 
-		if err := st.expectState(ConnStateEstablished); err != nil {
+		if err := st.expectState(t, ConnStateEstablished); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -605,7 +629,7 @@ func TestStateListeners(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		if err := st[0].expectState(ConnStateConnecting); err != nil {
+		if err := st[0].expectState(t, ConnStateConnecting); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -614,7 +638,7 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st[0].expectState(ConnStateAuthenticating); err != nil {
+		if err := st[0].expectState(t, ConnStateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -628,7 +652,7 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("sending authn resp: %s", err)
 		}
 
-		if err := st[0].expectState(ConnStateEstablished); err != nil {
+		if err := st[0].expectState(t, ConnStateEstablished); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -644,11 +668,11 @@ func TestStateListeners(t *testing.T) {
 		// 	return errors.Trace(err)
 		// }
 
-		if err := st[0].expectState(ConnStateWaitBeforeReconnect); err != nil {
+		if err := st[0].expectState(t, ConnStateWaitBeforeReconnect); err != nil {
 			return errors.Trace(err)
 		}
 
-		if err := st[0].expectState(ConnStateConnecting); err != nil {
+		if err := st[0].expectState(t, ConnStateConnecting); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -657,7 +681,7 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st[0].expectState(ConnStateAuthenticating); err != nil {
+		if err := st[0].expectState(t, ConnStateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -671,7 +695,7 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("sending authn resp: %s", err)
 		}
 
-		if err := st[0].expectState(ConnStateEstablished); err != nil {
+		if err := st[0].expectState(t, ConnStateEstablished); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -685,7 +709,7 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
-		if err := st[0].expectState(ConnStateDisconnected); err != nil {
+		if err := st[0].expectState(t, ConnStateDisconnected); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -694,7 +718,7 @@ func TestStateListeners(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		if err := st[0].expectState(ConnStateConnecting); err != nil {
+		if err := st[0].expectState(t, ConnStateConnecting); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -703,7 +727,7 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st[0].expectState(ConnStateAuthenticating); err != nil {
+		if err := st[0].expectState(t, ConnStateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -717,7 +741,7 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("sending authn resp: %s", err)
 		}
 
-		if err := st[0].expectState(ConnStateEstablished); err != nil {
+		if err := st[0].expectState(t, ConnStateEstablished); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -731,7 +755,7 @@ func TestStateListeners(t *testing.T) {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
-		if err := st[0].expectState(ConnStateDisconnected); err != nil {
+		if err := st[0].expectState(t, ConnStateDisconnected); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -783,11 +807,11 @@ func TestAuthnErrors(t *testing.T) {
 			testCase{pbs.AuthenticationResult_BAD_TOKEN, 1, ErrBadCredentials},
 			testCase{pbs.AuthenticationResult_BAD_NONCE, 1, ErrBadNonce},
 			testCase{pbs.AuthenticationResult_UNKNOWN, 1, ErrUnknownAuthnError},
-			testCase{pbs.AuthenticationResult_TOKEN_EXPIRED, 3, ErrTokenExpired},
+			testCase{pbs.AuthenticationResult_TOKEN_EXPIRED, 1, ErrTokenExpired},
 		}
 
 		for _, tc := range testCases {
-			if err := st.expectState(ConnStateConnecting); err != nil {
+			if err := st.expectState(t, ConnStateConnecting); err != nil {
 				return errors.Trace(err)
 			}
 
@@ -796,7 +820,7 @@ func TestAuthnErrors(t *testing.T) {
 				return errors.Errorf("waiting for new conn to be opened: %s", err)
 			}
 
-			if err := st.expectState(ConnStateAuthenticating); err != nil {
+			if err := st.expectState(t, ConnStateAuthenticating); err != nil {
 				return errors.Trace(err)
 			}
 
@@ -818,14 +842,13 @@ func TestAuthnErrors(t *testing.T) {
 				return errors.Errorf("waiting for connection being closed: %s", err)
 			}
 
-			// TODO this fails intermittently both locally and on CI. need to figure out why
-			if err := st.expectStateWCause(ConnStateWaitBeforeReconnect, tc.expectedCause); err != nil {
+			if err := st.expectStateWCause(t, ConnStateWaitBeforeReconnect, tc.expectedCause); err != nil {
 				return errors.Trace(err)
 			}
 		}
 
 		// Now, finally connect successfully {{{
-		if err := st.expectState(ConnStateConnecting); err != nil {
+		if err := st.expectState(t, ConnStateConnecting); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -834,7 +857,7 @@ func TestAuthnErrors(t *testing.T) {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st.expectState(ConnStateAuthenticating); err != nil {
+		if err := st.expectState(t, ConnStateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -1061,11 +1084,11 @@ func (st *stateTracker) checkStates(want []string) error {
 
 var dontCheckErr = errors.Errorf("_do_not_check_error_")
 
-func (st *stateTracker) expectState(state ConnState) error {
-	return st.expectStateWCause(state, dontCheckErr)
+func (st *stateTracker) expectState(t *testing.T, state ConnState) error {
+	return st.expectStateWCause(t, state, dontCheckErr)
 }
 
-func (st *stateTracker) expectStateWCause(state ConnState, cause error) error {
+func (st *stateTracker) expectStateWCause(t *testing.T, state ConnState, cause error) error {
 	select {
 	case change := <-st.changes:
 		if change.state != state {
@@ -1109,9 +1132,12 @@ var testSubscriptions = []string{"foo", "bar"}
 // results in an error
 func testWriteToNonConnected(t *testing.T) {
 	err := withTestServer(streamServer, t, func(tp *testServerParams) error {
-		conn, err := newWsConn(&WSParams{
-			URL: tp.url,
-		})
+		conn, err := newWsConn(
+			&WSParams{
+				URL: tp.url,
+			},
+			&wsConnParamsInternal{},
+		)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -1133,9 +1159,12 @@ func testWriteToNonConnected(t *testing.T) {
 // active connection loop results in an error
 func testConnectConnected(t *testing.T) {
 	err := withTestServer(streamServer, t, func(tp *testServerParams) error {
-		c, err := newWsConn(&WSParams{
-			URL: tp.url,
-		})
+		c, err := newWsConn(
+			&WSParams{
+				URL: tp.url,
+			},
+			&wsConnParamsInternal{},
+		)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -1161,9 +1190,12 @@ func testConnectConnected(t *testing.T) {
 // active connection loop results in an error
 func testCloseClosed(t *testing.T) {
 	err := withTestServer(streamServer, t, func(tp *testServerParams) error {
-		c, err := newWsConn(&WSParams{
-			URL: tp.url,
-		})
+		c, err := newWsConn(
+			&WSParams{
+				URL: tp.url,
+			},
+			&wsConnParamsInternal{},
+		)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -1183,12 +1215,15 @@ func testCloseClosed(t *testing.T) {
 
 func testSubscribe(t *testing.T) {
 	err := withTestServer(streamServer, t, func(tp *testServerParams) error {
-		conn, err := newWsConn(&WSParams{
-			URL:           tp.url,
-			APIKey:        testApiKey1,
-			SecretKey:     testSecretKey1,
-			Subscriptions: []string{"foo", "bar"},
-		})
+		conn, err := newWsConn(
+			&WSParams{
+				URL:           tp.url,
+				APIKey:        testApiKey1,
+				SecretKey:     testSecretKey1,
+				Subscriptions: []string{"foo", "bar"},
+			},
+			&wsConnParamsInternal{},
+		)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -1232,7 +1267,7 @@ func testSubscribe(t *testing.T) {
 
 func testDefaultURL(t *testing.T) {
 	err := withTestServer(streamServer, t, func(tp *testServerParams) error {
-		conn, err := newWsConn(&WSParams{})
+		conn, err := newWsConn(&WSParams{}, &wsConnParamsInternal{})
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -1251,7 +1286,7 @@ func testDefaultURL(t *testing.T) {
 
 func testDefaultOptions(t *testing.T) {
 	err := withTestServer(streamServer, t, func(tp *testServerParams) error {
-		conn, err := newWsConn(&WSParams{})
+		conn, err := newWsConn(&WSParams{}, &wsConnParamsInternal{})
 		if err != nil {
 			return errors.Trace(err)
 		}

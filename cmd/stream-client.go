@@ -89,21 +89,16 @@ func main() {
 		)
 	}
 
-	// TODO fix this
 	// Will print received market update messages
-	// c.AddMarketListener(func(msg *pbm.MarketUpdateMessage) {
-	// 	switch *format {
-	// 	case "json":
-	// 		outputProtoJSON(msg)
-	// 	}
-	// })
+	// TODO: implement generic listeners to avoid subscribing separately to each
+	// kind of message.
+	c.OnOrderBookDeltaUpdate(func(market wsclient.Market, update wsclient.OrderBookDeltaUpdate) {
+		fmt.Printf("Delta update on market %s: %+v\n", market.ID, update)
+	})
 
-	// c.AddPairListener(func(msg *pbm.PairUpdateMessage) {
-	// 	switch *format {
-	// 	case "json":
-	// 		outputProtoJSON(msg)
-	// 	}
-	// })
+	c.OnPairPerformanceUpdate(func(pair wsclient.Pair, update wsclient.PerformanceUpdate) {
+		fmt.Printf("Pair performance update on pair %s: %+v\n", pair.ID, update)
+	})
 
 	// Start connection loop
 	if *verbose {

@@ -5,7 +5,6 @@ import (
 
 	pbm "code.cryptowat.ch/ws-client-go/proto/markets"
 	pbs "code.cryptowat.ch/ws-client-go/proto/stream"
-	"code.cryptowat.ch/ws-client-go/internal"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/juju/errors"
@@ -28,7 +27,7 @@ type OrderBookDeltaUpdateCB func(Market, OrderBookDeltaUpdate)
 // OrderBookSpreadUpdateCB defines a callback function for OnOrderBookSpreadUpdate.
 type OrderBookSpreadUpdateCB func(Market, OrderBookSpreadUpdate)
 
-// PublicTradesUpdateCB defiens a callback function for OnTradesUpdate.
+// PublicTradesUpdateCB defines a callback function for OnTradesUpdate.
 type PublicTradesUpdateCB func(Market, TradesUpdate)
 
 // IntervalsUpdateCB defines a callback function for OnIntervalsUpdate.
@@ -90,7 +89,7 @@ type VWAPUpdateCB func(Pair, VWAPUpdate)
 // PerformanceUpdateCB defines a callback function for currency pair performance updates.
 type PerformanceUpdateCB func(Pair, PerformanceUpdate)
 
-// TrendlineUpdateCB defines a callabck function for currency pair trendline updates.
+// TrendlineUpdateCB defines a callback function for currency pair trendline updates.
 type TrendlineUpdateCB func(Pair, TrendlineUpdate)
 
 type callvwapUpdateListenersReq struct {
@@ -151,8 +150,25 @@ type StreamClient struct {
 // Although it starts listening for data immediately, you will still have to
 // register listeners to handle that data, and then call Connect() explicitly.
 func NewStreamClient(params *WSParams) (*StreamClient, error) {
+	wsConn, err := newWsConn(
+		params,
+		&wsConnParamsInternal{
+			unmarshalAuthnResult: func(data []byte) (*pbs.AuthenticationResult, error) {
+				var msg pbs.StreamMessage
 
-	wsConn, err := newWsConn(params)
+				if err := proto.Unmarshal(data, &msg); err != nil {
+					return nil, errors.Trace(err)
+				}
+
+				authnResult := msg.GetAuthenticationResult()
+				if authnResult == nil {
+					return nil, errors.Errorf("not an authentication result")
+				}
+
+				return authnResult, nil
+			},
+		},
+	)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -173,23 +189,17 @@ func NewStreamClient(params *WSParams) (*StreamClient, error) {
 		callPairTrendlineUpdateListeners:   make(chan callPairTrendlineUpdateListenersReq, 1),
 	}
 
-	sc.wsConn.transport.OnRead(func(tc *internal.StreamTransportConn, data []byte) {
+	sc.wsConn.onRead(func(data []byte) {
 		var msg pbs.StreamMessage
 
 		if err := proto.Unmarshal(data, &msg); err != nil {
 			// Failed to parse incoming message: close connection (and if
 			// reconnection was requested, then reconnect)
-			tc.CloseOpt(
-				websocket.FormatCloseMessage(websocket.CloseUnsupportedData, ""),
-				false,
-			)
+			sc.wsConn.disconnectOpt(nil, websocket.CloseUnsupportedData, "")
 			return
 		}
 
 		switch msg.Body.(type) {
-		case *pbs.StreamMessage_AuthenticationResult:
-			wsConn.authHandler(msg.GetAuthenticationResult())
-
 		case *pbs.StreamMessage_MarketUpdate:
 			sc.marketUpdateHandler(msg.GetMarketUpdate())
 

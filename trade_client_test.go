@@ -137,7 +137,7 @@ func TestTradeConn(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		if err := st.expectState(ConnStateConnecting); err != nil {
+		if err := st.expectState(t, ConnStateConnecting); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -146,7 +146,7 @@ func TestTradeConn(t *testing.T) {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st.expectState(ConnStateAuthenticating); err != nil {
+		if err := st.expectState(t, ConnStateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -160,7 +160,7 @@ func TestTradeConn(t *testing.T) {
 			return errors.Errorf("sending authn resp: %s", err)
 		}
 
-		if err := st.expectState(ConnStateEstablished); err != nil {
+		if err := st.expectState(t, ConnStateEstablished); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -190,11 +190,11 @@ func TestTradeConn(t *testing.T) {
 			return errors.Errorf("waiting for connection being closed: %s", err)
 		}
 
-		if err := st.expectState(ConnStateWaitBeforeReconnect); err != nil {
+		if err := st.expectState(t, ConnStateWaitBeforeReconnect); err != nil {
 			return errors.Trace(err)
 		}
 
-		if err := st.expectState(ConnStateConnecting); err != nil {
+		if err := st.expectState(t, ConnStateConnecting); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -203,7 +203,7 @@ func TestTradeConn(t *testing.T) {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		if err := st.expectState(ConnStateAuthenticating); err != nil {
+		if err := st.expectState(t, ConnStateAuthenticating); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -217,7 +217,7 @@ func TestTradeConn(t *testing.T) {
 			return errors.Errorf("sending authn resp: %s", err)
 		}
 
-		if err := st.expectState(ConnStateEstablished); err != nil {
+		if err := st.expectState(t, ConnStateEstablished); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -291,7 +291,7 @@ func TestTrading(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		// if err := st.expectState(StateConnecting); err != nil {
+		// if err := st.expectState(t, StateConnecting); err != nil {
 		// 	return errors.Trace(err)
 		// }
 
@@ -300,7 +300,7 @@ func TestTrading(t *testing.T) {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)
 		}
 
-		// if err := st.expectState(StateAuthenticating); err != nil {
+		// if err := st.expectState(t, StateAuthenticating); err != nil {
 		// 	return errors.Trace(err)
 		// }
 
@@ -314,7 +314,7 @@ func TestTrading(t *testing.T) {
 			return errors.Errorf("sending authn resp: %s", err)
 		}
 
-		// if err := st.expectState(StateEstablished); err != nil {
+		// if err := st.expectState(t, StateEstablished); err != nil {
 		// 	return errors.Trace(err)
 		// }
 

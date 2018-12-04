@@ -9,7 +9,7 @@ import (
 	"time"
 
 	pbb "code.cryptowat.ch/ws-client-go/proto/broker"
-	"code.cryptowat.ch/ws-client-go/internal"
+	pbs "code.cryptowat.ch/ws-client-go/proto/stream"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -113,6 +113,11 @@ type cancelOrderReq struct {
 	response chan error
 }
 
+type syncReq struct {
+	marketID MarketID
+	response chan error
+}
+
 // TradeClient is used to manage a connection to Cryptowatch's trading back end, and
 // provides functions for trading on the the subscribed markets. TradeClient
 // also has callbacks for updates related to trading.
@@ -134,6 +139,7 @@ type TradeClient struct {
 
 	placeOrderRequests  chan placeOrderReq
 	cancelOrderRequests chan cancelOrderReq
+	syncRequests        chan syncReq
 
 	callOrdersListeners        chan callOrdersListenersReq
 	callTradesListeners        chan callTradesListenersReq
@@ -161,7 +167,25 @@ type TradeClient struct {
 // should be an array of market IDs that you have access to trade on.
 // NOTE multiple markets will be enabled in a future update.
 func NewTradeClient(params *WSParams) (*TradeClient, error) {
-	wsConn, err := newWsConn(params)
+	wsConn, err := newWsConn(
+		params,
+		&wsConnParamsInternal{
+			unmarshalAuthnResult: func(data []byte) (*pbs.AuthenticationResult, error) {
+				var msg pbb.BrokerUpdateMessage
+
+				if err := proto.Unmarshal(data, &msg); err != nil {
+					return nil, errors.Trace(err)
+				}
+
+				authnResult := msg.GetAuthenticationResult()
+				if authnResult == nil {
+					return nil, errors.Errorf("not an authentication result")
+				}
+
+				return authnResult, nil
+			},
+		},
+	)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -188,6 +212,7 @@ func NewTradeClient(params *WSParams) (*TradeClient, error) {
 
 		placeOrderRequests:  make(chan placeOrderReq, 1),
 		cancelOrderRequests: make(chan cancelOrderReq, 1),
+		syncRequests:        make(chan syncReq, 1),
 
 		callOrdersListeners:        make(chan callOrdersListenersReq, 1),
 		callTradesListeners:        make(chan callTradesListenersReq, 1),
@@ -196,25 +221,18 @@ func NewTradeClient(params *WSParams) (*TradeClient, error) {
 		callSessionStatusListeners: make(chan callSessionStatusListenersReq, 1),
 	}
 
-	tc.wsConn.transport.OnRead(func(conn *internal.StreamTransportConn, data []byte) {
+	tc.wsConn.onRead(func(data []byte) {
 		var msg pbb.BrokerUpdateMessage
 
 		if err := proto.Unmarshal(data, &msg); err != nil {
 			// Failed to parse incoming message: close connection (and if
 			// reconnection was requested, then reconnect)
-			conn.CloseOpt(
-				websocket.FormatCloseMessage(websocket.CloseUnsupportedData, ""),
-				false,
-			)
+			tc.wsConn.disconnectOpt(nil, websocket.CloseUnsupportedData, "")
 			return
 		}
 
 		switch msg.Update.(type) {
-
-		case *pbb.BrokerUpdateMessage_AuthenticationResult:
-			wsConn.authHandler(msg.GetAuthenticationResult())
-
-			// Exposed
+		// Exposed
 		case *pbb.BrokerUpdateMessage_OrdersUpdate:
 			tc.ordersUpdateHandler(tc.sMarketID(msg.GetMarketId()), msg.GetOrdersUpdate())
 
@@ -295,6 +313,11 @@ listenloop:
 				req.response <- tc.cancelOrderInt(req.marketID, req.orderID)
 			}()
 
+		case req := <-tc.syncRequests:
+			go func() {
+				req.response <- tc.syncInt(req.marketID)
+			}()
+
 		case req := <-tc.callOrdersListeners:
 			tradeStatus.setModuleReady(req.marketID, tradeModuleOrders)
 			for _, l := range req.listeners {
@@ -320,9 +343,18 @@ listenloop:
 			}
 
 		case req := <-tc.callSessionStatusListeners:
-			tradeStatus.setModuleReady(req.marketID, tradeModuleSession)
+			prev := tradeStatus.setModuleReady(req.marketID, tradeModuleSession)
 			for _, l := range req.listeners {
 				l(req.marketID, req.update)
+			}
+
+			// When we receive the first session status update, and if the session
+			// was synced more than 5 mins ago, request the resync.
+			if !prev {
+				lastSyncTime := time.Unix(req.update.LastSyncTime, 0)
+				if time.Since(lastSyncTime) > 5*time.Minute {
+					go tc.syncInt(req.marketID)
+				}
 			}
 
 		case <-tc.disable:
@@ -542,6 +574,23 @@ func (tc *TradeClient) CancelOrder(marketID MarketID, order PrivateOrder) error 
 	return <-response
 }
 
+// Sync forces a cache update by polling the exchange on behalf of the user.
+// This function should not normally be needed, and is only useful in two scenarios:
+// 1) an order is placed or cancelled outside of this client.
+// 2) there is something preventing our trading back end from actively polling for updates.
+// This happens rarely, and for various reasons. For example, an exchange may rate limit
+// one of our servers.
+func (tc *TradeClient) Sync(marketID MarketID) error {
+	response := make(chan error, 1)
+
+	tc.syncRequests <- syncReq{
+		marketID: marketID,
+		response: response,
+	}
+
+	return <-response
+}
+
 func (tc *TradeClient) cancelOrderInt(marketID MarketID, orderID string) error {
 	res, err := tc.makeRequest(
 		marketID,
@@ -562,13 +611,7 @@ func (tc *TradeClient) cancelOrderInt(marketID MarketID, orderID string) error {
 	return nil
 }
 
-// Sync forces a cache update by polling the exchange on behalf of the user.
-// This function should not normally be needed, and is only useful in two scenarios:
-// 1) an order is placed or cancelled outside of this client.
-// 2) there is something preventing our trading back end from actively polling for updates.
-// This happens rarely, and for various reasons. For example, an exchange may rate limit
-// one of our servers.
-func (tc *TradeClient) Sync(marketID MarketID) error {
+func (tc *TradeClient) syncInt(marketID MarketID) error {
 	var marketIDInt int64
 	if marketID != "" {
 		var err error
@@ -884,12 +927,16 @@ func newTradeStatusTracker() *tradeStatusTracker {
 	}
 }
 
-func (tst *tradeStatusTracker) setModuleReady(marketID MarketID, module tradeModule) {
+// setModuleReady sets the new module ready status, and returns the previous one.
+func (tst *tradeStatusTracker) setModuleReady(marketID MarketID, module tradeModule) bool {
 	if _, ok := tst.m[marketID]; !ok {
 		tst.m[marketID] = map[tradeModule]bool{}
 	}
 
+	ret := tst.m[marketID][module]
 	tst.m[marketID][module] = true
+
+	return ret
 }
 
 func (tst *tradeStatusTracker) reset() {

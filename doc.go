@@ -15,7 +15,7 @@ inquire about getting access here: https://docs.google.com/forms/d/e/1FAIpQLSdhv
 Connecting
 
 To connect to either the streaming or trading back end, you will need an API key pair. Please refer to the
-section above about obtaining one. The same API key pair will work for both streaming and trading, although
+section above about obtaining keys. The same API key pair will work for both streaming and trading, although
 we use specific access control rules on our back end to determine if your key pair can access any particular
 data subscription or trading functionality. In the future, you will be able to manage this through a settings
 page on your Cryptowatch account.
@@ -37,7 +37,7 @@ Typically you will only need to supply APIKey, SecretKey, and Subscriptions as t
 have default values.
 
 URL is the url of the back end to connect to. You will not need to supply it unless you are
-testing againts a non-production environment.
+testing against a non-production environment.
 
 ReconnectOpts determine how (and if) the client should reconnect. By default, the client will
 reconnect with linear backoff up to 30 seconds.
