@@ -61,13 +61,28 @@ func main() {
 		log.Fatalf("%s", err)
 	}
 
+	var lastError error
+
+	c.OnError(func(err error, disconnecting bool) {
+		// If the client is going to disconnect because of that error, just save
+		// the error to show later on the disconnection message.
+		if disconnecting {
+			lastError = err
+			return
+		}
+
+		// Otherwise, print the error message right away.
+		log.Printf("Error: %s", err.Error())
+	})
+
 	// Ask for the state transition updates, and present them to the user somehow
-	c.AddStateListener(
+	c.OnStateChange(
 		wsclient.ConnStateAny,
-		func(oldState, state wsclient.ConnState, cause error) {
+		func(oldState, state wsclient.ConnState) {
 			causeStr := ""
-			if cause != nil {
-				causeStr = fmt.Sprintf(" (%s)", cause)
+			if lastError != nil {
+				causeStr = fmt.Sprintf(" (%s)", lastError)
+				lastError = nil
 			}
 			log.Printf(
 				"State updated: %s -> %s%s",
@@ -79,15 +94,17 @@ func main() {
 	)
 
 	// Listen for received market messages and print them
-	c.OnTradesUpdate(func(market wsclient.Market, tradesUpdate wsclient.TradesUpdate) {
-		for _, trade := range tradesUpdate.Trades {
-			log.Printf(
-				"Trade: %s: price: %s, amount: %s",
-				market.CurrencyPairID, trade.Price, trade.Amount,
-			)
+	c.OnMarketData(func(market wsclient.Market, md wsclient.MarketData) {
+		if md.TradesUpdate != nil {
+			tradesUpdate := md.TradesUpdate
+			for _, trade := range tradesUpdate.Trades {
+				log.Printf(
+					"Trade: %s: price: %s, amount: %s",
+					market.CurrencyPairID, trade.Price, trade.Amount,
+				)
+			}
 		}
-	},
-	)
+	})
 
 	// Finally, connect.
 	c.Connect()

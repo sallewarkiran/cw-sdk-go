@@ -58,13 +58,25 @@ func main() {
 		log.Fatalf("%s", err)
 	}
 
+	var lastError error
+
+	c.OnError(func(err error, disconnecting bool) {
+		if disconnecting {
+			lastError = err
+			return
+		}
+
+		log.Printf("Error: %s", err.Error())
+	})
+
 	// Ask for the state transition updates, and present them to the user somehow
-	c.AddStateListener(
+	c.OnStateChange(
 		wsclient.ConnStateAny,
-		func(oldState, state wsclient.ConnState, cause error) {
+		func(oldState, state wsclient.ConnState) {
 			causeStr := ""
-			if cause != nil {
-				causeStr = fmt.Sprintf(" (%s)", cause)
+			if lastError != nil {
+				causeStr = fmt.Sprintf(" (%s)", lastError)
+				lastError = nil
 			}
 			log.Printf(
 				"State updated: %s -> %s%s",
@@ -76,12 +88,15 @@ func main() {
 	)
 
 	// Listen for received market messages and print them
-	c.OnTradesUpdate(func(market wsclient.Market, tradesUpdate wsclient.TradesUpdate) {
-		for _, trade := range tradesUpdate.Trades {
-			fmt.Printf(
-				"%v %34s %16s %16s\n",
-				trade.Timestamp, market.ExchangeID+" "+strings.ToUpper(market.CurrencyPairID), trade.Price, trade.Amount,
-			)
+	c.OnMarketData(func(market wsclient.Market, md wsclient.MarketData) {
+		if md.TradesUpdate != nil {
+			tradesUpdate := md.TradesUpdate
+			for _, trade := range tradesUpdate.Trades {
+				fmt.Printf(
+					"%v %34s %16s %16s\n",
+					trade.Timestamp, market.ExchangeID+" "+strings.ToUpper(market.CurrencyPairID), trade.Price, trade.Amount,
+				)
+			}
 		}
 	})
 

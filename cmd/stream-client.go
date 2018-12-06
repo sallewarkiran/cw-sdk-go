@@ -77,12 +77,27 @@ func main() {
 
 	// Will print state changes to the user
 	if *verbose {
-		c.AddStateListener(
+		var lastError error
+
+		c.OnError(func(err error, disconnecting bool) {
+			// If the client is going to disconnect because of that error, just save
+			// the error to show later on the disconnection message.
+			if disconnecting {
+				lastError = err
+				return
+			}
+
+			// Otherwise, print the error message right away.
+			log.Printf("Error: %s", err.Error())
+		})
+
+		c.OnStateChange(
 			wsclient.ConnStateAny,
-			func(oldState, state wsclient.ConnState, cause error) {
+			func(oldState, state wsclient.ConnState) {
 				fmt.Printf("State updated: %s -> %s", wsclient.ConnStateNames[oldState], wsclient.ConnStateNames[state])
-				if cause != nil {
-					fmt.Printf(" (%s)", cause)
+				if lastError != nil {
+					fmt.Printf(" (%s)", lastError)
+					lastError = nil
 				}
 				fmt.Printf("\n")
 			},
@@ -92,13 +107,13 @@ func main() {
 	// Will print received market update messages
 	// TODO: implement generic listeners to avoid subscribing separately to each
 	// kind of message.
-	c.OnOrderBookDeltaUpdate(func(market wsclient.Market, update wsclient.OrderBookDeltaUpdate) {
-		fmt.Printf("Delta update on market %s: %+v\n", market.ID, update)
-	})
+	// c.OnOrderBookDeltaUpdate(func(market wsclient.Market, update wsclient.OrderBookDeltaUpdate) {
+	// 	fmt.Printf("Delta update on market %s: %+v\n", market.ID, update)
+	// })
 
-	c.OnPairPerformanceUpdate(func(pair wsclient.Pair, update wsclient.PerformanceUpdate) {
-		fmt.Printf("Pair performance update on pair %s: %+v\n", pair.ID, update)
-	})
+	// c.OnPairPerformanceUpdate(func(pair wsclient.Pair, update wsclient.PerformanceUpdate) {
+	// 	fmt.Printf("Pair performance update on pair %s: %+v\n", pair.ID, update)
+	// })
 
 	// Start connection loop
 	if *verbose {

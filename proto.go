@@ -6,6 +6,9 @@ import (
 
 	pbb "code.cryptowat.ch/ws-client-go/proto/broker"
 	pbm "code.cryptowat.ch/ws-client-go/proto/markets"
+	pbs "code.cryptowat.ch/ws-client-go/proto/stream"
+	"github.com/golang/protobuf/proto"
+	"github.com/juju/errors"
 )
 
 // TODO check if pointers are null
@@ -25,7 +28,7 @@ func publicOrderFromProto(po *pbm.Order) PublicOrder {
 	}
 }
 
-func orderBookUpdateFromProto(obu *pbm.OrderBookUpdate) OrderBookSnapshotUpdate {
+func orderBookSnapshotUpdateFromProto(obu *pbm.OrderBookUpdate) OrderBookSnapshotUpdate {
 	bids := make([]PublicOrder, len(obu.Bids))
 	for i, b := range obu.Bids {
 		bids[i] = publicOrderFromProto(b)
@@ -328,6 +331,36 @@ func tradeToProto(t PrivateTrade) *pbb.PrivateTrade {
 		AmountString: t.Amount,
 		Side:         int32(t.OrderSide),
 	}
+}
+
+func unmarshalAuthnResultStream(data []byte) (*pbs.AuthenticationResult, error) {
+	var msg pbs.StreamMessage
+
+	if err := proto.Unmarshal(data, &msg); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	authnResult := msg.GetAuthenticationResult()
+	if authnResult == nil {
+		return nil, errors.Trace(ErrInvalidAuthn)
+	}
+
+	return authnResult, nil
+}
+
+func unmarshalAuthnResultTrade(data []byte) (*pbs.AuthenticationResult, error) {
+	var msg pbb.BrokerUpdateMessage
+
+	if err := proto.Unmarshal(data, &msg); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	authnResult := msg.GetAuthenticationResult()
+	if authnResult == nil {
+		return nil, errors.Trace(ErrInvalidAuthn)
+	}
+
+	return authnResult, nil
 }
 
 func unixMillisToTime(unixMillis int64) time.Time {

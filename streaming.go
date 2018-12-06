@@ -4,6 +4,28 @@ import (
 	"time"
 )
 
+// MarketData is a container for all market data callbacks. For any MarketData
+// intance, it will only ever have one of its properties non-null.
+// See OnMarketData.
+type MarketData struct {
+	OrderBookSnapshotUpdate *OrderBookSnapshotUpdate
+	OrderBookDeltaUpdate    *OrderBookDeltaUpdate
+	OrderBookSpreadUpdate   *OrderBookSpreadUpdate
+	TradesUpdate            *TradesUpdate
+	IntervalsUpdate         *IntervalsUpdate
+	SummaryUpdate           *SummaryUpdate
+	SparklineUpdate         *SparklineUpdate
+}
+
+// PairData is a container for all pair data callbacks. For any PairData
+// instance, it will only ever have one of its properties non-null.
+// See OnPairData.
+type PairData struct {
+	VWAPUpdate        *VWAPUpdate
+	PerformanceUpdate *PerformanceUpdate
+	TrendlineUpdate   *TrendlineUpdate
+}
+
 // Market represents a market on Cryptowatch. A market consists of an exchange
 // and currency pair. For example, Kraken BTC/USD. IDs are used instead of
 // names to avoid inconsistencies associated with name changes.

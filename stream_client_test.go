@@ -28,20 +28,6 @@ func TestStreamClient(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		// market update types
-		//	*MarketUpdateMessage_OrderBookUpdate
-		//	*MarketUpdateMessage_OrderBookDeltaUpdate
-		//	*MarketUpdateMessage_OrderBookSpreadUpdate
-		//	*MarketUpdateMessage_TradesUpdate
-		//	*MarketUpdateMessage_IntervalsUpdate
-		//	*MarketUpdateMessage_SummaryUpdate
-		//	*MarketUpdateMessage_SparklineUpdate
-
-		// pair update types
-		//	*PairUpdateMessage_VwapUpdate
-		//	*PairUpdateMessage_PerformanceUpdate
-		//	*PairUpdateMessage_TrendlineUpdate
-
 		updatesReceived := map[string]bool{
 			"OrderBookSnapshotUpdate": false,
 			"OrderBookDeltaUpdate":    false,
@@ -57,118 +43,126 @@ func TestStreamClient(t *testing.T) {
 
 		updates := make(chan string, len(updatesReceived))
 
-		client.OnOrderBookSnapshotUpdate(func(m Market, ob OrderBookSnapshotUpdate) {
-			assert.Equal(ob.SeqNum, SeqNum(testOrderBookUpdate.SeqNum))
-			for i, o := range testOrderBookUpdate.Bids {
-				assert.Equal(publicOrderFromProto(o), ob.Bids[i])
-			}
-			for i, o := range testOrderBookUpdate.Asks {
-				assert.Equal(publicOrderFromProto(o), ob.Asks[i])
-			}
-			updates <- "OrderBookSnapshotUpdate"
-		})
+		// Test market data callbacks
 
-		client.OnOrderBookDeltaUpdate(func(m Market, ob OrderBookDeltaUpdate) {
-			assert.Equal(ob.SeqNum, SeqNum(testOrderBookDeltaUpdate.SeqNum))
-			for i, o := range testOrderBookDeltaUpdate.Bids.Set {
-				assert.Equal(publicOrderFromProto(o).Price, ob.Bids.Set[i].Price)
-				assert.Equal(publicOrderFromProto(o).Amount, ob.Bids.Set[i].Amount)
-			}
-			assert.Equal(testOrderBookDeltaUpdate.Bids.RemoveStr, ob.Bids.Remove)
+		client.OnMarketData(func(m Market, md MarketData) {
+			assert.Equal(m.ID, MarketID("1"))
+			assert.Equal(m.ExchangeID, "1")
+			assert.Equal(m.CurrencyPairID, "1")
 
-			for i, o := range testOrderBookDeltaUpdate.Asks.Set {
-				assert.Equal(publicOrderFromProto(o).Price, ob.Asks.Set[i].Price)
-				assert.Equal(publicOrderFromProto(o).Amount, ob.Asks.Set[i].Amount)
-			}
-			assert.Equal(testOrderBookDeltaUpdate.Asks.RemoveStr, ob.Asks.Remove)
-
-			updates <- "OrderBookDeltaUpdate"
-		})
-
-		client.OnOrderBookSpreadUpdate(func(m Market, ob OrderBookSpreadUpdate) {
-			assert.Equal(testOrderBookSpreadUpdate.Timestamp, ob.Timestamp.Unix())
-			assert.Equal(testOrderBookSpreadUpdate.Bid.PriceStr, ob.Bid.Price)
-			assert.Equal(testOrderBookSpreadUpdate.Bid.AmountStr, ob.Bid.Price)
-			assert.Equal(testOrderBookSpreadUpdate.Ask.PriceStr, ob.Ask.Price)
-			assert.Equal(testOrderBookSpreadUpdate.Ask.AmountStr, ob.Ask.Amount)
-
-			updates <- "OrderBookSpreadUpdate"
-		})
-
-		client.OnTradesUpdate(func(m Market, tu TradesUpdate) {
-			for i, t := range testTradesUpdate.Trades {
-				if t.Timestamp > 0 {
-					assert.Equal(t.Timestamp, tu.Trades[i].Timestamp.Unix())
+			switch {
+			case md.OrderBookSnapshotUpdate != nil:
+				ob := md.OrderBookSnapshotUpdate
+				assert.Equal(ob.SeqNum, SeqNum(testOrderBookUpdate.SeqNum))
+				for i, o := range testOrderBookUpdate.Bids {
+					assert.Equal(publicOrderFromProto(o), ob.Bids[i])
 				}
-				if t.TimestampMillis > 0 {
-					assert.Equal(t.TimestampMillis, tu.Trades[i].Timestamp.Unix()*1000)
+				for i, o := range testOrderBookUpdate.Asks {
+					assert.Equal(publicOrderFromProto(o), ob.Asks[i])
 				}
-				if t.TimestampNano > 0 {
-					assert.Equal(t.TimestampNano, tu.Trades[i].Timestamp.UnixNano())
+				updates <- "OrderBookSnapshotUpdate"
+
+			case md.OrderBookDeltaUpdate != nil:
+				ob := md.OrderBookDeltaUpdate
+				assert.Equal(ob.SeqNum, SeqNum(testOrderBookDeltaUpdate.SeqNum))
+				for i, o := range testOrderBookDeltaUpdate.Bids.Set {
+					assert.Equal(publicOrderFromProto(o).Price, ob.Bids.Set[i].Price)
+					assert.Equal(publicOrderFromProto(o).Amount, ob.Bids.Set[i].Amount)
+				}
+				assert.Equal(testOrderBookDeltaUpdate.Bids.RemoveStr, ob.Bids.Remove)
+
+				for i, o := range testOrderBookDeltaUpdate.Asks.Set {
+					assert.Equal(publicOrderFromProto(o).Price, ob.Asks.Set[i].Price)
+					assert.Equal(publicOrderFromProto(o).Amount, ob.Asks.Set[i].Amount)
+				}
+				assert.Equal(testOrderBookDeltaUpdate.Asks.RemoveStr, ob.Asks.Remove)
+				updates <- "OrderBookDeltaUpdate"
+
+			case md.OrderBookSpreadUpdate != nil:
+				ob := md.OrderBookSpreadUpdate
+				assert.Equal(testOrderBookSpreadUpdate.Timestamp, ob.Timestamp.Unix())
+				assert.Equal(testOrderBookSpreadUpdate.Bid.PriceStr, ob.Bid.Price)
+				assert.Equal(testOrderBookSpreadUpdate.Bid.AmountStr, ob.Bid.Price)
+				assert.Equal(testOrderBookSpreadUpdate.Ask.PriceStr, ob.Ask.Price)
+				assert.Equal(testOrderBookSpreadUpdate.Ask.AmountStr, ob.Ask.Amount)
+				updates <- "OrderBookSpreadUpdate"
+
+			case md.TradesUpdate != nil:
+				tu := md.TradesUpdate
+				for i, t := range testTradesUpdate.Trades {
+					if t.Timestamp > 0 {
+						assert.Equal(t.Timestamp, tu.Trades[i].Timestamp.Unix())
+					}
+					if t.TimestampMillis > 0 {
+						assert.Equal(t.TimestampMillis, tu.Trades[i].Timestamp.Unix()*1000)
+					}
+					if t.TimestampNano > 0 {
+						assert.Equal(t.TimestampNano, tu.Trades[i].Timestamp.UnixNano())
+					}
+
+					assert.Equal(t.ExternalId, tu.Trades[i].ExternalID)
+					assert.Equal(t.PriceStr, tu.Trades[i].Price)
+					assert.Equal(t.AmountStr, tu.Trades[i].Amount)
 				}
 
-				assert.Equal(t.ExternalId, tu.Trades[i].ExternalID)
-				assert.Equal(t.PriceStr, tu.Trades[i].Price)
-				assert.Equal(t.AmountStr, tu.Trades[i].Amount)
+				updates <- "TradesUpdate"
+
+			case md.IntervalsUpdate != nil:
+				iu := md.IntervalsUpdate
+				for i, in := range testIntervalsUpdate.Intervals {
+					assert.Equal(in.Closetime, iu.Intervals[i].CloseTime.Unix())
+					assert.Equal(in.Period, int32(iu.Intervals[i].Period))
+					assert.Equal(in.Ohlc.OpenStr, iu.Intervals[i].OHLC.Open)
+					assert.Equal(in.Ohlc.HighStr, iu.Intervals[i].OHLC.High)
+					assert.Equal(in.Ohlc.LowStr, iu.Intervals[i].OHLC.Low)
+					assert.Equal(in.Ohlc.CloseStr, iu.Intervals[i].OHLC.Close)
+					assert.Equal(in.VolumeBaseStr, iu.Intervals[i].VolumeBase)
+					assert.Equal(in.VolumeQuoteStr, iu.Intervals[i].VolumeQuote)
+				}
+				updates <- "IntervalsUpdate"
+
+			case md.SummaryUpdate != nil:
+				su := md.SummaryUpdate
+				assert.Equal(testSummaryUpdate.LastStr, su.Last)
+				assert.Equal(testSummaryUpdate.HighStr, su.High)
+				assert.Equal(testSummaryUpdate.LowStr, su.Low)
+				assert.Equal(testSummaryUpdate.VolumeBaseStr, su.VolumeBase)
+				assert.Equal(testSummaryUpdate.VolumeQuoteStr, su.VolumeQuote)
+				assert.Equal(testSummaryUpdate.ChangeAbsoluteStr, su.ChangeAbsolute)
+				assert.Equal(testSummaryUpdate.ChangePercentStr, su.ChangePercent)
+				assert.Equal(testSummaryUpdate.NumTrades, su.NumTrades)
+				updates <- "SummaryUpdate"
+
+			case md.SparklineUpdate != nil:
+				su := md.SparklineUpdate
+				assert.Equal(testSparklineUpdate.Time, su.Timestamp.Unix())
+				assert.Equal(testSparklineUpdate.PriceStr, su.Price)
+				updates <- "SparklineUpdate"
 			}
 
-			updates <- "TradesUpdate"
 		})
 
-		client.OnIntervalsUpdate(func(m Market, iu IntervalsUpdate) {
-			for i, in := range testIntervalsUpdate.Intervals {
-				assert.Equal(in.Closetime, iu.Intervals[i].CloseTime.Unix())
-				assert.Equal(in.Period, int32(iu.Intervals[i].Period))
-				assert.Equal(in.Ohlc.OpenStr, iu.Intervals[i].OHLC.Open)
-				assert.Equal(in.Ohlc.HighStr, iu.Intervals[i].OHLC.High)
-				assert.Equal(in.Ohlc.LowStr, iu.Intervals[i].OHLC.Low)
-				assert.Equal(in.Ohlc.CloseStr, iu.Intervals[i].OHLC.Close)
-				assert.Equal(in.VolumeBaseStr, iu.Intervals[i].VolumeBase)
-				assert.Equal(in.VolumeQuoteStr, iu.Intervals[i].VolumeQuote)
+		client.OnPairData(func(p Pair, pd PairData) {
+			assert.Equal(p.ID, "1")
+			switch {
+			case pd.VWAPUpdate != nil:
+				vu := pd.VWAPUpdate
+				assert.Equal(float64ToString(testVWAPUpdate.Vwap), vu.VWAP)
+				updates <- "VWAPUpdate"
+
+			case pd.PerformanceUpdate != nil:
+				pu := pd.PerformanceUpdate
+				assert.Equal(PerformanceWindow(testPerformanceUpdate.Window), pu.Window)
+				assert.Equal(float64ToString(testPerformanceUpdate.Performance), pu.Performance)
+				updates <- "PerformanceUpdate"
+
+			case pd.TrendlineUpdate != nil:
+				tu := pd.TrendlineUpdate
+				assert.Equal(PerformanceWindow(testTrendlineUpdate.Window), tu.Window)
+				assert.Equal(testTrendlineUpdate.Price, tu.Price)
+				assert.Equal(testTrendlineUpdate.Volume, tu.Volume)
+				updates <- "TrendlineUpdate"
 			}
-
-			updates <- "IntervalsUpdate"
-		})
-
-		client.OnSummaryUpdate(func(m Market, su SummaryUpdate) {
-			assert.Equal(testSummaryUpdate.LastStr, su.Last)
-			assert.Equal(testSummaryUpdate.HighStr, su.High)
-			assert.Equal(testSummaryUpdate.LowStr, su.Low)
-			assert.Equal(testSummaryUpdate.VolumeBaseStr, su.VolumeBase)
-			assert.Equal(testSummaryUpdate.VolumeQuoteStr, su.VolumeQuote)
-			assert.Equal(testSummaryUpdate.ChangeAbsoluteStr, su.ChangeAbsolute)
-			assert.Equal(testSummaryUpdate.ChangePercentStr, su.ChangePercent)
-			assert.Equal(testSummaryUpdate.NumTrades, su.NumTrades)
-
-			updates <- "SummaryUpdate"
-		})
-
-		client.OnSparklineUpdate(func(m Market, su SparklineUpdate) {
-			assert.Equal(testSparklineUpdate.Time, su.Timestamp.Unix())
-			assert.Equal(testSparklineUpdate.PriceStr, su.Price)
-
-			updates <- "SparklineUpdate"
-		})
-
-		client.OnVWAPUpdate(func(p Pair, vu VWAPUpdate) {
-			assert.Equal(float64ToString(testVWAPUpdate.Vwap), vu.VWAP)
-
-			updates <- "VWAPUpdate"
-		})
-
-		client.OnPairPerformanceUpdate(func(p Pair, pu PerformanceUpdate) {
-			assert.Equal(PerformanceWindow(testPerformanceUpdate.Window), pu.Window)
-			assert.Equal(float64ToString(testPerformanceUpdate.Performance), pu.Performance)
-
-			updates <- "PerformanceUpdate"
-		})
-
-		client.OnPairTrendlineUpdate(func(p Pair, tu TrendlineUpdate) {
-			assert.Equal(PerformanceWindow(testTrendlineUpdate.Window), tu.Window)
-			assert.Equal(testTrendlineUpdate.Price, tu.Price)
-			assert.Equal(testTrendlineUpdate.Volume, tu.Volume)
-
-			updates <- "TrendlineUpdate"
 		})
 
 		if err := client.Connect(); err != nil {

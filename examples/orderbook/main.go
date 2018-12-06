@@ -69,7 +69,7 @@ package main
 // 	}
 
 // 	// Ask for the state transition updates and print them
-// 	c.AddStateListener(
+// 	c.OnStateChange(
 // 		wsclient.ConnStateAny,
 // 		func(oldState, state wsclient.ConnState, cause error) {
 // 			causeStr := ""

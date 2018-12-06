@@ -14,103 +14,23 @@ const (
 	defaultStreamURL = "wss://stream.cryptowat.ch"
 )
 
-// Signatures for market and pair data callbacks {{
+// MarketDataCB defines a callback function for OnMarketData.
+type MarketDataCB func(Market, MarketData)
 
-// Market data callbacks
-
-// OrderBookSnapshotUpdateCB defines a callback function for OnOrderBookSnapshotUpdate.
-type OrderBookSnapshotUpdateCB func(Market, OrderBookSnapshotUpdate)
-
-// OrderBookDeltaUpdateCB defines a callback function for OnOrderBookDeltaUpdate.
-type OrderBookDeltaUpdateCB func(Market, OrderBookDeltaUpdate)
-
-// OrderBookSpreadUpdateCB defines a callback function for OnOrderBookSpreadUpdate.
-type OrderBookSpreadUpdateCB func(Market, OrderBookSpreadUpdate)
-
-// PublicTradesUpdateCB defines a callback function for OnTradesUpdate.
-type PublicTradesUpdateCB func(Market, TradesUpdate)
-
-// IntervalsUpdateCB defines a callback function for OnIntervalsUpdate.
-type IntervalsUpdateCB func(Market, IntervalsUpdate)
-
-// SummaryUpdateCB defines a callback function for OnSummaryUpdate.
-type SummaryUpdateCB func(Market, SummaryUpdate)
-
-// SparklineUpdateCB defines a callback function for OnSparklineUpdate.
-type SparklineUpdateCB func(Market, SparklineUpdate)
-
-type callOrderBookUpdateListenersReq struct {
+type callMarketDataListenersReq struct {
 	market    Market
-	update    OrderBookSnapshotUpdate
-	listeners []OrderBookSnapshotUpdateCB
+	update    MarketData
+	listeners []MarketDataCB
 }
 
-type callOrderBookDeltaUpdateListenersReq struct {
-	market    Market
-	update    OrderBookDeltaUpdate
-	listeners []OrderBookDeltaUpdateCB
-}
+// PairDataCB defines a callback function for OnPairData.
+type PairDataCB func(Pair, PairData)
 
-type callOrderBookSpreadUpdateListenersReq struct {
-	market    Market
-	update    OrderBookSpreadUpdate
-	listeners []OrderBookSpreadUpdateCB
-}
-
-type callTradesUpdateListenersReq struct {
-	market    Market
-	update    TradesUpdate
-	listeners []PublicTradesUpdateCB
-}
-
-type callIntervalsUpdateListenersReq struct {
-	market    Market
-	update    IntervalsUpdate
-	listeners []IntervalsUpdateCB
-}
-
-type callSummaryUpdateListenersReq struct {
-	market    Market
-	update    SummaryUpdate
-	listeners []SummaryUpdateCB
-}
-
-type callSparklineUpdateListenersReq struct {
-	market    Market
-	update    SparklineUpdate
-	listeners []SparklineUpdateCB
-}
-
-// Pair data callbacks
-
-// VWAPUpdateCB defines a callback function for currency pair VWAP updates.
-type VWAPUpdateCB func(Pair, VWAPUpdate)
-
-// PerformanceUpdateCB defines a callback function for currency pair performance updates.
-type PerformanceUpdateCB func(Pair, PerformanceUpdate)
-
-// TrendlineUpdateCB defines a callback function for currency pair trendline updates.
-type TrendlineUpdateCB func(Pair, TrendlineUpdate)
-
-type callvwapUpdateListenersReq struct {
-	listeners []VWAPUpdateCB
+type callPairDataListenersReq struct {
+	listeners []PairDataCB
 	pair      Pair
-	update    VWAPUpdate
+	update    PairData
 }
-
-type callPairPerformanceUpdateListenersReq struct {
-	listeners []PerformanceUpdateCB
-	pair      Pair
-	update    PerformanceUpdate
-}
-
-type callPairTrendlineUpdateListenersReq struct {
-	listeners []TrendlineUpdateCB
-	pair      Pair
-	update    TrendlineUpdate
-}
-
-// }}
 
 // StreamClient is used to connect to Cryptowatch's data streaming backend.
 // Typically you will get an instance using NewStreamClient(), set any state
@@ -118,31 +38,15 @@ type callPairTrendlineUpdateListenersReq struct {
 // whatever data subscriptions you have. Finally, you can call Connect() to
 // initiate the data stream.
 type StreamClient struct {
-	// Market updates
-	callOrderBookUpdateListeners       chan callOrderBookUpdateListenersReq
-	callOrderBookDeltaUpdateListeners  chan callOrderBookDeltaUpdateListenersReq
-	callOrderBookSpreadUpdateListeners chan callOrderBookSpreadUpdateListenersReq
-	callTradesUpdateListeners          chan callTradesUpdateListenersReq
-	callIntervalsUpdateListeners       chan callIntervalsUpdateListenersReq
-	callSummaryUpdateListeners         chan callSummaryUpdateListenersReq
-	callSparklineUpdateListeners       chan callSparklineUpdateListenersReq
-	orderBookUpdateListeners           []OrderBookSnapshotUpdateCB
-	orderBookDeltaUpdateListeners      []OrderBookDeltaUpdateCB
-	orderBookSpreadUpdateListeners     []OrderBookSpreadUpdateCB
-	tradesUpdateListeners              []PublicTradesUpdateCB
-	intervalsUpdateListeners           []IntervalsUpdateCB
-	summaryUpdateListeners             []SummaryUpdateCB
-	sparklineUpdateListeners           []SparklineUpdateCB
+	marketDataListeners     []MarketDataCB
+	pairDataListeners       []PairDataCB
+	callMarketDataListeners chan callMarketDataListenersReq
+	callPairDataListeners   chan callPairDataListenersReq
 
-	// Pair updates
-	callVWAPUpdateListeners            chan callvwapUpdateListenersReq
-	callPairPerformanceUpdateListeners chan callPairPerformanceUpdateListenersReq
-	callPairTrendlineUpdateListeners   chan callPairTrendlineUpdateListenersReq
-	vwapUpdateListeners                []VWAPUpdateCB
-	pairPerformanceUpdateListeners     []PerformanceUpdateCB
-	pairTrendlineUpdateListeners       []TrendlineUpdateCB
+	// We want to ensure that wsConn's methods aren't available on the
+	// StreamClient to avoid confusion, so we give it explicit name.
+	wsConn *wsConn
 
-	*wsConn
 	mtx sync.Mutex
 }
 
@@ -153,20 +57,7 @@ func NewStreamClient(params *WSParams) (*StreamClient, error) {
 	wsConn, err := newWsConn(
 		params,
 		&wsConnParamsInternal{
-			unmarshalAuthnResult: func(data []byte) (*pbs.AuthenticationResult, error) {
-				var msg pbs.StreamMessage
-
-				if err := proto.Unmarshal(data, &msg); err != nil {
-					return nil, errors.Trace(err)
-				}
-
-				authnResult := msg.GetAuthenticationResult()
-				if authnResult == nil {
-					return nil, errors.Errorf("not an authentication result")
-				}
-
-				return authnResult, nil
-			},
+			unmarshalAuthnResult: unmarshalAuthnResultStream,
 		},
 	)
 	if err != nil {
@@ -174,19 +65,9 @@ func NewStreamClient(params *WSParams) (*StreamClient, error) {
 	}
 
 	sc := &StreamClient{
-		wsConn: wsConn,
-
-		callOrderBookUpdateListeners:       make(chan callOrderBookUpdateListenersReq, 1),
-		callOrderBookDeltaUpdateListeners:  make(chan callOrderBookDeltaUpdateListenersReq, 1),
-		callOrderBookSpreadUpdateListeners: make(chan callOrderBookSpreadUpdateListenersReq, 1),
-		callTradesUpdateListeners:          make(chan callTradesUpdateListenersReq, 1),
-		callIntervalsUpdateListeners:       make(chan callIntervalsUpdateListenersReq, 1),
-		callSummaryUpdateListeners:         make(chan callSummaryUpdateListenersReq, 1),
-		callSparklineUpdateListeners:       make(chan callSparklineUpdateListenersReq, 1),
-
-		callVWAPUpdateListeners:            make(chan callvwapUpdateListenersReq, 1),
-		callPairPerformanceUpdateListeners: make(chan callPairPerformanceUpdateListenersReq, 1),
-		callPairTrendlineUpdateListeners:   make(chan callPairTrendlineUpdateListenersReq, 1),
+		wsConn:                  wsConn,
+		callMarketDataListeners: make(chan callMarketDataListenersReq, 1),
+		callPairDataListeners:   make(chan callPairDataListenersReq, 1),
 	}
 
 	sc.wsConn.onRead(func(data []byte) {
@@ -221,54 +102,12 @@ func NewStreamClient(params *WSParams) (*StreamClient, error) {
 func (sc *StreamClient) listen() {
 	for {
 		select {
-		// Market listeners
-		case req := <-sc.callOrderBookUpdateListeners:
+		case req := <-sc.callMarketDataListeners:
 			for _, l := range req.listeners {
 				l(req.market, req.update)
 			}
 
-		case req := <-sc.callOrderBookDeltaUpdateListeners:
-			for _, l := range req.listeners {
-				l(req.market, req.update)
-			}
-
-		case req := <-sc.callOrderBookSpreadUpdateListeners:
-			for _, l := range req.listeners {
-				l(req.market, req.update)
-			}
-
-		case req := <-sc.callTradesUpdateListeners:
-			for _, l := range req.listeners {
-				l(req.market, req.update)
-			}
-
-		case req := <-sc.callIntervalsUpdateListeners:
-			for _, l := range req.listeners {
-				l(req.market, req.update)
-			}
-
-		case req := <-sc.callSummaryUpdateListeners:
-			for _, l := range req.listeners {
-				l(req.market, req.update)
-			}
-
-		case req := <-sc.callSparklineUpdateListeners:
-			for _, l := range req.listeners {
-				l(req.market, req.update)
-			}
-
-		// Pair listeners
-		case req := <-sc.callVWAPUpdateListeners:
-			for _, l := range req.listeners {
-				l(req.pair, req.update)
-			}
-
-		case req := <-sc.callPairPerformanceUpdateListeners:
-			for _, l := range req.listeners {
-				l(req.pair, req.update)
-			}
-
-		case req := <-sc.callPairTrendlineUpdateListeners:
+		case req := <-sc.callPairDataListeners:
 			for _, l := range req.listeners {
 				l(req.pair, req.update)
 			}
@@ -278,181 +117,125 @@ func (sc *StreamClient) listen() {
 
 // Market data listeners
 
-// OnOrderBookSnapshotUpdate sets a callback for market order book updates.
-// Each time the order book updates on the exchange, a new snapshot is received. The updates
-// are throttled at 1 snapshot minute.
-// See also OnOrderBookDeltaUpdate
-func (sc *StreamClient) OnOrderBookSnapshotUpdate(cb OrderBookSnapshotUpdateCB) {
+// OnMarketData sets a callback for all market data updates. MarketDataCB
+// contains MarketData, which is a container for every type of update. For each
+// MarketData, it will contain exactly one non-nil struct, which is one of the
+// following:
+// OrderBookSnapshotUpdate
+// OrderBookDeltaUpdate
+// OrderBookSpreadUpdate
+// TradesUpdate
+// IntervalsUpdate
+// SummaryUpdate
+// SparklineUpdate
+func (sc *StreamClient) OnMarketData(cb MarketDataCB) {
 	sc.mtx.Lock()
 	defer sc.mtx.Unlock()
 
-	sc.orderBookUpdateListeners = append(sc.orderBookUpdateListeners, cb)
-}
-
-// OnOrderBookDeltaUpdate sets a callback for market order book delta updates.
-// Each time the order book changes on the exchange, a delta is received instead of the full snapshot.
-// Delta updates are not throttled like the snapshot updates are.
-func (sc *StreamClient) OnOrderBookDeltaUpdate(cb OrderBookDeltaUpdateCB) {
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	sc.orderBookDeltaUpdateListeners = append(sc.orderBookDeltaUpdateListeners, cb)
-}
-
-// OnOrderBookSpreadUpdate sets a callback for market order book spread updates.
-// Each time the best asking or bidding price changes, a spread update is sent with the new values.
-func (sc *StreamClient) OnOrderBookSpreadUpdate(cb OrderBookSpreadUpdateCB) {
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	sc.orderBookSpreadUpdateListeners = append(sc.orderBookSpreadUpdateListeners, cb)
-}
-
-// OnTradesUpdate sets a callback for a market's trade updates. Whenever trades are executed,
-// this callback will be called with the new trades.
-func (sc *StreamClient) OnTradesUpdate(cb PublicTradesUpdateCB) {
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	sc.tradesUpdateListeners = append(sc.tradesUpdateListeners, cb)
-}
-
-// OnIntervalsUpdate sets a callback for a market's interval updates.
-// Intervals are used to draw charts at different Period levels. Use the Period
-// definitions to determine which interval is updated.
-func (sc *StreamClient) OnIntervalsUpdate(cb IntervalsUpdateCB) {
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	sc.intervalsUpdateListeners = append(sc.intervalsUpdateListeners, cb)
-}
-
-// OnSummaryUpdate sets a callback for a market's summary updates.
-// A summary update includes recent information on price, volume, and trades,
-// and is throttled to one update every 5 seconds.
-func (sc *StreamClient) OnSummaryUpdate(cb SummaryUpdateCB) {
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	sc.summaryUpdateListeners = append(sc.summaryUpdateListeners, cb)
-}
-
-// OnSparklineUpdate sets a callback for a market's sparkline updates.
-func (sc *StreamClient) OnSparklineUpdate(cb SparklineUpdateCB) {
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	sc.sparklineUpdateListeners = append(sc.sparklineUpdateListeners, cb)
+	sc.marketDataListeners = append(sc.marketDataListeners, cb)
 }
 
 // Pair data listeners
 
-// OnVWAPUpdate sets a callback for a currency pair's VWAP (volume weighted average price) updates.
-func (sc *StreamClient) OnVWAPUpdate(cb VWAPUpdateCB) {
+// OnPairData sets a callback for all pair data updates. PairDataCB
+// contains PairData, which is a container for every type of pair update. For
+// each MarketData, there will be exactly one non-nil property, which is one of the
+// following:
+// VWAPUpdate
+// PerformanceUpdate
+// TrendlineUpdate
+func (sc *StreamClient) OnPairData(cb PairDataCB) {
 	sc.mtx.Lock()
 	defer sc.mtx.Unlock()
 
-	sc.vwapUpdateListeners = append(sc.vwapUpdateListeners, cb)
+	sc.pairDataListeners = append(sc.pairDataListeners, cb)
 }
 
-// OnPairPerformanceUpdate sets a callback for a currency pair's performance updates.
-// TODO describe what performanc means in this context.
-func (sc *StreamClient) OnPairPerformanceUpdate(cb PerformanceUpdateCB) {
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	sc.pairPerformanceUpdateListeners = append(sc.pairPerformanceUpdateListeners, cb)
-}
-
-// OnPairTrendlineUpdate sets a callback for a currency pair's trendline updates.
-// TODO describe what trendline means
-func (sc *StreamClient) OnPairTrendlineUpdate(cb TrendlineUpdateCB) {
-	sc.mtx.Lock()
-	defer sc.mtx.Unlock()
-
-	sc.pairTrendlineUpdateListeners = append(sc.pairTrendlineUpdateListeners, cb)
+// OnError registers a callback which will be called on all errors. When it's
+// an error about disconnection, the OnError callbacks are called before the
+// state listeners.
+func (sc *StreamClient) OnError(cb OnErrorCB) {
+	sc.wsConn.onError(cb)
 }
 
 // Dispatches incoming market data to registered listeners
 func (sc *StreamClient) marketUpdateHandler(update *pbm.MarketUpdateMessage) {
 	market := marketFromProto(update.Market)
 
+	sc.mtx.Lock()
+	marketListeners := make([]MarketDataCB, len(sc.marketDataListeners))
+	copy(marketListeners, sc.marketDataListeners)
+	sc.mtx.Unlock()
+
 	switch update.Update.(type) {
 	case *pbm.MarketUpdateMessage_OrderBookUpdate:
-		sc.mtx.Lock()
-		listeners := make([]OrderBookSnapshotUpdateCB, len(sc.orderBookUpdateListeners))
-		copy(listeners, sc.orderBookUpdateListeners)
-		sc.mtx.Unlock()
-		sc.callOrderBookUpdateListeners <- callOrderBookUpdateListenersReq{
-			market:    market,
-			update:    orderBookUpdateFromProto(update.GetOrderBookUpdate()),
-			listeners: listeners,
+		update := orderBookSnapshotUpdateFromProto(update.GetOrderBookUpdate())
+		sc.callMarketDataListeners <- callMarketDataListenersReq{
+			market: market,
+			update: MarketData{
+				OrderBookSnapshotUpdate: &update,
+			},
+			listeners: marketListeners,
 		}
 
 	case *pbm.MarketUpdateMessage_OrderBookDeltaUpdate:
-		sc.mtx.Lock()
-		listeners := make([]OrderBookDeltaUpdateCB, len(sc.orderBookDeltaUpdateListeners))
-		copy(listeners, sc.orderBookDeltaUpdateListeners)
-		sc.mtx.Unlock()
-		sc.callOrderBookDeltaUpdateListeners <- callOrderBookDeltaUpdateListenersReq{
-			market:    market,
-			update:    orderBookDeltaUpdateFromProto(update.GetOrderBookDeltaUpdate()),
-			listeners: listeners,
+		update := orderBookDeltaUpdateFromProto(update.GetOrderBookDeltaUpdate())
+		sc.callMarketDataListeners <- callMarketDataListenersReq{
+			market: market,
+			update: MarketData{
+				OrderBookDeltaUpdate: &update,
+			},
+			listeners: marketListeners,
 		}
 
 	case *pbm.MarketUpdateMessage_OrderBookSpreadUpdate:
-		sc.mtx.Lock()
-		listeners := make([]OrderBookSpreadUpdateCB, len(sc.orderBookSpreadUpdateListeners))
-		copy(listeners, sc.orderBookSpreadUpdateListeners)
-		sc.mtx.Unlock()
-		sc.callOrderBookSpreadUpdateListeners <- callOrderBookSpreadUpdateListenersReq{
-			market:    market,
-			update:    orderBookSpreadUpdateFromProto(update.GetOrderBookSpreadUpdate()),
-			listeners: listeners,
+		update := orderBookSpreadUpdateFromProto(update.GetOrderBookSpreadUpdate())
+		sc.callMarketDataListeners <- callMarketDataListenersReq{
+			market: market,
+			update: MarketData{
+				OrderBookSpreadUpdate: &update,
+			},
+			listeners: marketListeners,
 		}
 
 	case *pbm.MarketUpdateMessage_TradesUpdate:
-		sc.mtx.Lock()
-		listeners := make([]PublicTradesUpdateCB, len(sc.tradesUpdateListeners))
-		copy(listeners, sc.tradesUpdateListeners)
-		sc.mtx.Unlock()
-		sc.callTradesUpdateListeners <- callTradesUpdateListenersReq{
-			market:    market,
-			update:    tradesUpdateFromProto(update.GetTradesUpdate()),
-			listeners: listeners,
+		update := tradesUpdateFromProto(update.GetTradesUpdate())
+		sc.callMarketDataListeners <- callMarketDataListenersReq{
+			market: market,
+			update: MarketData{
+				TradesUpdate: &update,
+			},
+			listeners: marketListeners,
 		}
 
 	case *pbm.MarketUpdateMessage_IntervalsUpdate:
-		sc.mtx.Lock()
-		listeners := make([]IntervalsUpdateCB, len(sc.intervalsUpdateListeners))
-		copy(listeners, sc.intervalsUpdateListeners)
-		sc.mtx.Unlock()
-		sc.callIntervalsUpdateListeners <- callIntervalsUpdateListenersReq{
-			market:    market,
-			update:    intervalsUpdateFromProto(update.GetIntervalsUpdate()),
-			listeners: listeners,
+		update := intervalsUpdateFromProto(update.GetIntervalsUpdate())
+		sc.callMarketDataListeners <- callMarketDataListenersReq{
+			market: market,
+			update: MarketData{
+				IntervalsUpdate: &update,
+			},
+			listeners: marketListeners,
 		}
 
 	case *pbm.MarketUpdateMessage_SummaryUpdate:
-		sc.mtx.Lock()
-		listeners := make([]SummaryUpdateCB, len(sc.summaryUpdateListeners))
-		copy(listeners, sc.summaryUpdateListeners)
-		sc.mtx.Unlock()
-		sc.callSummaryUpdateListeners <- callSummaryUpdateListenersReq{
-			market:    market,
-			update:    summaryUpdateFromProto(update.GetSummaryUpdate()),
-			listeners: listeners,
+		update := summaryUpdateFromProto(update.GetSummaryUpdate())
+		sc.callMarketDataListeners <- callMarketDataListenersReq{
+			market: market,
+			update: MarketData{
+				SummaryUpdate: &update,
+			},
+			listeners: marketListeners,
 		}
 
 	case *pbm.MarketUpdateMessage_SparklineUpdate:
-		sc.mtx.Lock()
-		listeners := make([]SparklineUpdateCB, len(sc.sparklineUpdateListeners))
-		copy(listeners, sc.sparklineUpdateListeners)
-		sc.mtx.Unlock()
-		sc.callSparklineUpdateListeners <- callSparklineUpdateListenersReq{
-			market:    market,
-			update:    sparklineUpdateFromProto(update.GetSparklineUpdate()),
-			listeners: listeners,
+		update := sparklineUpdateFromProto(update.GetSparklineUpdate())
+		sc.callMarketDataListeners <- callMarketDataListenersReq{
+			market: market,
+			update: MarketData{
+				SparklineUpdate: &update,
+			},
+			listeners: marketListeners,
 		}
 	}
 }
@@ -463,41 +246,115 @@ func (sc *StreamClient) pairUpdateHandler(update *pbm.PairUpdateMessage) {
 		ID: uint64ToString(update.Pair),
 	}
 
+	sc.mtx.Lock()
+	pairListeners := make([]PairDataCB, len(sc.pairDataListeners))
+	copy(pairListeners, sc.pairDataListeners)
+	sc.mtx.Unlock()
+
 	switch update.Update.(type) {
 	case *pbm.PairUpdateMessage_VwapUpdate:
-		sc.mtx.Lock()
-		listeners := make([]VWAPUpdateCB, len(sc.vwapUpdateListeners))
-		copy(listeners, sc.vwapUpdateListeners)
-		sc.mtx.Unlock()
-		vwap := vwapUpdateFromProto(update.GetVwapUpdate())
-		sc.callVWAPUpdateListeners <- callvwapUpdateListenersReq{
-			pair:      pair,
-			update:    vwap,
-			listeners: listeners,
+		update := vwapUpdateFromProto(update.GetVwapUpdate())
+		sc.callPairDataListeners <- callPairDataListenersReq{
+			pair: pair,
+			update: PairData{
+				VWAPUpdate: &update,
+			},
+			listeners: pairListeners,
 		}
 
 	case *pbm.PairUpdateMessage_PerformanceUpdate:
-		sc.mtx.Lock()
-		listeners := make([]PerformanceUpdateCB, len(sc.pairPerformanceUpdateListeners))
-		copy(listeners, sc.pairPerformanceUpdateListeners)
-		sc.mtx.Unlock()
-		pu := performanceUpdateFromProto(update.GetPerformanceUpdate())
-		sc.callPairPerformanceUpdateListeners <- callPairPerformanceUpdateListenersReq{
-			pair:      pair,
-			update:    pu,
-			listeners: listeners,
+		update := performanceUpdateFromProto(update.GetPerformanceUpdate())
+		sc.callPairDataListeners <- callPairDataListenersReq{
+			pair: pair,
+			update: PairData{
+				PerformanceUpdate: &update,
+			},
+			listeners: pairListeners,
 		}
 
 	case *pbm.PairUpdateMessage_TrendlineUpdate:
-		sc.mtx.Lock()
-		listeners := make([]TrendlineUpdateCB, len(sc.pairTrendlineUpdateListeners))
-		copy(listeners, sc.pairTrendlineUpdateListeners)
-		sc.mtx.Unlock()
-		tu := trendlineUpdateFromProto(update.GetTrendlineUpdate())
-		sc.callPairTrendlineUpdateListeners <- callPairTrendlineUpdateListenersReq{
-			pair:      pair,
-			update:    tu,
-			listeners: listeners,
+		update := trendlineUpdateFromProto(update.GetTrendlineUpdate())
+		sc.callPairDataListeners <- callPairDataListenersReq{
+			pair: pair,
+			update: PairData{
+				TrendlineUpdate: &update,
+			},
+			listeners: pairListeners,
 		}
 	}
+}
+
+// OnStateChange registers a new listener for the given state. The listener is
+// registered with the default options (call the listener every time the state
+// becomes active, and don't call the listener immediately for the current
+// state). All registered callbacks for all states (and all messages, see
+// OnMarketData) will be called by the same internal goroutine, i.e. they are
+// never called concurrently with each other.
+//
+// The order of listeners invocation for the same state is unspecified, and
+// clients shouldn't rely on it.
+//
+// The listeners shouldn't block; a blocked listener will also block the whole
+// stream connection.
+//
+// To subscribe to all state changes, use ConnStateAny as a state.
+func (sc *StreamClient) OnStateChange(state ConnState, cb StateCallback) {
+	sc.wsConn.onStateChange(state, cb)
+}
+
+// OnStateChangeOpt is like OnStateChange, but also takes additional
+// options; see StateListenerOpt for details.
+func (sc *StreamClient) OnStateChangeOpt(state ConnState, cb StateCallback, opt StateListenerOpt) {
+	sc.wsConn.onStateChangeOpt(state, cb, opt)
+}
+
+// GetSubscriptions returns a slice of the current subscriptions.
+func (sc *StreamClient) GetSubscriptions() []string {
+	return sc.wsConn.getSubscriptions()
+}
+
+// OnConnClosed allows the client to set a callback for when the connection is lost.
+// The new state of the client could be ConnStateDisconnected or ConnStateWaitBeforeReconnect.
+func (sc *StreamClient) OnConnClosed(cb ConnClosedCallback) {
+	sc.wsConn.onConnClosed(cb)
+}
+
+// Subscribe makes a request to subscribe to the given keys. Example:
+//
+//   client.Subscribe([]string{
+//           "markets:1:book:deltas",
+//           "markets:1:book:spread",
+//   })
+//
+// The client must be connected and authenticated for this to work. See
+// WSParams.Subscriptions for more details.
+func (sc *StreamClient) Subscribe(keys []string) error {
+	return sc.wsConn.subscribe(keys)
+}
+
+// Unsubscribe unsubscribes from the given set of keys. Also see notes for
+// subscribe.
+func (sc *StreamClient) Unsubscribe(keys []string) error {
+	return sc.wsConn.unsubscribe(keys)
+}
+
+// URL returns the url the client is connected to, e.g. wss://stream.cryptowat.ch.
+func (sc *StreamClient) URL() string {
+	return sc.wsConn.url()
+}
+
+// Connect either starts a connection goroutine (if state is
+// ConnStateDisconnected), or makes it connect immediately, ignoring timeout
+// (if the state is ConnStateWaitBeforeReconnect). For other states, this returns an
+// error.
+//
+// Connect doesn't wait for the connection to establish; it returns immediately.
+func (sc *StreamClient) Connect() (err error) {
+	return sc.wsConn.connect()
+}
+
+// Close stops the connection (or reconnection loop, if active), and if
+// websocket connection is active at the moment, closes it as well.
+func (sc *StreamClient) Close() (err error) {
+	return sc.wsConn.close()
 }

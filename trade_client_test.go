@@ -2,6 +2,7 @@ package wsclient
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,12 +125,12 @@ func TestTradeConn(t *testing.T) {
 		st := NewStateTracker()
 		st.addStateListener(client.wsConn, ConnStateAny, StateListenerOpt{})
 
-		client.AddStateListener(ConnStateAny, func(prev, cur ConnState, cause error) {
+		client.OnStateChange(ConnStateAny, func(prev, cur ConnState) {
 			fmt.Println(ConnStateNames[prev], ConnStateNames[cur])
 		})
 
 		onErrorCalled := make(chan error, 1)
-		client.OnError(func(marketID MarketID, err error) {
+		client.OnError(func(marketID MarketID, err error, disconnecting bool) {
 			onErrorCalled <- err
 		})
 
@@ -183,6 +184,10 @@ func TestTradeConn(t *testing.T) {
 		tp.tx <- internal.WebsocketTx{
 			MessageType: websocket.BinaryMessage,
 			Data:        []byte{1, 2, 3},
+		}
+
+		if err := waitOnErrorStrCalled(onErrorCalled, "unsupported data"); err != nil {
+			return errors.Trace(err)
 		}
 
 		// Wait for the connection being closed
@@ -648,6 +653,19 @@ func waitOnErrorCalled(onErrorCalled chan error, expected error) error {
 	select {
 	case received := <-onErrorCalled:
 		if expected != received {
+			return errors.Errorf("Expected OnError %v received %v", expected, received)
+		}
+		return nil
+
+	case <-time.After(1 * time.Second):
+		return errors.New("client.OnError() was never called")
+	}
+}
+
+func waitOnErrorStrCalled(onErrorCalled chan error, expected string) error {
+	select {
+	case received := <-onErrorCalled:
+		if !strings.Contains(received.Error(), expected) {
 			return errors.Errorf("Expected OnError %v received %v", expected, received)
 		}
 		return nil

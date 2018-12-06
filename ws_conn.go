@@ -28,6 +28,11 @@ var (
 	// tried to e.g. send a message, or close the connection.
 	ErrNotConnected = errors.New("not connected")
 
+	// ErrInvalidAuthn means that after the client has sent the authentication
+	// info and was expecting the result from the server, it received something
+	// else.
+	ErrInvalidAuthn = errors.New("invalid authentication result")
+
 	// ErrConnLoopActive means the client tried to connect when the client is
 	// already connecting.
 	ErrConnLoopActive = errors.New("connection loop is already active")
@@ -131,7 +136,7 @@ const (
 	// ConnStateEstablished means the connection is ready
 	ConnStateEstablished
 
-	// ConnStateAny can be used with AddStateListener() and AddStateListenerOpt()
+	// ConnStateAny can be used with onStateChange() and onStateChangeOpt()
 	// in order to listen for all states.
 	ConnStateAny = -1
 )
@@ -160,23 +165,19 @@ type wsConn struct {
 	// Current state
 	state ConnState
 
-	// Error caused the current state; only relevant for
-	// TransportStateDisconnected and TransportStateWaitBeforeReconnect, for
-	// other states it's always nil.
-	stateCause error
-
-	// actualCauseOfDisconnection is set whenever the client initiates the
-	// disconnection; it's set to the specific error causing the disconnection.
-	//
-	// When the disconnection happens, and actualCauseOfDisconnection is not nil,
-	// then this error is passed to the clients instead of the generic websocket
+	// expectDisconnection is set to true when the client calls OnError callbacks
+	// and initiates the disconnection. In this case, when the actual
+	// disconnection happens, OnError callbacks won't be called with a generic
 	// disconnection error.
-	actualCauseOfDisconnection error
+	expectDisconnection bool
 
 	stateListeners map[ConnState][]stateListener
 
 	// onReadCB, if not nil, is called for each received websocket message.
 	onReadCB onReadCallback
+
+	// onErrorCBs contains on-error handlers
+	onErrorCBs []OnErrorCB
 
 	// internalEvents is a channel of events handled by eventLoop. See
 	// internalEvent struct.
@@ -191,16 +192,17 @@ type internalEvent struct {
 	// transportStateUpdate represents an update of transport layer state.
 	transportStateUpdate *transportStateUpdate
 
-	// reqAddStateListener is the result of the clients call to AddStateListener
-	// or AddStateListenerOpt.
-	reqAddStateListener *reqAddStateListener
-	reqConnState        *reqConnState
-	reqSubscribe        *reqSubscribe
-	reqUnsubscribe      *reqUnsubscribe
+	// reqOnStateChange is the result of the clients call to onStateChange
+	// or onStateChangeOpt.
+	reqOnStateChange *reqOnStateChange
+	reqAddOnErrorCB  *reqAddOnErrorCB
+	reqConnState     *reqConnState
+	reqSubscribe     *reqSubscribe
+	reqUnsubscribe   *reqUnsubscribe
 }
 
-// reqAddStateListener is a request to add state listener
-type reqAddStateListener struct {
+// reqOnStateChange is a request to add state listener
+type reqOnStateChange struct {
 	state ConnState
 	cb    StateCallback
 	opt   StateListenerOpt
@@ -208,7 +210,12 @@ type reqAddStateListener struct {
 	result chan<- struct{}
 }
 
-// reqConnState is a client request of conn state via ConnState().
+type reqAddOnErrorCB struct {
+	cb     OnErrorCB
+	result chan<- struct{}
+}
+
+// reqConnState is a client request of conn state via connState().
 type reqConnState struct {
 	result chan<- ConnState
 }
@@ -307,13 +314,13 @@ func (c *wsConn) onRead(cb onReadCallback) {
 	c.onReadCB = cb
 }
 
-// Connect either starts a connection goroutine (if state is
+// connect either starts a connection goroutine (if state is
 // ConnStateDisconnected), or makes it connect immediately, ignoring timeout
 // (if the state is ConnStateWaitBeforeReconnect). For other states, this returns an
 // error.
 //
-// Connect doesn't wait for the connection to establish; it returns immediately.
-func (c *wsConn) Connect() (err error) {
+// connect doesn't wait for the connection to establish; it returns immediately.
+func (c *wsConn) connect() (err error) {
 	defer func() {
 		// Translate internal transport errors to public ones
 		if errors.Cause(err) == internal.ErrConnLoopActive {
@@ -358,12 +365,15 @@ func (c *wsConn) disconnectOpt(cause error, closeCode int, text string) {
 		return
 	}
 
-	c.actualCauseOfDisconnection = cause
+	if cause != nil {
+		c.expectDisconnection = true
+		c.callOnErrorCBs(cause, true)
+	}
 }
 
-// Close stops reconnection loop (if reconnection was requested), and if
-// websocket connection is active at the moment, closes it as well
-func (c *wsConn) Close() (err error) {
+// close stops the connection (or reconnection loop, if active), and if
+// websocket connection is active at the moment, closes it as well.
+func (c *wsConn) close() (err error) {
 	defer func() {
 		// Translate internal transport errors to public ones
 		if errors.Cause(err) == internal.ErrNotConnected {
@@ -412,11 +422,18 @@ func (c *wsConn) handleAuthnResult(result *pbs.AuthenticationResult) error {
 // ConnStateWaitBeforeReconnect (in which case it's either the reason of failure to
 // connect, or reason of disconnection), for other states it's always nil.
 //
-// See AddStateListener.
-type StateCallback func(prevState, curState ConnState, cause error)
+// See onStateChange.
+type StateCallback func(prevState, curState ConnState)
 
 // onReadCallback is a signature of (internal) incoming messages listener.
 type onReadCallback func(data []byte)
+
+// OnErrorCB is a signature of an error listener. If the error is going to
+// cause the disconnection, disconnecting is set to true. In this case, the
+// error listeners are always called before the state listeners, so
+// applications can just save the error, and display it later, when the
+// disconnection actually happens.
+type OnErrorCB func(err error, disconnecting bool)
 
 type StateListenerOpt struct {
 	// If OneOff is true, the listener will only be called once; otherwise it'll
@@ -429,31 +446,31 @@ type StateListenerOpt struct {
 	CallImmediately bool
 }
 
-// AddStateListener registers a new listener for the given state. Listener is
-// registered with the default options (zero values of all fields in
-// StateListenerOpt). All registered callbacks for all states (and all
-// messages, see AddMarketListener) will be called by the same internal
-// goroutine, i.e. they are never called concurrently with each other.
+// onStateChange registers a new listener for the given state. The listener is
+// registered with the default options (call the listener every time the state
+// becomes active, and don't call the listener immediately for the current
+// state). All registered callbacks for all states (and all messages, see
+// OnMarketData) will be called by the same internal goroutine, i.e. they are
+// never called concurrently with each other.
 //
 // The order of listeners invocation for the same state is unspecified, and
 // clients shouldn't rely on it.
 //
-// The listeners shouldn't block; a blocked listener will cause the whole
-// stream connection to stuck. If you need to block there, consider spawning a
-// goroutine for that.
+// The listeners shouldn't block; a blocked listener will also block the whole
+// stream connection.
 //
 // To subscribe to all state changes, use ConnStateAny as a state.
-func (c *wsConn) AddStateListener(state ConnState, cb StateCallback) {
-	c.AddStateListenerOpt(state, cb, StateListenerOpt{})
+func (c *wsConn) onStateChange(state ConnState, cb StateCallback) {
+	c.onStateChangeOpt(state, cb, StateListenerOpt{})
 }
 
-// AddStateListenerOpt is like AddStateListener, but also takes additional
+// onStateChangeOpt is like onStateChange, but also takes additional
 // options; see StateListenerOpt for details.
-func (c *wsConn) AddStateListenerOpt(state ConnState, cb StateCallback, opt StateListenerOpt) {
+func (c *wsConn) onStateChangeOpt(state ConnState, cb StateCallback, opt StateListenerOpt) {
 	result := make(chan struct{})
 
 	c.internalEvents <- internalEvent{
-		reqAddStateListener: &reqAddStateListener{
+		reqOnStateChange: &reqOnStateChange{
 			state: state,
 			cb:    cb,
 			opt:   opt,
@@ -465,22 +482,35 @@ func (c *wsConn) AddStateListenerOpt(state ConnState, cb StateCallback, opt Stat
 	<-result
 }
 
-// ConnClosedCallback defines the callback function for OnConnClosed.
-type ConnClosedCallback func(state ConnState, cause error)
+func (c *wsConn) onError(cb OnErrorCB) {
+	result := make(chan struct{})
 
-// OnConnClosed allows the client to set a callback for when the connection is lost.
+	c.internalEvents <- internalEvent{
+		reqAddOnErrorCB: &reqAddOnErrorCB{
+			cb:     cb,
+			result: result,
+		},
+	}
+
+	<-result
+}
+
+// ConnClosedCallback defines the callback function for onConnClosed.
+type ConnClosedCallback func(state ConnState)
+
+// onConnClosed allows the client to set a callback for when the connection is lost.
 // The new state of the client could be ConnStateDisconnected or ConnStateWaitBeforeReconnect.
-func (c *wsConn) OnConnClosed(cb ConnClosedCallback) {
-	c.AddStateListener(ConnStateDisconnected, func(_, curState ConnState, cause error) {
-		cb(curState, cause)
+func (c *wsConn) onConnClosed(cb ConnClosedCallback) {
+	c.onStateChange(ConnStateDisconnected, func(_, curState ConnState) {
+		cb(curState)
 	})
-	c.AddStateListener(ConnStateWaitBeforeReconnect, func(_, curState ConnState, cause error) {
-		cb(curState, cause)
+	c.onStateChange(ConnStateWaitBeforeReconnect, func(_, curState ConnState) {
+		cb(curState)
 	})
 }
 
-// GetSubscriptions returns a slice of the current subscriptions.
-func (c *wsConn) GetSubscriptions() []string {
+// getSubscriptions returns a slice of the current subscriptions.
+func (c *wsConn) getSubscriptions() []string {
 	subs := []string{}
 	for sub, _ := range c.subscriptions {
 		subs = append(subs, sub)
@@ -488,17 +518,16 @@ func (c *wsConn) GetSubscriptions() []string {
 	return subs
 }
 
-// Subscribe subscribes to the given set of keys. Example:
+// subscribe subscribes to the given set of keys. Example:
 //
-//   conn.Subscribe([]string{
-//           "market:1:book:deltas",
-//           "market:1:book:spread",
+//   conn.subscribe([]string{
+//           "markets:1:book:deltas",
+//           "markets:1:book:spread",
 //   })
 //
-// For that, the client should already be connected and authenticated.
-// Note that the initial set of subscription keys can be given as params to
-// newWsConn.
-func (c *wsConn) Subscribe(keys []string) error {
+// The client must be connected and authenticated for this to work. See
+// WSParams.Subscriptions for more details.
+func (c *wsConn) subscribe(keys []string) error {
 	result := make(chan error, 1)
 
 	c.internalEvents <- internalEvent{
@@ -511,9 +540,9 @@ func (c *wsConn) Subscribe(keys []string) error {
 	return <-result
 }
 
-// Unsubscribe unsubscribes from the given set of keys. Also see notes for
-// Subscribe.
-func (c *wsConn) Unsubscribe(keys []string) error {
+// unsubscribe unsubscribes from the given set of keys. Also see notes for
+// subscribe.
+func (c *wsConn) unsubscribe(keys []string) error {
 	result := make(chan error, 1)
 
 	c.internalEvents <- internalEvent{
@@ -526,8 +555,8 @@ func (c *wsConn) Unsubscribe(keys []string) error {
 	return <-result
 }
 
-// ConnState returns current client connection state.
-func (c *wsConn) ConnState() ConnState {
+// connState returns current client connection state.
+func (c *wsConn) connState() ConnState {
 	result := make(chan ConnState, 1)
 
 	c.internalEvents <- internalEvent{
@@ -539,8 +568,8 @@ func (c *wsConn) ConnState() ConnState {
 	return <-result
 }
 
-// URL returns the url the client is connected to, e.g. wss://stream.cryptowat.ch.
-func (c *wsConn) URL() string {
+// url returns the url the client is connected to, e.g. wss://stream.cryptowat.ch.
+func (c *wsConn) url() string {
 	return c.params.URL
 }
 
@@ -555,11 +584,10 @@ type stateListener struct {
 type callStateListenersReq struct {
 	listeners       []stateListener
 	oldState, state ConnState
-	cause           error
 }
 
 // NOTE: updateState should only be called from the eventLoop.
-func (c *wsConn) updateState(state ConnState, cause error) {
+func (c *wsConn) updateState(state ConnState) {
 	if c.state == state {
 		// No need to do anything
 		return
@@ -570,7 +598,6 @@ func (c *wsConn) updateState(state ConnState, cause error) {
 
 	oldState := c.state
 	c.state = state
-	c.stateCause = cause
 
 	// Properly enter the new state
 	c.enterLeaveState(c.state, true)
@@ -588,8 +615,14 @@ func (c *wsConn) updateState(state ConnState, cause error) {
 		listeners: listeners,
 		oldState:  oldState,
 		state:     state,
-		cause:     cause,
 	})
+}
+
+// NOTE: callOnErrorCBs should only be called from the eventLoop.
+func (c *wsConn) callOnErrorCBs(err error, disconnecting bool) {
+	for _, cb := range c.onErrorCBs {
+		cb(err, disconnecting)
+	}
 }
 
 // enterLeaveState should be called on leaving and entering each state. So,
@@ -726,19 +759,21 @@ loop:
 					panic(fmt.Sprintf("unexpected transport state: %d", tsu.state))
 				}
 
-				cause := tsu.cause
-				if c.actualCauseOfDisconnection != nil {
-					cause = c.actualCauseOfDisconnection
-					c.actualCauseOfDisconnection = nil
+				// Only call on-error callbacks if we didn't expect disconnection;
+				// otherwise we have already called on-error callbacks earlier,
+				// with the concrete error.
+				if !c.expectDisconnection && tsu.cause != nil {
+					c.callOnErrorCBs(tsu.cause, true)
 				}
+				c.expectDisconnection = false
 
-				c.updateState(state, errors.Trace(cause))
+				c.updateState(state)
 
 			case internal.TransportStateConnected:
 				// When transport layer is Connected, we need to set wsClient state to
 				// Authenticating, and send authentication data to the server.
 
-				c.updateState(ConnStateAuthenticating, errors.Trace(tsu.cause))
+				c.updateState(ConnStateAuthenticating)
 				ctx := c.authnCtx
 
 				nonce := getNonce()
@@ -756,7 +791,7 @@ loop:
 							ApiKey:        c.params.APIKey,
 							Source:        pbc.APIAuthenticationMessage_GOLANG_SDK,
 							Version:       version,
-							Subscriptions: c.GetSubscriptions(),
+							Subscriptions: c.getSubscriptions(),
 						},
 					},
 				}
@@ -805,7 +840,7 @@ loop:
 				// We can now reset any backoff that has been applied
 				c.transport.ResetTimeout()
 
-				c.updateState(ConnStateEstablished, nil)
+				c.updateState(ConnStateEstablished)
 
 			case ConnStateEstablished:
 				// Pass message up to the client
@@ -818,7 +853,7 @@ loop:
 				// TODO: report error to the client, but don't disconnect
 			}
 
-		} else if al := event.reqAddStateListener; al != nil {
+		} else if al := event.reqOnStateChange; al != nil {
 			// Request to add a new state listener.
 
 			sl := stateListener{
@@ -839,11 +874,17 @@ loop:
 					listeners: []stateListener{sl},
 					oldState:  c.state,
 					state:     c.state,
-					cause:     c.stateCause,
 				})
 			}
 
 			al.result <- struct{}{}
+		} else if req := event.reqAddOnErrorCB; req != nil {
+			// Request to add a new on-error callback
+
+			// Update stored listeners if needed
+			c.onErrorCBs = append(c.onErrorCBs, req.cb)
+
+			req.result <- struct{}{}
 		} else if req := event.reqConnState; req != nil {
 			// Request to add a new state listener.
 			req.result <- c.state
@@ -863,7 +904,7 @@ loop:
 // that all callbacks are only invoked from a single goroutine.
 func (c *wsConn) callStateListeners(req *callStateListenersReq) {
 	for _, sl := range req.listeners {
-		sl.cb(req.oldState, req.state, req.cause)
+		sl.cb(req.oldState, req.state)
 	}
 }
 

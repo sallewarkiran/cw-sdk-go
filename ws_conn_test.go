@@ -252,7 +252,7 @@ func TestWsConn(t *testing.T) {
 		st.addStateListener(client.wsConn, ConnStateAny, StateListenerOpt{})
 
 		// TODO use the generic handler here when ready
-		// client.AddMarketListener(
+		// client.OnMarketData(
 		// 	func(msg *pbm.MarketUpdateMessage) {
 		// 		marketRx <- msg
 		// 	},
@@ -1033,9 +1033,10 @@ type stateChange struct {
 }
 
 type stateTracker struct {
-	states  []string
-	mtx     sync.Mutex
-	changes chan stateChange
+	states    []string
+	mtx       sync.Mutex
+	changes   chan stateChange
+	lastError error
 }
 
 func NewStateTracker() *stateTracker {
@@ -1045,11 +1046,21 @@ func NewStateTracker() *stateTracker {
 }
 
 func (st *stateTracker) addStateListener(conn *wsConn, state ConnState, opt StateListenerOpt) {
-	conn.AddStateListenerOpt(
+	conn.onError(func(connErr error, disconnecting bool) {
+		st.lastError = connErr
+	})
+
+	conn.onStateChangeOpt(
 		state,
-		func(oldState, state ConnState, cause error) {
+		func(oldState, state ConnState) {
 			st.mtx.Lock()
 			defer st.mtx.Unlock()
+
+			var cause error
+			if state == ConnStateDisconnected || state == ConnStateWaitBeforeReconnect {
+				cause = st.lastError
+			}
+			st.lastError = nil
 
 			errStr := ""
 			if cause != nil {
@@ -1142,7 +1153,7 @@ func testWriteToNonConnected(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		subErr := conn.Subscribe([]string{"foo"})
+		subErr := conn.subscribe([]string{"foo"})
 		if want, got := ErrNotConnected, errors.Cause(subErr); got != want {
 			return errors.Errorf("want: %v, got: %v", want, got)
 		}
@@ -1169,11 +1180,11 @@ func testConnectConnected(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		if err := c.Connect(); err != nil {
+		if err := c.connect(); err != nil {
 			return errors.Trace(err)
 		}
 
-		c2err := c.Connect()
+		c2err := c.connect()
 		if want, got := ErrConnLoopActive, errors.Cause(c2err); got != want {
 			return errors.Errorf("want: %v, got: %v", want, got)
 		}
@@ -1200,7 +1211,7 @@ func testCloseClosed(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		errClose := c.Close()
+		errClose := c.close()
 		if want, got := ErrNotConnected, errors.Cause(errClose); got != want {
 			return errors.Errorf("want: %v, got: %v", want, got)
 		}
@@ -1228,7 +1239,7 @@ func testSubscribe(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		if err := conn.Connect(); err != nil {
+		if err := conn.connect(); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -1243,11 +1254,11 @@ func testSubscribe(t *testing.T) {
 		}
 
 		// Subscribe to new sub keys
-		if err := conn.Subscribe([]string{"baz", "woo"}); err != nil {
+		if err := conn.subscribe([]string{"baz", "woo"}); err != nil {
 			return errors.Trace(err)
 		}
 
-		have := conn.GetSubscriptions()
+		have := conn.getSubscriptions()
 		want := []string{"foo", "bar", "baz", "woo"}
 		sort.Strings(have)
 		sort.Strings(want)
@@ -1272,7 +1283,7 @@ func testDefaultURL(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		if want, got := "wss://stream.cryptowat.ch", conn.URL(); got != want {
+		if want, got := "wss://stream.cryptowat.ch", conn.url(); got != want {
 			return errors.Errorf("want: %v, got: %v", want, got)
 		}
 

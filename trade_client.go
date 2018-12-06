@@ -9,7 +9,6 @@ import (
 	"time"
 
 	pbb "code.cryptowat.ch/ws-client-go/proto/broker"
-	pbs "code.cryptowat.ch/ws-client-go/proto/stream"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -56,9 +55,16 @@ type OnPositionsUpdateCB func(marketID MarketID, positions []PrivatePosition)
 // OnBalancesUpdateCB defines a callback function for OnBalancesUpdate.
 type OnBalancesUpdateCB func(marketID MarketID, balances Balances)
 
+// OnMarketReadyCB defines a callback function for OnMarketReadyChange.
 type OnMarketReadyCB func(marketID MarketID, ready bool)
 
-type OnErrorCB func(marketID MarketID, err error)
+// OnTradeErrorCB defines a callback function for OnError.
+// If the error is specific to a market, then marketID is set; otherwise it's
+// an empty string. If the error is going to cause the disconnection,
+// disconnecting is set to true. In this case, the error listeners are always
+// called before the state listeners, so applications can just save the error,
+// and display it later, when the disconnection actually happens.
+type OnTradeErrorCB func(marketID MarketID, err error, disconnecting bool)
 
 type callOrdersListenersReq struct {
 	marketID  MarketID
@@ -94,6 +100,13 @@ type callMarketReadyListenersReq struct {
 	marketID  MarketID
 	ready     bool
 	listeners []OnMarketReadyCB
+}
+
+type callErrorListenersReq struct {
+	marketID      MarketID
+	err           error
+	disconnecting bool
+	listeners     []OnTradeErrorCB
 }
 
 type placeOrderResp struct {
@@ -146,6 +159,7 @@ type TradeClient struct {
 	callBalancesListeners      chan callBalancesListenersReq
 	callPositionsListeners     chan callPositionsListenersReq
 	callSessionStatusListeners chan callSessionStatusListenersReq
+	callErrorListeners         chan callErrorListenersReq
 
 	ordersListeners      []OrdersUpdateCB
 	tradesListeners      []PrivateTradesUpdateCB
@@ -155,11 +169,14 @@ type TradeClient struct {
 
 	sessionStatusListeners []sessionStatusUpdateCB
 	onReadyCallbacks       []func()
-	OnErrorCBs             []OnErrorCB
+	onErrorCBs             []OnTradeErrorCB
 
 	disable chan struct{}
 
-	*wsConn
+	// We want to ensure that wsConn's methods aren't available on the
+	// TradeClient to avoid confusion, so we give it explicit name.
+	wsConn *wsConn
+
 	mtx sync.Mutex
 }
 
@@ -170,20 +187,7 @@ func NewTradeClient(params *WSParams) (*TradeClient, error) {
 	wsConn, err := newWsConn(
 		params,
 		&wsConnParamsInternal{
-			unmarshalAuthnResult: func(data []byte) (*pbs.AuthenticationResult, error) {
-				var msg pbb.BrokerUpdateMessage
-
-				if err := proto.Unmarshal(data, &msg); err != nil {
-					return nil, errors.Trace(err)
-				}
-
-				authnResult := msg.GetAuthenticationResult()
-				if authnResult == nil {
-					return nil, errors.Errorf("not an authentication result")
-				}
-
-				return authnResult, nil
-			},
+			unmarshalAuthnResult: unmarshalAuthnResultTrade,
 		},
 	)
 	if err != nil {
@@ -219,6 +223,7 @@ func NewTradeClient(params *WSParams) (*TradeClient, error) {
 		callBalancesListeners:      make(chan callBalancesListenersReq, 1),
 		callPositionsListeners:     make(chan callPositionsListenersReq, 1),
 		callSessionStatusListeners: make(chan callSessionStatusListenersReq, 1),
+		callErrorListeners:         make(chan callErrorListenersReq, 1),
 	}
 
 	tc.wsConn.onRead(func(data []byte) {
@@ -269,7 +274,11 @@ func NewTradeClient(params *WSParams) (*TradeClient, error) {
 		}
 	})
 
-	tc.OnConnClosed(func(_ ConnState, _ error) {
+	tc.wsConn.onError(func(err error, disconnecting bool) {
+		tc.scheduleCallErrorHandlers("", errors.Trace(err), disconnecting)
+	})
+
+	tc.wsConn.onConnClosed(func(_ ConnState) {
 		tc.disable <- struct{}{}
 	})
 
@@ -357,6 +366,11 @@ listenloop:
 				}
 			}
 
+		case req := <-tc.callErrorListeners:
+			for _, l := range req.listeners {
+				l(req.marketID, req.err, req.disconnecting)
+			}
+
 		case <-tc.disable:
 			tradeStatus.reset()
 		}
@@ -434,7 +448,7 @@ func (tc *TradeClient) makeRequest(marketID MarketID, req interface{}) (*pbb.Req
 	switch r := req.(type) {
 	case *pbb.BrokerRequest_PlaceOrderRequest:
 		requestType = "place-order"
-		sendErr = tc.sendProto(context.Background(), &pbb.BrokerRequest{
+		sendErr = tc.wsConn.sendProto(context.Background(), &pbb.BrokerRequest{
 			Id:       requestID,
 			MarketId: marketIDInt,
 			Request:  r,
@@ -442,7 +456,7 @@ func (tc *TradeClient) makeRequest(marketID MarketID, req interface{}) (*pbb.Req
 
 	case *pbb.BrokerRequest_CancelOrderRequest:
 		requestType = "cancel-order"
-		sendErr = tc.sendProto(context.Background(), &pbb.BrokerRequest{
+		sendErr = tc.wsConn.sendProto(context.Background(), &pbb.BrokerRequest{
 			Id:       requestID,
 			MarketId: marketIDInt,
 			Request:  r,
@@ -475,15 +489,23 @@ func (tc *TradeClient) apiAccessorStatusUpdateHandler(marketID MarketID, res *pb
 		// type for that kind of error, so that clients can figure which exchange
 		// we don't have access to.
 
-		tc.mtx.Lock()
-		cbs := make([]OnErrorCB, len(tc.OnErrorCBs))
+		tc.scheduleCallErrorHandlers(marketID, ErrNoExchangeAccess, false)
+	}
+}
 
-		copy(cbs, tc.OnErrorCBs)
-		tc.mtx.Unlock()
+func (tc *TradeClient) scheduleCallErrorHandlers(
+	marketID MarketID, err error, disconnecting bool,
+) {
+	tc.mtx.Lock()
+	cbs := make([]OnTradeErrorCB, len(tc.onErrorCBs))
+	copy(cbs, tc.onErrorCBs)
+	tc.mtx.Unlock()
 
-		for _, cb := range cbs {
-			cb(marketID, ErrNoExchangeAccess)
-		}
+	tc.callErrorListeners <- callErrorListenersReq{
+		marketID:      marketID,
+		err:           err,
+		listeners:     cbs,
+		disconnecting: disconnecting,
 	}
 }
 
@@ -621,7 +643,7 @@ func (tc *TradeClient) syncInt(marketID MarketID) error {
 		}
 	}
 
-	tc.sendProto(context.Background(), &pbb.BrokerRequest{
+	tc.wsConn.sendProto(context.Background(), &pbb.BrokerRequest{
 		MarketId: marketIDInt,
 		Request: &pbb.BrokerRequest_SyncRequest{
 			SyncRequest: &pbb.SyncRequest{},
@@ -837,13 +859,13 @@ func (tc *TradeClient) OnReady(cb func()) {
 	tc.onReadyCallbacks = append(tc.onReadyCallbacks, cb)
 }
 
-// OnError sets a callback function for errors associated with the trading client or trading back end.
-// TODO move this to wsConn, make it work for StreamClient and TradeClient
-func (tc *TradeClient) OnError(cb OnErrorCB) {
+// OnError sets a callback function for errors associated with the trading
+// client or trading back end.
+func (tc *TradeClient) OnError(cb OnTradeErrorCB) {
 	tc.mtx.Lock()
 	defer tc.mtx.Unlock()
 
-	tc.OnErrorCBs = append(tc.OnErrorCBs, cb)
+	tc.onErrorCBs = append(tc.onErrorCBs, cb)
 }
 
 // OnOrdersUpdate sets a callback for order updates. This will be called
@@ -889,6 +911,9 @@ func (tc *TradeClient) OnPositionsUpdate(cb OnPositionsUpdateCB) {
 	tc.positionsListeners = append(tc.positionsListeners, cb)
 }
 
+// OnMarketReadyChange registers a callback which is called when the market
+// ready status changes, i.e. when the market becomes ready or not ready for
+// placing orders.
 func (tc *TradeClient) OnMarketReadyChange(cb OnMarketReadyCB) {
 	tc.mtx.Lock()
 	defer tc.mtx.Unlock()
@@ -954,3 +979,75 @@ func (tst *tradeStatusTracker) isMarketReady(marketID MarketID) bool {
 }
 
 // }}}
+
+// OnStateChange registers a new listener for the given state. The listener is
+// registered with the default options (call the listener every time the state
+// becomes active, and don't call the listener immediately for the current
+// state). All registered callbacks for all states (and all messages, see
+// OnMarketData) will be called by the same internal goroutine, i.e. they are
+// never called concurrently with each other.
+//
+// The order of listeners invocation for the same state is unspecified, and
+// clients shouldn't rely on it.
+//
+// The listeners shouldn't block; a blocked listener will also block the whole
+// stream connection.
+//
+// To subscribe to all state changes, use ConnStateAny as a state.
+func (tc *TradeClient) OnStateChange(state ConnState, cb StateCallback) {
+	tc.wsConn.onStateChange(state, cb)
+}
+
+// OnStateChangeOpt is like OnStateChange, but also takes additional
+// options; see StateListenerOpt for details.
+func (tc *TradeClient) OnStateChangeOpt(state ConnState, cb StateCallback, opt StateListenerOpt) {
+	tc.wsConn.onStateChangeOpt(state, cb, opt)
+}
+
+// GetSubscriptions returns a slice of the current subscriptions.
+func (tc *TradeClient) GetSubscriptions() []string {
+	return tc.wsConn.getSubscriptions()
+}
+
+// OnConnClosed allows the client to set a callback for when the connection is lost.
+// The new state of the client could be ConnStateDisconnected or ConnStateWaitBeforeReconnect.
+func (tc *TradeClient) OnConnClosed(cb ConnClosedCallback) {
+	tc.wsConn.onConnClosed(cb)
+}
+
+// Subscribe makes a request to subscribe to the given keys. Example:
+//
+//   client.Subscribe([]string{"1", "86"})
+//
+// The client must be connected and authenticated for this to work. See
+// WSParams.Subscriptions for more details.
+func (tc *TradeClient) Subscribe(keys []string) error {
+	return tc.wsConn.subscribe(keys)
+}
+
+// Unsubscribe unsubscribes from the given set of keys. Also see notes for
+// subscribe.
+func (tc *TradeClient) Unsubscribe(keys []string) error {
+	return tc.wsConn.unsubscribe(keys)
+}
+
+// URL returns the url the client is connected to, e.g. wss://stream.cryptowat.ch.
+func (tc *TradeClient) URL() string {
+	return tc.wsConn.url()
+}
+
+// Connect either starts a connection goroutine (if state is
+// ConnStateDisconnected), or makes it connect immediately, ignoring timeout
+// (if the state is ConnStateWaitBeforeReconnect). For other states, this returns an
+// error.
+//
+// Connect doesn't wait for the connection to establish; it returns immediately.
+func (tc *TradeClient) Connect() (err error) {
+	return tc.wsConn.connect()
+}
+
+// Close stops the connection (or reconnection loop, if active), and if
+// websocket connection is active at the moment, closes it as well.
+func (tc *TradeClient) Close() (err error) {
+	return tc.wsConn.close()
+}

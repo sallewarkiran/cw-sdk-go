@@ -60,7 +60,7 @@ package main
 // 	})
 
 // 	// Log state transitions
-// 	tc.AddStateListener(
+// 	tc.OnStateChange(
 // 		wsclient.ConnStateAny,
 // 		func(oldState, state wsclient.ConnState, cause error) {
 // 			causeStr := ""
@@ -169,7 +169,7 @@ package main
 // 	)
 
 // 	// Log state transitions
-// 	sc.AddStateListener(
+// 	sc.OnStateChange(
 // 		wsclient.ConnStateAny,
 // 		func(oldState, state wsclient.ConnState, cause error) {
 // 			causeStr := ""

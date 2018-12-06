@@ -122,37 +122,60 @@ internal cache to initialize, which can be accomplished using the OnReady callba
 
 	client.Connect()
 
-Connection States
+Error Handling and Connection States
 
-Both StreamClient and TradeClient can set listeners for connection state changes such as
-StateDisconnected, StateWaitBeforeReconnect, StateConnecting, StateAuthenticating, and
-StateEstablished.  They can also listen for any state changes by using StateAny. The following is
-an example of how you would print verbose logs about a client's state transitions. "client" can
-represent either StreamClient or TradeClient:
+Both StreamClient and TradeClient can set error handlers using the OnError
+method:
 
-TODO update example to remove cause
+	var lastError error
 
+	client.OnError(func(err error, disconnecting bool) {
+    // Handle the error
+	})
 
-	client.AddStateListener(
-		wsclient.StateAny,
-		func(oldState, state wsclient.State, cause error) {
+The "disconnecting" argument is set to true if the error is going to cause the
+disconnection: in this case, the app could store the error somewhere and show
+it later, when the actual disconnection happens; see the example of that below,
+together with state listener. Error handlers are always called before the state
+change listeners.
+
+Both StreamClient and TradeClient can set listeners for connection state
+changes such as StateDisconnected, StateWaitBeforeReconnect, StateConnecting,
+StateAuthenticating, and StateEstablished.  They can also listen for any state
+changes by using StateAny. The following is an example of how you would print
+verbose logs about a client's state transitions. "client" can represent either
+StreamClient or TradeClient:
+
+	var lastError error
+
+	client.OnError(func(err error, disconnecting bool) {
+		// If the client is going to disconnect because of that error, just save
+		// the error to print later with the disconnection message.
+		if disconnecting {
+			lastError = err
+			return
+		}
+
+		// Otherwise, print the error message right away.
+		log.Printf("Error: %s", err.Error())
+	})
+
+	client.OnStateChange(
+		wsclient.ConnStateAny,
+		func(oldState, state wsclient.ConnState) {
 			causeStr := ""
-			if cause != nil {
-				causeStr = fmt.Sprintf(" (%s)", cause)
+			if lastError != nil {
+				causeStr = fmt.Sprintf(" (%s)", lastError)
+				lastError = nil
 			}
 			log.Printf(
 				"State updated: %s -> %s%s",
-				wsclient.StateNames[oldState],
-				wsclient.StateNames[state],
+				wsclient.ConnStateNames[oldState],
+				wsclient.ConnStateNames[state],
 				causeStr,
 			)
 		},
 	)
-
-
-Error Handling
-
-TODO
 
 Strings Vs Floats
 

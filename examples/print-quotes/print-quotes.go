@@ -69,11 +69,13 @@ func main() {
 		panic(err)
 	}
 
-	c.OnTradesUpdate(func(market wsclient.Market, tradesUpdate wsclient.TradesUpdate) {
-		trades := tradesUpdate.Trades
-		quoteVals[market.ID] = trades[len(trades)-1].Price
-
-		printQuotes(marketSymbols, quoteVals)
+	c.OnMarketData(func(market wsclient.Market, md wsclient.MarketData) {
+		if md.TradesUpdate != nil {
+			tradesUpdate := md.TradesUpdate
+			trades := tradesUpdate.Trades
+			quoteVals[market.ID] = trades[len(trades)-1].Price
+			printQuotes(marketSymbols, quoteVals)
+		}
 	})
 
 	c.Connect()
