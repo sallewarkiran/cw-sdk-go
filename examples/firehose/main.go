@@ -8,9 +8,9 @@ import (
 	"os/signal"
 	"strings"
 
-	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
-	streamclient "code.cryptowat.ch/stream-client-go"
-	"code.cryptowat.ch/stream-client-go/examples/kraken-trades/cwrest"
+	"code.cryptowat.ch/cw-sdk-go/client/rest"
+	"code.cryptowat.ch/cw-sdk-go/client/websocket"
+	"code.cryptowat.ch/cw-sdk-go/common"
 )
 
 const (
@@ -27,25 +27,25 @@ func init() {
 }
 
 func main() {
-	rest := cwrest.NewCWRESTClient("https://api.cryptowat.ch")
+	restclient := rest.NewCWRESTClient(nil)
 
 	// Get exchange description, in particular we'll need the ID to use it
 	// in stream subscriptions
 
 	// Get market descriptions, to know symbols (like "btcusd") by integer ID
-	marketsSlice, err := rest.GetMarketsIndex()
+	marketsSlice, err := restclient.GetMarketsIndex()
 	if err != nil {
 		log.Fatalf("failed to get markets of %s: %s", exchangeSymbol, err)
 	}
 
-	markets := map[int]cwrest.MarketDescr{}
+	markets := map[int]rest.MarketDescr{}
 	for _, market := range marketsSlice {
 		markets[market.ID] = market
 	}
 
 	// Create a new stream connection instance. Note that the actual connection
 	// will happen later.
-	c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
+	c, err := websocket.NewStreamClient(&websocket.WSParams{
 		URL: "wss://stream.cryptowat.ch",
 
 		Subscriptions: []string{
@@ -59,42 +59,47 @@ func main() {
 		log.Fatalf("%s", err)
 	}
 
+	var lastError error
+
+	c.OnError(func(err error, disconnecting bool) {
+		if disconnecting {
+			lastError = err
+			return
+		}
+
+		log.Printf("Error: %s", err.Error())
+	})
+
 	// Ask for the state transition updates, and present them to the user somehow
-	c.AddStateListener(
-		streamclient.StateAny,
-		func(conn *streamclient.StreamConn, oldState, state streamclient.State, cause error) {
+	c.OnStateChange(
+		websocket.ConnStateAny,
+		func(oldState, state websocket.ConnState) {
 			causeStr := ""
-			if cause != nil {
-				causeStr = fmt.Sprintf(" (%s)", cause)
+			if lastError != nil {
+				causeStr = fmt.Sprintf(" (%s)", lastError)
+				lastError = nil
 			}
 			log.Printf(
 				"State updated: %s -> %s%s",
-				streamclient.StateNames[oldState],
-				streamclient.StateNames[state],
+				websocket.ConnStateNames[oldState],
+				websocket.ConnStateNames[state],
 				causeStr,
 			)
 		},
 	)
 
 	// Listen for received market messages and print them
-	c.AddMarketListener(
-		func(conn *streamclient.StreamConn, msg *pbm.MarketUpdateMessage) {
-			market := markets[int(msg.Market.MarketId)]
-
-			tradesUpdate := msg.GetTradesUpdate()
-			if tradesUpdate == nil {
-				// Got some market update other than trades, we're not interested in it
-				return
-			}
-
+	c.OnMarketUpdate(func(market common.Market, md common.MarketUpdate) {
+		if md.TradesUpdate != nil {
+			tradesUpdate := md.TradesUpdate
 			for _, trade := range tradesUpdate.Trades {
 				fmt.Printf(
-					"%d %34s %16s %16s\n",
-					trade.Timestamp, market.Exchange+" "+strings.ToUpper(market.Pair), trade.PriceStr, trade.AmountStr,
+					"%v %34s %16s %16s\n",
+					trade.Timestamp, market.ExchangeID+" "+strings.ToUpper(market.CurrencyPairID), trade.Price, trade.Amount,
 				)
 			}
-		},
-	)
+		}
+	})
 
 	// Finally, connect.
 	c.Connect()

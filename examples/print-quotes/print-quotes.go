@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strconv"
 
-	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
-	streamclient "code.cryptowat.ch/stream-client-go"
-	"code.cryptowat.ch/stream-client-go/examples/kraken-trades/cwrest"
+	"code.cryptowat.ch/cw-sdk-go/client/rest"
+	"code.cryptowat.ch/cw-sdk-go/client/websocket"
+	"code.cryptowat.ch/cw-sdk-go/common"
 )
 
 var (
@@ -27,35 +27,35 @@ func init() {
 
 func main() {
 	var (
-		quoteVals = make(map[uint64]string)
+		quoteVals = make(map[common.MarketID]string)
 
-		rest = cwrest.NewCWRESTClient("https://api.cryptowat.ch")
+		restclient = rest.NewCWRESTClient(nil)
 
-		marketsIndex, marketsIndexErr = rest.GetMarketsIndex()
+		marketsIndex, marketsIndexErr = restclient.GetMarketsIndex()
 
-		marketSymbols = make(map[uint64]string)
+		marketSymbols = make(map[common.MarketID]string)
 	)
 
 	if *pair == "" {
 		panic("Need -pair arg")
 	}
 
-	pairDescr, pairDescrErr := rest.GetPairDescr(*pair)
+	pairDescr, pairDescrErr := restclient.GetPairDescr(*pair)
 	if pairDescrErr != nil {
 		panic(pairDescrErr)
 	}
 
-	marketsIndex, marketsIndexErr = rest.GetMarketsIndex()
+	marketsIndex, marketsIndexErr = restclient.GetMarketsIndex()
 
 	if marketsIndexErr != nil {
 		panic(marketsIndexErr)
 	}
 
 	for _, market := range marketsIndex {
-		marketSymbols[uint64(market.ID)] = market.Exchange + " " + market.Pair
+		marketSymbols[common.MarketID(fmt.Sprintf("%d", market.ID))] = market.Exchange + " " + market.Pair
 	}
 
-	c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
+	c, err := websocket.NewStreamClient(&websocket.WSParams{
 		URL: "wss://stream.cryptowat.ch",
 
 		Subscriptions: []string{
@@ -70,22 +70,14 @@ func main() {
 		panic(err)
 	}
 
-	c.AddMarketListener(
-		func(conn *streamclient.StreamConn, msg *pbm.MarketUpdateMessage) {
-
-			update := msg.GetTradesUpdate()
-			if update == nil {
-				return
-			}
-
-			trades := update.Trades
-
-			quoteVals[msg.Market.MarketId] = trades[len(trades)-1].PriceStr
-
+	c.OnMarketUpdate(func(market common.Market, md common.MarketUpdate) {
+		if md.TradesUpdate != nil {
+			tradesUpdate := md.TradesUpdate
+			trades := tradesUpdate.Trades
+			quoteVals[market.ID] = trades[len(trades)-1].Price
 			printQuotes(marketSymbols, quoteVals)
-
-		},
-	)
+		}
+	})
 
 	c.Connect()
 
@@ -134,7 +126,7 @@ func (qs quotes) Swap(i, j int) {
 }
 
 // printQuotes draws all of the quotes we have received to the screen
-func printQuotes(marketSymbols, quoteVals map[uint64]string) {
+func printQuotes(marketSymbols, quoteVals map[common.MarketID]string) {
 	var lines quotes
 
 	for k, v := range quoteVals {

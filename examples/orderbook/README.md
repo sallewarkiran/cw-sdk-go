@@ -12,4 +12,4 @@ This example subscribes to the `markets:86:book:deltas` and shows how to use the
 $ go run . -apikey=myapikey -secretkey=mysecretkey -exchange=kraken -pair=btceur
 ```
 
-![](https://github.com/cryptowatch/stream-client-go/blob/master/examples/orderbook/screenshot.png?raw=true)
+![](https://github.com/cryptowatch/ws-client-go/blob/master/examples/orderbook/screenshot.png?raw=true)

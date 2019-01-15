@@ -7,9 +7,10 @@ import (
 	"os"
 	"os/signal"
 
-	pbm "code.cryptowat.ch/stream-client-go/proto/markets"
-	streamclient "code.cryptowat.ch/stream-client-go"
-	"code.cryptowat.ch/stream-client-go/examples/kraken-trades/cwrest"
+	"code.cryptowat.ch/cw-sdk-go/client/rest"
+	"code.cryptowat.ch/cw-sdk-go/client/websocket"
+	"code.cryptowat.ch/cw-sdk-go/common"
+	"code.cryptowat.ch/cw-sdk-go/orderbooks"
 )
 
 var (
@@ -18,11 +19,9 @@ var (
 
 	exchange = flag.String("exchange", "kraken", "")
 	pair     = flag.String("pair", "btceur", "")
-)
 
-const (
-	apiURL    = "https://api.cryptowat.ch"
-	streamURL = "wss://stream.cryptowat.ch"
+	streamURL = flag.String("streamurl", "", "Stream URL to use. By default, production URL is used.")
+	apiURL    = flag.String("apiurl", "", "REST API URL to use. By default, production URL is used.")
 )
 
 func init() {
@@ -33,32 +32,23 @@ func init() {
 var outlog = log.New(os.Stdout, "", log.LstdFlags)
 
 func main() {
-	rest := cwrest.NewCWRESTClient(apiURL)
+	restclient := rest.NewCWRESTClient(nil)
 
 	// Get market description, in particular we'll need the ID to use it
 	// in the stream subscription.
-	market, err := rest.GetMarketDescr(*exchange, *pair)
+	market, err := restclient.GetMarketDescr(*exchange, *pair)
 	if err != nil {
 		log.Fatalf("failed to get market %s/%s: %s", *exchange, *pair, err)
 	}
 
-	// Get a snapshot of the order book on which we'll apply deltas that we
-	// receive from the stream.
-	initialBook, err := rest.GetOrderBook(*exchange, *pair)
-	if err != nil {
-		log.Fatalf("failed to get orderbook of %s/%s: %s",
-			*exchange, *pair, err)
-	}
-	orderbook := NewOrderBookMirror(initialBook)
-	outlog.Println(orderbook.PrettyString())
-
 	// Create a new stream connection instance. Note that this does not yet
 	// initiate the actual connection.
-	c, err := streamclient.NewStreamConn(&streamclient.StreamParams{
-		URL: streamURL,
+	c, err := websocket.NewStreamClient(&websocket.WSParams{
+		URL: *streamURL,
 
 		Subscriptions: []string{
 			fmt.Sprintf("markets:%d:book:deltas", market.ID),
+			fmt.Sprintf("markets:%d:book:snapshots", market.ID),
 		},
 
 		APIKey:    *apiKey,
@@ -68,81 +58,56 @@ func main() {
 		log.Fatalf("%s", err)
 	}
 
+	// Create orderbook updater: it handles all snapshots and deltas correctly,
+	// keeping track of sequence numbers, fetching snapshots from the REST API
+	// when appropriate and replaying cached deltas on them, etc. We'll only
+	// need to feed it with snapshots and deltas we receive from the wire, and
+	// subscribe on orderbook updates using OnOrderBookUpdate.
+	orderbookUpdater := orderbooks.NewOrderBookUpdater(&orderbooks.OrderBookUpdaterParams{
+		SnapshotGetter: orderbooks.NewOrderBookSnapshotGetterRESTBySymbol(
+			*exchange, *pair, &rest.CWRESTClientParams{
+				APIURL: *apiURL,
+			},
+		),
+	})
+
 	// Ask for the state transition updates and print them
-	c.AddStateListener(
-		streamclient.StateAny,
-		func(conn *streamclient.StreamConn, oldState, state streamclient.State, cause error) {
-			causeStr := ""
-			if cause != nil {
-				causeStr = fmt.Sprintf(" (%s)", cause)
-			}
+	c.OnStateChange(
+		websocket.ConnStateAny,
+		func(oldState, state websocket.ConnState) {
 			log.Printf(
-				"State updated: %s -> %s%s",
-				streamclient.StateNames[oldState],
-				streamclient.StateNames[state],
-				causeStr,
+				"State updated: %s -> %s",
+				websocket.ConnStateNames[oldState],
+				websocket.ConnStateNames[state],
 			)
 		},
 	)
 
 	// Listen for market changes
-	c.AddMarketListener(
-		func(conn *streamclient.StreamConn, msg *pbm.MarketUpdateMessage) {
+	c.OnMarketUpdate(
+		func(market common.Market, md common.MarketUpdate) {
+			if snapshot := md.OrderBookSnapshot; snapshot != nil {
+				orderbookUpdater.ReceiveSnapshot(*snapshot)
+			} else if delta := md.OrderBookDelta; delta != nil {
+				// First, pretty-print the delta object.
+				outlog.Println(PrettyDeltaUpdate{*delta}.String())
 
-			// We're only interested in order book deltas.
-			// Let's ignore other types of market updates.
-			deltaUpdate := msg.GetOrderBookDeltaUpdate()
-			if deltaUpdate == nil {
-				return
-			}
-
-			// First, pretty-print the delta object.
-			outlog.Println(PrettyDeltaUpdate{deltaUpdate}.String())
-
-			// If we update the order book, we print it too.
-			var updated = false
-			defer func() {
-				if updated {
-					outlog.Println(orderbook.PrettyString())
-				}
-			}()
-
-			// To ensure our order book object mirrors the true value exactly,
-			// the delta updates must always be applied in the order denoted
-			// by SeqNum.
-			if deltaUpdate.GetSeqNum()-orderbook.SeqNum != 1 {
-				// There's a gap in the sequence!
-				msg := "SeqNum out of sync. Tried to update " +
-					"OrderBook (SeqNum: %d) with OrderBookDeltaUpdate " +
-					"(SeqNum: %d)\n"
-				log.Printf(msg, orderbook.SeqNum, deltaUpdate.GetSeqNum())
-
-				// For this example it's enough to get a more up-to-date
-				// snapshot of the order book to close the gap.
-				initialBook, err := rest.GetOrderBook(*exchange, *pair)
-				if err != nil {
-					log.Fatalf("failed to get orderbook of %s/%s: %s",
-						*exchange, *pair, err)
-				}
-				orderbook = NewOrderBookMirror(initialBook)
-
-				log.Printf("Fetching full orderbook... (SeqNum: %d)\n", orderbook.SeqNum)
-				updated = true
-			}
-
-			// Update the order book, but only if SeqNum fits.
-			if deltaUpdate.GetSeqNum()-orderbook.SeqNum == 1 {
-				err := orderbook.Update(deltaUpdate)
-				if err != nil {
-					log.Fatal(err)
-				}
-				updated = true
-			} else {
-				log.Printf("Ignoring OrderBookDeltaUpdate (SeqNum: %d)\n",
-					deltaUpdate.GetSeqNum())
+				orderbookUpdater.ReceiveDelta(*delta)
 			}
 		},
 	)
+
+	orderbookUpdater.OnUpdate(func(update orderbooks.Update) {
+		if ob := update.OrderBookUpdate; ob != nil {
+			log.Println("Updated orderbook:")
+			orderbook := NewOrderBookMirror(*ob)
+			outlog.Println(orderbook.PrettyString())
+		} else if state := update.StateUpdate; state != nil {
+			log.Printf("Updated state: %+v\n", state)
+		} else if err := update.GetSnapshotError; err != nil {
+			outlog.Println("Error", err)
+		}
+	})
 
 	// Finally, connect.
 	c.Connect()
