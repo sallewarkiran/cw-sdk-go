@@ -295,3 +295,7 @@ func (s *OrderBookSnapshot) GetDeltasAgainst(oldSnapshot OrderBookSnapshot) Orde
 		SeqNum: s.SeqNum,
 	}
 }
+
+func (s *OrderBookSnapshot) Empty() bool {
+	return len(s.Bids) == 0 && len(s.Asks) == 0
+}
