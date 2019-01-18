@@ -61,6 +61,10 @@ func main() {
 
 	var lastError error
 
+	c.OnSubscriptionResult(func(sr websocket.SubscriptionResult) {
+		fmt.Println(sr)
+	})
+
 	c.OnError(func(err error, disconnecting bool) {
 		if disconnecting {
 			lastError = err
