@@ -23,5 +23,5 @@ endif
 proto:
 	$(PROTOC) --gofast_out=. -I. markets/*.proto
 	$(PROTOC) --gofast_out=. -I. client/*.proto
-	$(PROTOC) --gofast_out=Mmarkets/market.proto=code.cryptowat.ch/proto/markets,Mmarkets/pair.proto=code.cryptowat.ch/proto/markets,Mmarkets/asset.proto=code.cryptowat.ch/proto/markets:. -I. stream/*.proto
+	$(PROTOC) --gofast_out=Mmarkets/market.proto=code.cryptowat.ch/proto/markets,Mmarkets/pair.proto=code.cryptowat.ch/proto/markets,Mmarkets/asset.proto=code.cryptowat.ch/proto/markets,Mmarkets/index.proto=code.cryptowat.ch/proto/markets:. -I. stream/*.proto
 	$(PROTOC) --gofast_out=Mstream/stream.proto=code.cryptowat.ch/proto/stream:. -I. broker/*.proto
