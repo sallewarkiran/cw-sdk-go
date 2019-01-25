@@ -142,6 +142,15 @@ type UnsubscriptionResult struct {
 	Status SubscriptionStatus
 }
 
+// MissedMessages is sent to clients when the server was unable to send all
+// requested messages to the client, so some of them were dropped on the floor.
+// Typically it means that the client subscribed to too much, so it should
+// reduce the number of subscriptions.
+type MissedMessages struct {
+	// NumMissedMessages represents how many messages were dropped on the floor.
+	NumMissedMessages int64
+}
+
 func (v UnsubscriptionResult) String() string {
 	data, err := json.Marshal(v)
 	if err != nil {
@@ -176,8 +185,11 @@ type SubscriptionStatus struct {
 // SubscriptionResultCB defines a callback function for OnSubscriptionResult.
 type SubscriptionResultCB func(sr SubscriptionResult)
 
-// SubscriptionResultCB defines a callback function for OnSubscriptionResult.
+// SubscriptionResultCB defines a callback function for OnUnsubscriptionResult.
 type UnsubscriptionResultCB func(sr UnsubscriptionResult)
+
+// MissedMessagesCB defines a callback function for OnMissedMessages.
+type MissedMessagesCB func(mm MissedMessages)
 
 // The following constants represent every possible ConnState.
 const (

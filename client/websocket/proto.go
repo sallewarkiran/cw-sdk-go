@@ -371,6 +371,12 @@ func unsubscriptionResultFromProto(sr *pbs.UnsubscriptionResult) UnsubscriptionR
 	}
 }
 
+func missedMessagesFromProto(mm *pbs.MissedMessages) MissedMessages {
+	return MissedMessages{
+		NumMissedMessages: mm.NumMissedMessages,
+	}
+}
+
 func unmarshalAuthnResultStream(data []byte) (*pbs.AuthenticationResult, error) {
 	var msg pbs.StreamMessage
 

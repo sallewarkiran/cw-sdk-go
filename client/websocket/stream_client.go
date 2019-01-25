@@ -43,6 +43,11 @@ type callUnsubscriptionResultListenersReq struct {
 	result    UnsubscriptionResult
 }
 
+type callMissedMessagesListenersReq struct {
+	listeners []MissedMessagesCB
+	msg       MissedMessages
+}
+
 // StreamClient is used to connect to Cryptowatch's data streaming backend.
 // Typically you will get an instance using NewStreamClient(), set any state
 // listeners for the connection you might need, then set data listeners for
@@ -53,11 +58,13 @@ type StreamClient struct {
 	pairUpdateListeners           []PairUpdateCB
 	subscriptionResultListeners   []SubscriptionResultCB
 	unsubscriptionResultListeners []UnsubscriptionResultCB
+	missedMessagesListeners       []MissedMessagesCB
 
 	callMarketUpdateListeners         chan callMarketUpdateListenersReq
 	callPairUpdateListeners           chan callPairUpdateListenersReq
 	callSubscriptionResultListeners   chan callSubscriptionResultListenersReq
 	callUnsubscriptionResultListeners chan callUnsubscriptionResultListenersReq
+	callMissedMessagesListeners       chan callMissedMessagesListenersReq
 
 	// We want to ensure that wsConn's methods aren't available on the
 	// StreamClient to avoid confusion, so we give it explicit name.
@@ -94,6 +101,7 @@ func NewStreamClient(params *WSParams) (*StreamClient, error) {
 		callPairUpdateListeners:           make(chan callPairUpdateListenersReq, 1),
 		callSubscriptionResultListeners:   make(chan callSubscriptionResultListenersReq, 1),
 		callUnsubscriptionResultListeners: make(chan callUnsubscriptionResultListenersReq, 1),
+		callMissedMessagesListeners:       make(chan callMissedMessagesListenersReq, 1),
 	}
 
 	sc.wsConn.onRead(func(data []byte) {
@@ -118,6 +126,9 @@ func NewStreamClient(params *WSParams) (*StreamClient, error) {
 
 		case *pbs.StreamMessage_UnsubscriptionResult:
 			sc.unsubscriptionResultHandler(msg.GetUnsubscriptionResult())
+
+		case *pbs.StreamMessage_MissedMessages:
+			sc.missedMessagesHandler(msg.GetMissedMessages())
 
 		default:
 			// not a supported type
@@ -152,6 +163,11 @@ func (sc *StreamClient) listen() {
 		case req := <-sc.callUnsubscriptionResultListeners:
 			for _, l := range req.listeners {
 				l(req.result)
+			}
+
+		case req := <-sc.callMissedMessagesListeners:
+			for _, l := range req.listeners {
+				l(req.msg)
 			}
 		}
 	}
@@ -210,6 +226,17 @@ func (sc *StreamClient) OnUnsubscriptionResult(cb UnsubscriptionResultCB) {
 	defer sc.mtx.Unlock()
 
 	sc.unsubscriptionResultListeners = append(sc.unsubscriptionResultListeners, cb)
+}
+
+// OnMissedMessages is sent to clients when the server was unable to send all
+// requested messages to the client, so some of them were dropped on the floor.
+// Typically this means that the client subscribed to too many subscriptions,
+// so it should reduce the number of subscriptions.
+func (sc *StreamClient) OnMissedMessages(cb MissedMessagesCB) {
+	sc.mtx.Lock()
+	defer sc.mtx.Unlock()
+
+	sc.missedMessagesListeners = append(sc.missedMessagesListeners, cb)
 }
 
 // OnError registers a callback which will be called on all errors. When it's
@@ -370,6 +397,20 @@ func (sc *StreamClient) unsubscriptionResultHandler(update *pbs.UnsubscriptionRe
 	sc.callUnsubscriptionResultListeners <- callUnsubscriptionResultListenersReq{
 		result:    result,
 		listeners: subresListeners,
+	}
+}
+
+func (sc *StreamClient) missedMessagesHandler(update *pbs.MissedMessages) {
+	msg := missedMessagesFromProto(update)
+
+	sc.mtx.Lock()
+	listeners := make([]MissedMessagesCB, len(sc.missedMessagesListeners))
+	copy(listeners, sc.missedMessagesListeners)
+	sc.mtx.Unlock()
+
+	sc.callMissedMessagesListeners <- callMissedMessagesListenersReq{
+		msg:       msg,
+		listeners: listeners,
 	}
 }
 
