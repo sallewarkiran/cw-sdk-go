@@ -12,16 +12,12 @@ ifndef CW_BUILD_IMAGE_VERSION
 
   PROTOC=docker run --rm -v $(CW_REPO_ROOT):$(DOCKER_CW_REPO_ROOT) \
     -w $(DOCKER_CW_REPO_ROOT)/proto -e CW_REPO_ROOT=$(DOCKER_CW_REPO_ROOT) \
-    --entrypoint protoc \
     $(PROTOC_IMG)
-else
-  # We're already inside of the cw-build docker container, so use protoc
-  # directly.
-  PROTOC=protoc
 endif
 
 proto:
-	$(PROTOC) --gofast_out=. -I. markets/*.proto
-	$(PROTOC) --gofast_out=. -I. client/*.proto
-	$(PROTOC) --gofast_out=Mmarkets/market.proto=code.cryptowat.ch/proto/markets,Mmarkets/pair.proto=code.cryptowat.ch/proto/markets,Mmarkets/asset.proto=code.cryptowat.ch/proto/markets,Mmarkets/index.proto=code.cryptowat.ch/proto/markets:. -I. stream/*.proto
-	$(PROTOC) --gofast_out=Mstream/stream.proto=code.cryptowat.ch/proto/stream:. -I. broker/*.proto
+	$(PROTOC) protolock status && protoc --gofast_out=. -I. markets/*.proto
+	$(PROTOC) protolock status && protoc --gofast_out=. -I. client/*.proto
+	$(PROTOC) protolock status && protoc --gofast_out=Mmarkets/market.proto=code.cryptowat.ch/proto/markets,Mmarkets/pair.proto=code.cryptowat.ch/proto/markets,Mmarkets/asset.proto=code.cryptowat.ch/proto/markets,Mmarkets/index.proto=code.cryptowat.ch/proto/markets:. -I. stream/*.proto
+	$(PROTOC) protolock status && protoc --gofast_out=Mstream/stream.proto=code.cryptowat.ch/proto/stream:. -I. broker/*.proto
+	$(PROTOC) protolock commit
