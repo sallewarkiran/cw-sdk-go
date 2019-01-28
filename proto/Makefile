@@ -16,8 +16,8 @@ ifndef CW_BUILD_IMAGE_VERSION
 endif
 
 proto:
-	$(PROTOC) protolock status && protoc --gofast_out=. -I. markets/*.proto
-	$(PROTOC) protolock status && protoc --gofast_out=. -I. client/*.proto
-	$(PROTOC) protolock status && protoc --gofast_out=Mmarkets/market.proto=code.cryptowat.ch/proto/markets,Mmarkets/pair.proto=code.cryptowat.ch/proto/markets,Mmarkets/asset.proto=code.cryptowat.ch/proto/markets,Mmarkets/index.proto=code.cryptowat.ch/proto/markets:. -I. stream/*.proto
-	$(PROTOC) protolock status && protoc --gofast_out=Mstream/stream.proto=code.cryptowat.ch/proto/stream:. -I. broker/*.proto
+	$(PROTOC) /bin/bash -c "protolock status && protoc --gofast_out=. -I. markets/*.proto"
+	$(PROTOC) /bin/bash -c "protolock status && protoc --gofast_out=. -I. client/*.proto"
+	$(PROTOC) /bin/bash -c "protolock status && protoc --gofast_out=Mmarkets/market.proto=code.cryptowat.ch/proto/markets,Mmarkets/pair.proto=code.cryptowat.ch/proto/markets,Mmarkets/asset.proto=code.cryptowat.ch/proto/markets,Mmarkets/index.proto=code.cryptowat.ch/proto/markets:. -I. stream/*.proto"
+	$(PROTOC) /bin/bash -c "protolock status && protoc --gofast_out=Mstream/stream.proto=code.cryptowat.ch/proto/stream:. -I. broker/*.proto"
 	$(PROTOC) protolock commit
