@@ -49,15 +49,18 @@ func main() {
 
 	// Create a new stream connection instance. Note that the actual connection
 	// will happen later.
-	c, err := websocket.NewStreamClient(&websocket.WSParams{
-		URL: "wss://stream.cryptowat.ch",
-
-		Subscriptions: []string{
-			fmt.Sprintf("exchanges:%d:trades", exchange.ID),
+	c, err := websocket.NewStreamClient(&websocket.StreamClientParams{
+		WSParams: &websocket.WSParams{
+			URL:       "wss://stream.cryptowat.ch",
+			APIKey:    *apiKey,
+			SecretKey: *secretKey,
 		},
 
-		APIKey:    *apiKey,
-		SecretKey: *secretKey,
+		Subscriptions: []*websocket.StreamSubscription{
+			&websocket.StreamSubscription{
+				Resource: fmt.Sprintf("exchanges:%d:trades", exchange.ID),
+			},
+		},
 	})
 	if err != nil {
 		log.Fatalf("%s", err)

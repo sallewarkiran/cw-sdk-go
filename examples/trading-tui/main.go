@@ -186,15 +186,19 @@ func setupStreamClient(
 	mainView *MainView,
 	statesTracker *ConnStateTracker,
 ) (*websocket.StreamClient, error) {
-	streamSubs := []string{}
+	streamSubs := make([]*websocket.StreamSubscription, 0, len(markets))
 	for _, m := range markets {
-		streamSubs = append(streamSubs, fmt.Sprintf("markets:%s:book:spread", m.ID))
+		streamSubs = append(streamSubs, &websocket.StreamSubscription{
+			Resource: fmt.Sprintf("markets:%s:book:spread", m.ID),
+		})
 	}
 
-	sc, err := websocket.NewStreamClient(&websocket.WSParams{
-		URL:       *streamURL,
-		APIKey:    authn.APIKey,
-		SecretKey: authn.SecretKey,
+	sc, err := websocket.NewStreamClient(&websocket.StreamClientParams{
+		WSParams: &websocket.WSParams{
+			URL:       *streamURL,
+			APIKey:    authn.APIKey,
+			SecretKey: authn.SecretKey,
+		},
 
 		Subscriptions: streamSubs,
 	})
@@ -249,15 +253,19 @@ func setupTradeClient(
 	mainView *MainView,
 	statesTracker *ConnStateTracker,
 ) (*websocket.TradeClient, error) {
-	tradeSubs := []string{}
+	tradeSubs := make([]*websocket.TradeSubscription, 0, len(markets))
 	for _, m := range markets {
-		tradeSubs = append(tradeSubs, fmt.Sprintf("%s", m.ID))
+		tradeSubs = append(tradeSubs, &websocket.TradeSubscription{
+			MarketID: common.MarketID(fmt.Sprintf("%s", m.ID)),
+		})
 	}
 
-	tc, err := websocket.NewTradeClient(&websocket.WSParams{
-		URL:       *brokerURL,
-		APIKey:    authn.APIKey,
-		SecretKey: authn.SecretKey,
+	tc, err := websocket.NewTradeClient(&websocket.TradeClientParams{
+		WSParams: &websocket.WSParams{
+			URL:       *brokerURL,
+			APIKey:    authn.APIKey,
+			SecretKey: authn.SecretKey,
+		},
 
 		Subscriptions: tradeSubs,
 	})

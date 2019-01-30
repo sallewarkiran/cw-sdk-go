@@ -55,15 +55,18 @@ func main() {
 		marketSymbols[common.MarketID(fmt.Sprintf("%d", market.ID))] = market.Exchange + " " + market.Pair
 	}
 
-	c, err := websocket.NewStreamClient(&websocket.WSParams{
-		URL: "wss://stream.cryptowat.ch",
-
-		Subscriptions: []string{
-			fmt.Sprintf("pairs:%d:trades", pairDescr.ID),
+	c, err := websocket.NewStreamClient(&websocket.StreamClientParams{
+		WSParams: &websocket.WSParams{
+			URL:       "wss://stream.cryptowat.ch",
+			APIKey:    *apiKey,
+			SecretKey: *secretKey,
 		},
 
-		APIKey:    *apiKey,
-		SecretKey: *secretKey,
+		Subscriptions: []*websocket.StreamSubscription{
+			&websocket.StreamSubscription{
+				Resource: fmt.Sprintf("pairs:%d:trades", pairDescr.ID),
+			},
+		},
 	})
 
 	if err != nil {

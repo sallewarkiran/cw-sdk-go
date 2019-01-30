@@ -6,6 +6,7 @@ import (
 
 	"code.cryptowat.ch/cw-sdk-go/common"
 	pbb "code.cryptowat.ch/cw-sdk-go/proto/broker"
+	pbc "code.cryptowat.ch/cw-sdk-go/proto/client"
 	pbm "code.cryptowat.ch/cw-sdk-go/proto/markets"
 	pbs "code.cryptowat.ch/cw-sdk-go/proto/stream"
 	"github.com/golang/protobuf/proto"
@@ -339,34 +340,36 @@ func subscriptionResultFromProto(sr *pbs.SubscriptionResult) SubscriptionResult 
 	failed := make([]SubscribeError, 0, len(sr.Failed))
 	for _, v := range sr.Failed {
 		failed = append(failed, SubscribeError{
-			Key:   v.Key,
-			Error: v.Error,
+			Key:          v.Key,
+			Error:        v.Error,
+			Subscription: subFromProto(v.GetSubscription()),
 		})
 	}
 
 	return SubscriptionResult{
-		Subscribed: sr.Subscribed,
-		Failed:     failed,
+		Subscriptions: subsFromProto(sr.GetSubscriptions()),
+		Failed:        failed,
 		Status: SubscriptionStatus{
-			Keys: sr.Status.Keys,
+			Subscriptions: subsFromProto(sr.Status.GetSubscriptions()),
 		},
 	}
 }
 
 func unsubscriptionResultFromProto(sr *pbs.UnsubscriptionResult) UnsubscriptionResult {
-	failed := make([]UnsubscribeError, 1, len(sr.Failed))
+	failed := make([]UnsubscribeError, 0, len(sr.Failed))
 	for _, v := range sr.Failed {
 		failed = append(failed, UnsubscribeError{
-			Key:   v.Key,
-			Error: v.Error,
+			Key:          v.Key,
+			Error:        v.Error,
+			Subscription: subFromProto(v.GetSubscription()),
 		})
 	}
 
 	return UnsubscriptionResult{
-		Unsubscribed: sr.Unsubscribed,
-		Failed:       failed,
+		Subscriptions: subsFromProto(sr.GetSubscriptions()),
+		Failed:        failed,
 		Status: SubscriptionStatus{
-			Keys: sr.Status.Keys,
+			Subscriptions: subsFromProto(sr.Status.GetSubscriptions()),
 		},
 	}
 }
@@ -405,6 +408,166 @@ func unmarshalAuthnResultTrade(data []byte) (*pbs.AuthenticationResult, error) {
 	}
 
 	return authnResult, nil
+}
+
+func subsToProto(subs []Subscription) []*pbc.ClientSubscription {
+	if len(subs) == 0 {
+		return nil
+	}
+
+	switch subs[0].(type) {
+	case *StreamSubscription:
+		return streamSubsToProto(subs)
+	case *TradeSubscription:
+		return tradeSubsToProto(subs)
+	}
+
+	panic(errInvalidSubType)
+}
+
+func subsFromProto(subs []*pbc.ClientSubscription) []Subscription {
+	if len(subs) == 0 {
+		return nil
+	}
+
+	switch subs[0].Body.(type) {
+	case *pbc.ClientSubscription_StreamSubscription:
+		return streamSubsToSubs(streamSubsFromProto(subs))
+	case *pbc.ClientSubscription_TradeSubscription:
+		return tradeSubsToSubs(tradeSubsFromProto(subs))
+	}
+
+	panic(errInvalidSubType)
+}
+
+func subFromProto(sub *pbc.ClientSubscription) Subscription {
+	switch v := sub.Body.(type) {
+	case *pbc.ClientSubscription_StreamSubscription:
+		return streamSubFromProto(v)
+	case *pbc.ClientSubscription_TradeSubscription:
+		return tradeSubFromProto(v)
+	}
+
+	panic(errInvalidSubType)
+}
+
+func streamSubToProto(sub *StreamSubscription) *pbc.ClientSubscription_StreamSubscription {
+	return &pbc.ClientSubscription_StreamSubscription{
+		StreamSubscription: &pbc.StreamSubscription{
+			Resource: sub.Resource,
+		},
+	}
+}
+
+func streamSubFromProto(sub *pbc.ClientSubscription_StreamSubscription) *StreamSubscription {
+	if sub == nil {
+		return &StreamSubscription{}
+	}
+
+	return &StreamSubscription{
+		Resource: sub.StreamSubscription.Resource,
+	}
+}
+
+func tradeSubFromProto(sub *pbc.ClientSubscription_TradeSubscription) *TradeSubscription {
+	if sub == nil {
+		return &TradeSubscription{}
+	}
+
+	var auth *TradeSessionAuth
+	if ta := sub.TradeSubscription.GetAuth(); ta != nil {
+		auth = &TradeSessionAuth{
+			APIKey:        ta.ApiKey,
+			APISecret:     ta.ApiSecret,
+			CustomerID:    ta.CustomerId,
+			KeyPassphrase: ta.KeyPassphrase,
+		}
+	}
+
+	return &TradeSubscription{
+		MarketID: common.MarketID(sub.TradeSubscription.GetMarketId()),
+		Auth:     auth,
+	}
+}
+
+func streamSubsToProto(subs []Subscription) []*pbc.ClientSubscription {
+	ret := make([]*pbc.ClientSubscription, 0, len(subs))
+
+	for _, sub := range subs {
+		v, ok := sub.(*StreamSubscription)
+		if !ok {
+			panic(errInvalidSubType)
+		}
+
+		ret = append(ret, &pbc.ClientSubscription{
+			Body: streamSubToProto(v),
+		})
+	}
+
+	return ret
+}
+
+func streamSubsFromProto(subs []*pbc.ClientSubscription) []*StreamSubscription {
+	ret := make([]*StreamSubscription, 0, len(subs))
+
+	for _, s := range subs {
+		v, ok := s.Body.(*pbc.ClientSubscription_StreamSubscription)
+		if !ok {
+			panic(errInvalidSubType)
+		}
+
+		ret = append(ret, streamSubFromProto(v))
+	}
+
+	return ret
+}
+
+func tradeSubsToProto(subs []Subscription) []*pbc.ClientSubscription {
+	ret := make([]*pbc.ClientSubscription, 0, len(subs))
+
+	for _, sub := range subs {
+		v, ok := sub.(*TradeSubscription)
+		if !ok {
+			panic(errInvalidSubType)
+		}
+
+		var auth *pbc.TradeSessionAuth
+
+		if v.Auth != nil {
+			auth = &pbc.TradeSessionAuth{
+				ApiKey:        v.Auth.APIKey,
+				ApiSecret:     v.Auth.APISecret,
+				CustomerId:    v.Auth.CustomerID,
+				KeyPassphrase: v.Auth.KeyPassphrase,
+			}
+		}
+
+		ret = append(ret, &pbc.ClientSubscription{
+			Body: &pbc.ClientSubscription_TradeSubscription{
+				TradeSubscription: &pbc.TradeSubscription{
+					MarketId: string(v.MarketID),
+					Auth:     auth,
+				},
+			},
+		})
+	}
+
+	return ret
+}
+
+func tradeSubsFromProto(subs []*pbc.ClientSubscription) []*TradeSubscription {
+	ret := make([]*TradeSubscription, 0, len(subs))
+
+	for _, s := range subs {
+		v, ok := s.Body.(*pbc.ClientSubscription_TradeSubscription)
+		if !ok {
+			panic(errInvalidSubType)
+		}
+
+		ret = append(ret, tradeSubFromProto(v))
+	}
+
+	return ret
 }
 
 func unixMillisToTime(unixMillis int64) time.Time {

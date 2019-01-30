@@ -14,16 +14,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var testStreamSubscriptions = []*StreamSubscription{
+	{Resource: "foo"},
+	{Resource: "bar"},
+}
+
 func TestStreamClient(t *testing.T) {
 	assert := assert.New(t)
 
 	err := withTestServer(streamServer, t, func(tp *testServerParams) error {
-		client, err := NewStreamClient(&WSParams{
-			URL:           tp.url,
-			Subscriptions: testSubscriptions,
-
-			APIKey:    testApiKey1,
-			SecretKey: testSecretKey1,
+		client, err := NewStreamClient(&StreamClientParams{
+			WSParams: &WSParams{
+				URL:       tp.url,
+				APIKey:    testApiKey1,
+				SecretKey: testSecretKey1,
+			},
+			Subscriptions: testStreamSubscriptions,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -183,26 +189,26 @@ func TestStreamClient(t *testing.T) {
 			return errors.Errorf("sending authn resp: %s", err)
 		}
 
-		subscriptions := []string{
+		subscriptions := []*StreamSubscription{
 			// Market subscriptions
-			"markets:1:trades",
-			"markets:1:summary",
-			"markets:1:ohlc",
-			"markets:1:book:snapshots",
-			"markets:1:book:deltas",
-			"markets:1:book:spread",
+			{"markets:1:trades"},
+			{"markets:1:summary"},
+			{"markets:1:ohlc"},
+			{"markets:1:book:snapshots"},
+			{"markets:1:book:deltas"},
+			{"markets:1:book:spread"},
 
 			// Pair subscriptions
-			"pairs:1:vwap",
-			"pairs:1:performance",
-			"pairs:1:trendline",
+			{"pairs:1:vwap"},
+			{"pairs:1:performance"},
+			{"pairs:1:trendline"},
 		}
 
 		if err := client.Subscribe(subscriptions); err != nil {
 			return errors.Errorf("subscribing to baz: %s", err)
 		}
 
-		if err := waitSubscribeMsg(t, tp, subscriptions); err != nil {
+		if err := waitSubscribeMsg(t, tp, streamSubsToSubs(subscriptions)); err != nil {
 			return errors.Errorf("waiting for subscribe message: %s", err)
 		}
 

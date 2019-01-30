@@ -6,6 +6,7 @@ package ProtobufStream
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
+import client "code.cryptowat.ch/cw-sdk-go/proto/client"
 import markets "code.cryptowat.ch/cw-sdk-go/proto/markets"
 
 import io "io"
@@ -50,7 +51,7 @@ func (x AuthenticationResult_Status) String() string {
 	return proto.EnumName(AuthenticationResult_Status_name, int32(x))
 }
 func (AuthenticationResult_Status) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_stream_b38207b0e52a8650, []int{1, 0}
+	return fileDescriptor_stream_55514a0dfcbb71c9, []int{1, 0}
 }
 
 type StreamMessage struct {
@@ -73,7 +74,7 @@ func (m *StreamMessage) Reset()         { *m = StreamMessage{} }
 func (m *StreamMessage) String() string { return proto.CompactTextString(m) }
 func (*StreamMessage) ProtoMessage()    {}
 func (*StreamMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_b38207b0e52a8650, []int{0}
+	return fileDescriptor_stream_55514a0dfcbb71c9, []int{0}
 }
 func (m *StreamMessage) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -404,7 +405,7 @@ func (m *AuthenticationResult) Reset()         { *m = AuthenticationResult{} }
 func (m *AuthenticationResult) String() string { return proto.CompactTextString(m) }
 func (*AuthenticationResult) ProtoMessage()    {}
 func (*AuthenticationResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_b38207b0e52a8650, []int{1}
+	return fileDescriptor_stream_55514a0dfcbb71c9, []int{1}
 }
 func (m *AuthenticationResult) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -446,21 +447,23 @@ func (m *AuthenticationResult) GetStatus() AuthenticationResult_Status {
 // ClientSubscribeMessage.
 type SubscriptionResult struct {
 	// Successful subscriptions
-	Subscribed []string `protobuf:"bytes,1,rep,name=subscribed,proto3" json:"subscribed,omitempty"`
+	Subscribed []string `protobuf:"bytes,1,rep,name=subscribed,proto3" json:"subscribed,omitempty"` // Deprecated: Do not use.
 	// Faied subscriptions
 	Failed []*SubscribeError `protobuf:"bytes,2,rep,name=failed,proto3" json:"failed,omitempty"`
 	// Current status: list of the keys to which the client is now subscribed
-	Status               *SubscriptionStatus `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
-	XXX_unrecognized     []byte              `json:"-"`
-	XXX_sizecache        int32               `json:"-"`
+	Status *SubscriptionStatus `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	// Successful subscriptions
+	Subscriptions        []*client.ClientSubscription `protobuf:"bytes,4,rep,name=subscriptions,proto3" json:"subscriptions,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
+	XXX_unrecognized     []byte                       `json:"-"`
+	XXX_sizecache        int32                        `json:"-"`
 }
 
 func (m *SubscriptionResult) Reset()         { *m = SubscriptionResult{} }
 func (m *SubscriptionResult) String() string { return proto.CompactTextString(m) }
 func (*SubscriptionResult) ProtoMessage()    {}
 func (*SubscriptionResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_b38207b0e52a8650, []int{2}
+	return fileDescriptor_stream_55514a0dfcbb71c9, []int{2}
 }
 func (m *SubscriptionResult) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -489,6 +492,7 @@ func (m *SubscriptionResult) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SubscriptionResult proto.InternalMessageInfo
 
+// Deprecated: Do not use.
 func (m *SubscriptionResult) GetSubscribed() []string {
 	if m != nil {
 		return m.Subscribed
@@ -510,25 +514,34 @@ func (m *SubscriptionResult) GetStatus() *SubscriptionStatus {
 	return nil
 }
 
+func (m *SubscriptionResult) GetSubscriptions() []*client.ClientSubscription {
+	if m != nil {
+		return m.Subscriptions
+	}
+	return nil
+}
+
 // UnsubscriptionResult is sent to clients in response to
 // ClientUnsubscribeMessage.
 type UnsubscriptionResult struct {
 	// Successful unsubscriptions
-	Unsubscribed []string `protobuf:"bytes,1,rep,name=unsubscribed,proto3" json:"unsubscribed,omitempty"`
+	Unsubscribed []string `protobuf:"bytes,1,rep,name=unsubscribed,proto3" json:"unsubscribed,omitempty"` // Deprecated: Do not use.
 	// Faied unsubscriptions
 	Failed []*UnsubscribeError `protobuf:"bytes,2,rep,name=failed,proto3" json:"failed,omitempty"`
 	// Current status: list of the keys to which the client is now subscribed
-	Status               *SubscriptionStatus `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
-	XXX_unrecognized     []byte              `json:"-"`
-	XXX_sizecache        int32               `json:"-"`
+	Status *SubscriptionStatus `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	// Successful unsubscriptions
+	Subscriptions        []*client.ClientSubscription `protobuf:"bytes,4,rep,name=subscriptions,proto3" json:"subscriptions,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
+	XXX_unrecognized     []byte                       `json:"-"`
+	XXX_sizecache        int32                        `json:"-"`
 }
 
 func (m *UnsubscriptionResult) Reset()         { *m = UnsubscriptionResult{} }
 func (m *UnsubscriptionResult) String() string { return proto.CompactTextString(m) }
 func (*UnsubscriptionResult) ProtoMessage()    {}
 func (*UnsubscriptionResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_b38207b0e52a8650, []int{3}
+	return fileDescriptor_stream_55514a0dfcbb71c9, []int{3}
 }
 func (m *UnsubscriptionResult) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -557,6 +570,7 @@ func (m *UnsubscriptionResult) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UnsubscriptionResult proto.InternalMessageInfo
 
+// Deprecated: Do not use.
 func (m *UnsubscriptionResult) GetUnsubscribed() []string {
 	if m != nil {
 		return m.Unsubscribed
@@ -578,22 +592,30 @@ func (m *UnsubscriptionResult) GetStatus() *SubscriptionStatus {
 	return nil
 }
 
+func (m *UnsubscriptionResult) GetSubscriptions() []*client.ClientSubscription {
+	if m != nil {
+		return m.Subscriptions
+	}
+	return nil
+}
+
 // SubscribeError represents an error of a single key: it contains the key and
 // the error message explaining why subscription has failed. Sent as part of
 // SubscriptionResult.
 type SubscribeError struct {
-	Key                  string   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Error                string   `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	Key                  string                     `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"` // Deprecated: Do not use.
+	Error                string                     `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	Subscription         *client.ClientSubscription `protobuf:"bytes,3,opt,name=subscription,proto3" json:"subscription,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
 }
 
 func (m *SubscribeError) Reset()         { *m = SubscribeError{} }
 func (m *SubscribeError) String() string { return proto.CompactTextString(m) }
 func (*SubscribeError) ProtoMessage()    {}
 func (*SubscribeError) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_b38207b0e52a8650, []int{4}
+	return fileDescriptor_stream_55514a0dfcbb71c9, []int{4}
 }
 func (m *SubscribeError) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -622,6 +644,7 @@ func (m *SubscribeError) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SubscribeError proto.InternalMessageInfo
 
+// Deprecated: Do not use.
 func (m *SubscribeError) GetKey() string {
 	if m != nil {
 		return m.Key
@@ -636,22 +659,30 @@ func (m *SubscribeError) GetError() string {
 	return ""
 }
 
+func (m *SubscribeError) GetSubscription() *client.ClientSubscription {
+	if m != nil {
+		return m.Subscription
+	}
+	return nil
+}
+
 // UnsubscribeError represents an error of a single key: it contains the key
 // and the error message explaining why unsubscription has failed. Sent as part
 // of UnsubscriptionResult.
 type UnsubscribeError struct {
-	Key                  string   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Error                string   `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	Key                  string                     `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"` // Deprecated: Do not use.
+	Error                string                     `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	Subscription         *client.ClientSubscription `protobuf:"bytes,3,opt,name=subscription,proto3" json:"subscription,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
 }
 
 func (m *UnsubscribeError) Reset()         { *m = UnsubscribeError{} }
 func (m *UnsubscribeError) String() string { return proto.CompactTextString(m) }
 func (*UnsubscribeError) ProtoMessage()    {}
 func (*UnsubscribeError) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_b38207b0e52a8650, []int{5}
+	return fileDescriptor_stream_55514a0dfcbb71c9, []int{5}
 }
 func (m *UnsubscribeError) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -680,6 +711,7 @@ func (m *UnsubscribeError) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UnsubscribeError proto.InternalMessageInfo
 
+// Deprecated: Do not use.
 func (m *UnsubscribeError) GetKey() string {
 	if m != nil {
 		return m.Key
@@ -694,20 +726,28 @@ func (m *UnsubscribeError) GetError() string {
 	return ""
 }
 
+func (m *UnsubscribeError) GetSubscription() *client.ClientSubscription {
+	if m != nil {
+		return m.Subscription
+	}
+	return nil
+}
+
 // SubscriptionStatus contains the key to which the client is subscribed right
 // now. Sent as part of SubscriptionResult and UnsubscriptionResult.
 type SubscriptionStatus struct {
-	Keys                 []string `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	Keys                 []string                     `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"` // Deprecated: Do not use.
+	Subscriptions        []*client.ClientSubscription `protobuf:"bytes,2,rep,name=subscriptions,proto3" json:"subscriptions,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
+	XXX_unrecognized     []byte                       `json:"-"`
+	XXX_sizecache        int32                        `json:"-"`
 }
 
 func (m *SubscriptionStatus) Reset()         { *m = SubscriptionStatus{} }
 func (m *SubscriptionStatus) String() string { return proto.CompactTextString(m) }
 func (*SubscriptionStatus) ProtoMessage()    {}
 func (*SubscriptionStatus) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_b38207b0e52a8650, []int{6}
+	return fileDescriptor_stream_55514a0dfcbb71c9, []int{6}
 }
 func (m *SubscriptionStatus) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -736,9 +776,17 @@ func (m *SubscriptionStatus) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SubscriptionStatus proto.InternalMessageInfo
 
+// Deprecated: Do not use.
 func (m *SubscriptionStatus) GetKeys() []string {
 	if m != nil {
 		return m.Keys
+	}
+	return nil
+}
+
+func (m *SubscriptionStatus) GetSubscriptions() []*client.ClientSubscription {
+	if m != nil {
+		return m.Subscriptions
 	}
 	return nil
 }
@@ -757,7 +805,7 @@ func (m *MissedMessages) Reset()         { *m = MissedMessages{} }
 func (m *MissedMessages) String() string { return proto.CompactTextString(m) }
 func (*MissedMessages) ProtoMessage()    {}
 func (*MissedMessages) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_b38207b0e52a8650, []int{7}
+	return fileDescriptor_stream_55514a0dfcbb71c9, []int{7}
 }
 func (m *MissedMessages) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1022,6 +1070,18 @@ func (m *SubscriptionResult) MarshalTo(dAtA []byte) (int, error) {
 		}
 		i += n10
 	}
+	if len(m.Subscriptions) > 0 {
+		for _, msg := range m.Subscriptions {
+			dAtA[i] = 0x22
+			i++
+			i = encodeVarintStream(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -1080,6 +1140,18 @@ func (m *UnsubscriptionResult) MarshalTo(dAtA []byte) (int, error) {
 		}
 		i += n11
 	}
+	if len(m.Subscriptions) > 0 {
+		for _, msg := range m.Subscriptions {
+			dAtA[i] = 0x22
+			i++
+			i = encodeVarintStream(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -1113,6 +1185,16 @@ func (m *SubscribeError) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintStream(dAtA, i, uint64(len(m.Error)))
 		i += copy(dAtA[i:], m.Error)
 	}
+	if m.Subscription != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintStream(dAtA, i, uint64(m.Subscription.Size()))
+		n12, err := m.Subscription.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n12
+	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -1145,6 +1227,16 @@ func (m *UnsubscribeError) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintStream(dAtA, i, uint64(len(m.Error)))
 		i += copy(dAtA[i:], m.Error)
+	}
+	if m.Subscription != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintStream(dAtA, i, uint64(m.Subscription.Size()))
+		n13, err := m.Subscription.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n13
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -1180,6 +1272,18 @@ func (m *SubscriptionStatus) MarshalTo(dAtA []byte) (int, error) {
 			dAtA[i] = uint8(l)
 			i++
 			i += copy(dAtA[i:], s)
+		}
+	}
+	if len(m.Subscriptions) > 0 {
+		for _, msg := range m.Subscriptions {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintStream(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
 		}
 	}
 	if m.XXX_unrecognized != nil {
@@ -1371,6 +1475,12 @@ func (m *SubscriptionResult) Size() (n int) {
 		l = m.Status.Size()
 		n += 1 + l + sovStream(uint64(l))
 	}
+	if len(m.Subscriptions) > 0 {
+		for _, e := range m.Subscriptions {
+			l = e.Size()
+			n += 1 + l + sovStream(uint64(l))
+		}
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1399,6 +1509,12 @@ func (m *UnsubscriptionResult) Size() (n int) {
 		l = m.Status.Size()
 		n += 1 + l + sovStream(uint64(l))
 	}
+	if len(m.Subscriptions) > 0 {
+		for _, e := range m.Subscriptions {
+			l = e.Size()
+			n += 1 + l + sovStream(uint64(l))
+		}
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1417,6 +1533,10 @@ func (m *SubscribeError) Size() (n int) {
 	}
 	l = len(m.Error)
 	if l > 0 {
+		n += 1 + l + sovStream(uint64(l))
+	}
+	if m.Subscription != nil {
+		l = m.Subscription.Size()
 		n += 1 + l + sovStream(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
@@ -1439,6 +1559,10 @@ func (m *UnsubscribeError) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovStream(uint64(l))
 	}
+	if m.Subscription != nil {
+		l = m.Subscription.Size()
+		n += 1 + l + sovStream(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1454,6 +1578,12 @@ func (m *SubscriptionStatus) Size() (n int) {
 	if len(m.Keys) > 0 {
 		for _, s := range m.Keys {
 			l = len(s)
+			n += 1 + l + sovStream(uint64(l))
+		}
+	}
+	if len(m.Subscriptions) > 0 {
+		for _, e := range m.Subscriptions {
+			l = e.Size()
 			n += 1 + l + sovStream(uint64(l))
 		}
 	}
@@ -1990,6 +2120,37 @@ func (m *SubscriptionResult) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Subscriptions", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStream
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStream
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Subscriptions = append(m.Subscriptions, &client.ClientSubscription{})
+			if err := m.Subscriptions[len(m.Subscriptions)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipStream(dAtA[iNdEx:])
@@ -2134,6 +2295,37 @@ func (m *UnsubscriptionResult) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Subscriptions", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStream
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStream
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Subscriptions = append(m.Subscriptions, &client.ClientSubscription{})
+			if err := m.Subscriptions[len(m.Subscriptions)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipStream(dAtA[iNdEx:])
@@ -2242,6 +2434,39 @@ func (m *SubscribeError) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Error = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Subscription", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStream
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStream
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Subscription == nil {
+				m.Subscription = &client.ClientSubscription{}
+			}
+			if err := m.Subscription.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -2352,6 +2577,39 @@ func (m *UnsubscribeError) Unmarshal(dAtA []byte) error {
 			}
 			m.Error = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Subscription", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStream
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStream
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Subscription == nil {
+				m.Subscription = &client.ClientSubscription{}
+			}
+			if err := m.Subscription.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipStream(dAtA[iNdEx:])
@@ -2431,6 +2689,37 @@ func (m *SubscriptionStatus) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Keys = append(m.Keys, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Subscriptions", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStream
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStream
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Subscriptions = append(m.Subscriptions, &client.ClientSubscription{})
+			if err := m.Subscriptions[len(m.Subscriptions)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -2629,46 +2918,50 @@ var (
 	ErrIntOverflowStream   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("stream/stream.proto", fileDescriptor_stream_b38207b0e52a8650) }
+func init() { proto.RegisterFile("stream/stream.proto", fileDescriptor_stream_55514a0dfcbb71c9) }
 
-var fileDescriptor_stream_b38207b0e52a8650 = []byte{
-	// 603 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x54, 0xcd, 0x6e, 0xda, 0x4c,
-	0x14, 0xb5, 0x63, 0xe2, 0x7c, 0xdc, 0x24, 0xc8, 0xb9, 0x61, 0x81, 0xb2, 0xb0, 0x90, 0xbf, 0x2e,
-	0x90, 0x5a, 0x11, 0x29, 0x95, 0xaa, 0x28, 0x8b, 0x4a, 0xfc, 0x58, 0x35, 0x8d, 0x30, 0x68, 0x00,
-	0xf5, 0x67, 0x13, 0x99, 0x78, 0xd2, 0x5a, 0x84, 0x1f, 0x79, 0x6c, 0xa9, 0x3c, 0x47, 0x37, 0x7d,
-	0x84, 0x2e, 0xbb, 0xea, 0x33, 0x74, 0xd9, 0x47, 0xa8, 0xe8, 0x8b, 0x54, 0x1e, 0x0f, 0x60, 0x1b,
-	0x47, 0xcd, 0xa2, 0x2b, 0x8f, 0xaf, 0xcf, 0x39, 0x1c, 0x9f, 0x7b, 0x30, 0x9c, 0xb2, 0xc0, 0xa7,
-	0xce, 0xf4, 0x3c, 0xbe, 0xd4, 0x17, 0xfe, 0x3c, 0x98, 0x63, 0xa9, 0x1f, 0x5d, 0xc6, 0xe1, 0xdd,
-	0x80, 0x4f, 0xcf, 0xca, 0x53, 0xc7, 0x9f, 0xd0, 0x80, 0x9d, 0xc7, 0xd7, 0x18, 0x75, 0x76, 0xba,
-	0x9e, 0x7a, 0x33, 0x97, 0x7e, 0x12, 0x43, 0x5c, 0x0f, 0x17, 0x8e, 0xe7, 0x67, 0x81, 0x0e, 0x63,
-	0x6b, 0xb6, 0xf1, 0x79, 0x1f, 0x8e, 0x63, 0xf9, 0x2e, 0x65, 0xcc, 0xf9, 0x40, 0xf1, 0x3d, 0x94,
-	0x9d, 0x30, 0xf8, 0x48, 0x67, 0x81, 0x77, 0xeb, 0x04, 0xde, 0x7c, 0x46, 0x28, 0x0b, 0xef, 0x83,
-	0x8a, 0x5c, 0x95, 0x6b, 0x87, 0x17, 0x4f, 0xea, 0x69, 0x53, 0xf5, 0x46, 0x0e, 0xd6, 0x92, 0x48,
-	0xae, 0x06, 0xbe, 0x86, 0xa3, 0xd8, 0xc4, 0x68, 0xe1, 0x3a, 0x01, 0xad, 0xec, 0x65, 0x34, 0xbb,
-	0xb1, 0xc3, 0x7a, 0x37, 0x01, 0x12, 0xbe, 0x2c, 0x89, 0xa4, 0xb8, 0xd8, 0x06, 0x88, 0x5e, 0x4e,
-	0x28, 0x29, 0x5c, 0xc9, 0xd8, 0x51, 0xea, 0x6f, 0x20, 0x5b, 0x9d, 0x04, 0x0f, 0x5f, 0xc1, 0x21,
-	0x8f, 0x43, 0xc8, 0x14, 0xb8, 0xcc, 0xff, 0x3b, 0x32, 0x8d, 0x2d, 0x66, 0xab, 0x93, 0x64, 0xe2,
-	0x10, 0x90, 0x85, 0x63, 0x76, 0xeb, 0x7b, 0x8b, 0x44, 0x68, 0xfb, 0x19, 0x5b, 0x22, 0xb4, 0xc1,
-	0x0e, 0xd2, 0x92, 0x48, 0x0e, 0x3f, 0x5a, 0x46, 0x38, 0xcb, 0xd1, 0x55, 0xf3, 0x97, 0x31, 0xca,
-	0xc1, 0x46, 0xcb, 0xc8, 0xd3, 0x40, 0x0b, 0x4a, 0x53, 0x8f, 0x31, 0xea, 0x8a, 0x37, 0x62, 0x95,
-	0x03, 0xae, 0xaa, 0x67, 0x55, 0xbb, 0x29, 0x94, 0x25, 0x91, 0x0c, 0x2f, 0x0a, 0x91, 0x97, 0x4f,
-	0x84, 0xf8, 0xdf, 0x03, 0x21, 0x76, 0xb6, 0x98, 0x44, 0x88, 0x09, 0x66, 0x53, 0x85, 0xc2, 0x78,
-	0xee, 0x2e, 0x8d, 0xef, 0x32, 0x94, 0xf3, 0x8a, 0x85, 0x2d, 0x50, 0x59, 0xe0, 0x04, 0x21, 0xe3,
-	0x75, 0x2c, 0x5d, 0x3c, 0x7d, 0x4c, 0x1d, 0xeb, 0x03, 0x4e, 0x21, 0x82, 0x6a, 0xbc, 0x03, 0x35,
-	0x9e, 0xe0, 0x21, 0x1c, 0x8c, 0xec, 0x6b, 0xbb, 0xf7, 0xc6, 0xd6, 0x24, 0x3c, 0x81, 0xe3, 0xc6,
-	0x68, 0x68, 0x99, 0xf6, 0xb0, 0xd3, 0x6a, 0x0c, 0xcd, 0xb6, 0x26, 0xe3, 0x31, 0x14, 0x9b, 0x8d,
-	0xf6, 0x8d, 0xdd, 0xb3, 0x5b, 0xa6, 0xb6, 0xb7, 0xbe, 0x1d, 0xf6, 0xae, 0x4d, 0x5b, 0x53, 0x22,
-	0x02, 0x3f, 0xde, 0x98, 0x6f, 0xfb, 0x1d, 0x62, 0xb6, 0xb5, 0x82, 0xf1, 0x55, 0x06, 0xdc, 0x5d,
-	0x2e, 0xea, 0x00, 0x62, 0x01, 0x63, 0xea, 0x56, 0xe4, 0xaa, 0x52, 0x2b, 0x92, 0xc4, 0x04, 0x5f,
-	0x80, 0x7a, 0xe7, 0x78, 0xf7, 0xd4, 0xad, 0xec, 0x55, 0x95, 0xbc, 0x15, 0x0c, 0xd6, 0x58, 0xd3,
-	0xf7, 0xe7, 0x3e, 0x11, 0x68, 0xbc, 0xda, 0xc4, 0xa1, 0xfc, 0xbd, 0x68, 0x99, 0x14, 0xbe, 0xc9,
-	0x50, 0xce, 0xeb, 0x0b, 0x1a, 0x70, 0xb4, 0xe9, 0xcb, 0xd6, 0x6e, 0x6a, 0x86, 0x97, 0x19, 0xc3,
-	0xd5, 0x07, 0x9b, 0xf8, 0x2f, 0x2d, 0x5f, 0x42, 0x29, 0x1d, 0x04, 0x6a, 0xa0, 0x4c, 0xe8, 0x92,
-	0x97, 0xa1, 0x48, 0xa2, 0x23, 0x96, 0x61, 0x9f, 0x46, 0x8f, 0xf8, 0xb7, 0xa5, 0x48, 0xe2, 0x1b,
-	0xe3, 0x0a, 0xb4, 0xac, 0xa3, 0x47, 0x73, 0x6b, 0xe9, 0x95, 0x8a, 0xea, 0x20, 0x14, 0x26, 0x74,
-	0xc9, 0x44, 0x3a, 0xfc, 0x6c, 0xbc, 0x84, 0x52, 0xfa, 0xbf, 0x82, 0xcf, 0xe0, 0x64, 0x16, 0x4e,
-	0xd3, 0x43, 0xfe, 0x8b, 0x0a, 0xd9, 0x7d, 0xd0, 0xd4, 0x7e, 0xac, 0x74, 0xf9, 0xe7, 0x4a, 0x97,
-	0x7f, 0xad, 0x74, 0xf9, 0xcb, 0x6f, 0x5d, 0x1a, 0xab, 0xfc, 0x2b, 0xfd, 0xfc, 0x4f, 0x00, 0x00,
-	0x00, 0xff, 0xff, 0x6a, 0xed, 0xe1, 0x0c, 0x20, 0x06, 0x00, 0x00,
+var fileDescriptor_stream_55514a0dfcbb71c9 = []byte{
+	// 662 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x55, 0xcd, 0x6e, 0xd3, 0x40,
+	0x10, 0xce, 0xc6, 0x69, 0x4a, 0xa7, 0x4d, 0xe4, 0x4e, 0x23, 0x64, 0xf5, 0x10, 0x45, 0x06, 0xa1,
+	0x4a, 0xa0, 0x54, 0x2a, 0x12, 0x42, 0x1c, 0x90, 0xf2, 0x63, 0x70, 0xa9, 0xe2, 0x56, 0x4e, 0x22,
+	0x7e, 0x2e, 0x95, 0xd3, 0x6c, 0xc1, 0x6a, 0xf3, 0x23, 0xaf, 0x8d, 0xe8, 0x1d, 0xf1, 0x02, 0x5c,
+	0x78, 0x12, 0x9e, 0x81, 0x23, 0x8f, 0x80, 0xca, 0x3b, 0x70, 0x44, 0xc8, 0xbb, 0x9b, 0xc6, 0x6b,
+	0xbb, 0x02, 0x71, 0x81, 0xd3, 0x64, 0xc7, 0xdf, 0xf7, 0x79, 0xe6, 0x9b, 0xf1, 0x06, 0xb6, 0x58,
+	0x18, 0x50, 0x6f, 0xb2, 0x2b, 0x42, 0x73, 0x1e, 0xcc, 0xc2, 0x19, 0x56, 0x8f, 0xe2, 0x30, 0x8a,
+	0x4e, 0xfb, 0x3c, 0xbb, 0xbd, 0x75, 0x72, 0xee, 0xd3, 0x69, 0xb8, 0x2b, 0x82, 0x00, 0x6d, 0xd7,
+	0x26, 0x5e, 0x70, 0x46, 0x43, 0xb6, 0x2b, 0xa2, 0xcc, 0x6e, 0x2d, 0xb2, 0xfe, 0x74, 0x4c, 0xdf,
+	0xc9, 0x24, 0x2e, 0x92, 0x73, 0xcf, 0x0f, 0xd2, 0x40, 0x8f, 0xb1, 0x05, 0xdb, 0xfc, 0xb8, 0x02,
+	0x15, 0xf1, 0xce, 0x1e, 0x65, 0xcc, 0x7b, 0x4d, 0xf1, 0x15, 0xd4, 0xbc, 0x28, 0x7c, 0x43, 0xa7,
+	0xa1, 0x7f, 0xe2, 0x85, 0xfe, 0x6c, 0xea, 0x52, 0x16, 0x9d, 0x87, 0x06, 0x69, 0x90, 0x9d, 0xf5,
+	0xbd, 0xdb, 0x4d, 0xb5, 0xd2, 0x66, 0x2b, 0x07, 0x6b, 0x17, 0xdc, 0x5c, 0x0d, 0x7c, 0x06, 0x1b,
+	0xa2, 0x88, 0xe1, 0x7c, 0xec, 0x85, 0xd4, 0x28, 0xa6, 0x34, 0x7b, 0xa2, 0xc2, 0x66, 0x2f, 0x01,
+	0x92, 0x75, 0xd9, 0x05, 0x57, 0xe1, 0x62, 0x17, 0x20, 0x6e, 0x4e, 0x2a, 0x69, 0x5c, 0xc9, 0xcc,
+	0x28, 0x1d, 0x5d, 0x41, 0x96, 0x3a, 0x09, 0x1e, 0x3e, 0x85, 0x75, 0x6e, 0x87, 0x94, 0x29, 0x71,
+	0x99, 0x5b, 0x19, 0x99, 0xd6, 0x12, 0xb3, 0xd4, 0x49, 0x32, 0x71, 0x00, 0xc8, 0xa2, 0x11, 0x3b,
+	0x09, 0xfc, 0x79, 0xc2, 0xb4, 0x95, 0x54, 0x59, 0xd2, 0xb4, 0x7e, 0x06, 0x69, 0x17, 0xdc, 0x1c,
+	0x7e, 0x3c, 0x8c, 0x68, 0x9a, 0xa3, 0x5b, 0xce, 0x1f, 0xc6, 0x30, 0x07, 0x1b, 0x0f, 0x23, 0x4f,
+	0x03, 0x6d, 0xa8, 0x4e, 0x7c, 0xc6, 0xe8, 0x58, 0x76, 0xc4, 0x8c, 0x55, 0xae, 0x5a, 0x4f, 0xab,
+	0xf6, 0x14, 0x94, 0x5d, 0x70, 0x53, 0xbc, 0xd8, 0x44, 0xbe, 0x7c, 0xd2, 0xc4, 0x1b, 0xd7, 0x98,
+	0xb8, 0xbf, 0xc4, 0x24, 0x4c, 0x4c, 0x30, 0xdb, 0x65, 0x28, 0x8d, 0x66, 0xe3, 0x0b, 0xf3, 0x33,
+	0x81, 0x5a, 0xde, 0x62, 0x61, 0x07, 0xca, 0x2c, 0xf4, 0xc2, 0x88, 0xf1, 0x75, 0xac, 0xee, 0xdd,
+	0xfd, 0x93, 0x75, 0x6c, 0xf6, 0x39, 0xc5, 0x95, 0x54, 0xf3, 0x25, 0x94, 0x45, 0x06, 0xd7, 0x61,
+	0x75, 0xe8, 0x1c, 0x38, 0x87, 0xcf, 0x1d, 0xbd, 0x80, 0x9b, 0x50, 0x69, 0x0d, 0x07, 0xb6, 0xe5,
+	0x0c, 0xf6, 0x3b, 0xad, 0x81, 0xd5, 0xd5, 0x09, 0x56, 0x60, 0xad, 0xdd, 0xea, 0x1e, 0x3b, 0x87,
+	0x4e, 0xc7, 0xd2, 0x8b, 0x8b, 0xe3, 0xe0, 0xf0, 0xc0, 0x72, 0x74, 0x2d, 0x26, 0xf0, 0x9f, 0xc7,
+	0xd6, 0x8b, 0xa3, 0x7d, 0xd7, 0xea, 0xea, 0x25, 0xf3, 0x07, 0x01, 0xcc, 0x0e, 0x17, 0x4d, 0x00,
+	0x39, 0x80, 0x11, 0x1d, 0x1b, 0xa4, 0xa1, 0xed, 0xac, 0xb5, 0x8b, 0x06, 0x71, 0x13, 0x59, 0x7c,
+	0x00, 0xe5, 0x53, 0xcf, 0x3f, 0xa7, 0x63, 0xa3, 0xd8, 0xd0, 0xf2, 0xc6, 0xd0, 0x5f, 0x60, 0xad,
+	0x20, 0x98, 0x05, 0xae, 0x44, 0xe3, 0xa3, 0x2b, 0x4b, 0xb4, 0xdf, 0x2f, 0x9b, 0xea, 0x04, 0xda,
+	0x50, 0x49, 0x2e, 0x06, 0x33, 0x4a, 0xfc, 0xd5, 0x4b, 0x89, 0x8e, 0xb8, 0x7f, 0x44, 0x50, 0x1a,
+	0x53, 0x89, 0xe6, 0x4f, 0x02, 0xb5, 0xbc, 0xed, 0xc3, 0x3b, 0xb0, 0x71, 0xb5, 0x7d, 0x6a, 0xf3,
+	0x4a, 0x1e, 0x1f, 0xa6, 0xda, 0x6f, 0x5c, 0xbb, 0xdb, 0xff, 0xa7, 0x01, 0xef, 0x09, 0x54, 0xd5,
+	0x09, 0x61, 0x0d, 0xb4, 0x33, 0x7a, 0xc1, 0x37, 0x55, 0x74, 0x1c, 0x1f, 0xb1, 0x06, 0x2b, 0x34,
+	0x7e, 0xcc, 0x2f, 0xbf, 0x35, 0x57, 0x1c, 0xf0, 0x09, 0x6c, 0x24, 0xf5, 0x32, 0xad, 0x5c, 0x5f,
+	0x87, 0xc2, 0x33, 0x3f, 0x10, 0xd0, 0xd3, 0x4e, 0xfd, 0x93, 0x42, 0xde, 0xaa, 0x1f, 0x82, 0xfc,
+	0xe0, 0x6e, 0x42, 0xe9, 0x8c, 0x5e, 0xb0, 0xc4, 0x16, 0xf0, 0x73, 0x76, 0x0e, 0xc5, 0xbf, 0x9d,
+	0xc3, 0x63, 0xa8, 0xaa, 0xf7, 0x15, 0xde, 0x83, 0xcd, 0x69, 0x34, 0x51, 0x93, 0xdc, 0x0b, 0xcd,
+	0xcd, 0x3e, 0x68, 0xeb, 0x5f, 0x2e, 0xeb, 0xe4, 0xeb, 0x65, 0x9d, 0x7c, 0xbb, 0xac, 0x93, 0x4f,
+	0xdf, 0xeb, 0x85, 0x51, 0x99, 0xff, 0x53, 0xde, 0xff, 0x15, 0x00, 0x00, 0xff, 0xff, 0x4f, 0x04,
+	0x2d, 0x81, 0xb9, 0x07, 0x00, 0x00,
 }

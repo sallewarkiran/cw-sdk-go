@@ -9,24 +9,25 @@ the same underlying connection logic. Each service has its own respective client
 
 Cryptowatch Websocket API
 
-The Cryptowatch Websocket API is currently in Beta and is not yet publicly available. Please
-inquire about getting access here: https://docs.google.com/forms/d/e/1FAIpQLSdhv_ceVtKA0qQcW6zQzBniRBaZ_cC4al31lDCeZirntkmWQw/viewform?c=0&w=1
+View the full websocket api documentation here: https://cryptowat.ch/docs/websocket-api
 
 Connecting
 
-To connect to either the streaming or trading back end, you will need an API key pair. Please refer to the
-section above about obtaining keys. The same API key pair will work for both streaming and trading, although
-we use specific access control rules on our back end to determine if your key pair can access any particular
-data subscription or trading functionality. In the future, you will be able to manage this through a settings
-page on your Cryptowatch account.
+To connect to either the streaming or trading back end, you will need an API key pair. Please inquire about
+obtaining API keys here: https://docs.google.com/forms/d/e/1FAIpQLSdhv_ceVtKA0qQcW6zQzBniRBaZ_cC4al31lDCeZirntkmWQw/viewform?c=0&w=1
 
-Both websocket clients use the WSParams struct to connect to either service.
+The same API key pair will work for both streaming and trading, although
+we use specific access control rules on our back end to determine if your key pair can access any particular
+data subscription or trading functionality.
+
+WSParams
+
+Both StreamClient and TradeClient use WSParams to specify connection options.
 
 	type WSParams struct {
 		// Required
 		APIKey        string
 		SecretKey     string
-		Subscriptions []string
 
 		// Not required
 		URL           string
@@ -44,23 +45,13 @@ reconnect with linear backoff up to 30 seconds.
 
 Subscriptions
 
-The Subscriptions slice supplied in WSParams has a different meaning depending on whether you are
-using the StreamClient or TradeClient.
+The Subscriptions supplied in StreamClientParams determine what resources will be streamed.
+Read the streaming subscriptions documentation here: https://cryptowat.ch/docs/websocket-api#data-subscriptions
 
-In the context of StreamClient, Subscriptions are data subscriptions in the form of colon-separated
-resources. For example, to get order book snapshot updates for a particular market, you might
-supply "markets:68:book:snapshots". There is a limit of 100 subscriptions per connection.
-Please refer to our Websocket API documentation to learn more about
-the types of data subscriptions: https://cryptowat.ch/docs/streaming-api#intro.
+The Subscriptions supplied in TradeClientParams determine what markets can be traded on. Read
+about the trading subscription documentation here: https://cryptowat.ch/docs/websocket-api#trading-subscriptions
 
-Subscriptions for the TradeClient are simply the IDs of markets you wish to trade on. Market IDs can be
-obtained through Cryptowatch's REST API: https://api.cryptowat.ch/markets.
-
-NOTE: TradeClient currently supports 1 market at a time,
-so you can only provide a single market ID to trade on. To trade on multiple markets, you should create
-multiple TradeClient instances, each subscribing to a different market like "1".
-
-We are adding support for multiple markets soon, and this will be available when cw-sdk-go is out of beta.
+Both StreamClient and TradeClient can define OnSubscriptionResult which gives information about what was successfully subscribed to, and if there were any errors (e.g. Access Denied).
 
 Basic Usage
 
@@ -75,12 +66,19 @@ The stream client can be set up to process live market-level or pair-level data 
 
 	import "code.cryptowat.ch/cw-sdk-go"
 
-	client, err := websocket.NewStreamClient(&streamclient.WSParams{
-		APIKey:    "myapikey",
-		SecretKey: "mysecretkey",
-		Subscriptions:    []string{
-			"markets:86:trades", // Trade feed for Kraken BTCEUR
-			"markets:87:trades", // Trade feed for Kraken BTCUSD
+	client, err := websocket.NewStreamClient(&websocket.StreamClientParams{
+		WSParams: &websocket.WSParams{
+			APIKey:    "myapikey",
+			SecretKey: "mysecretkey",
+		},
+
+		Subscriptions: []*websocket.StreamSubscription{
+			&websocket.StreamSubscription{
+				Resource: "markets:86:trades", // Trade feed for Kraken BTCEUR
+			},
+			&websocket.StreamSubscription{
+				Resource: "markets:87:trades", // Trade feed for Kraken BTCEUR
+			},
 		},
 	})
 	if err != nil {
@@ -101,13 +99,24 @@ The trade client maintains the state of your orders, trades, balances, and posit
 allowing you to place and cancel orders. In order to start trading, you must wait for the
 internal cache to initialize, which can be accomplished using the OnReady callback.
 
-	import "code.cryptowat.ch/cw-sdk-go"
+Each subscription represents a market you intend to trade and receive updates on. You can supply
+API keys for the exchange, or the client will fall back on your API keys loaded in your Cryptowatch account.
 
-	client, err := websocket.NewTradeClient(&streamclient.WSParams{
-		APIKey:    "myapikey",
-		SecretKey: "mysecretkey",
-		Subscriptions:    []string{
-			"86", // Trade on Kraken BTCEUR
+	import (
+		"code.cryptowat.ch/cw-sdk-go"
+		"code.cryptowat.ch/cw-sdk-go/common"
+	)
+
+	client, err := websocket.NewTradeClient(&websocket.TradeClientParams{
+		WSParams: &websocket.WSParams{
+			APIKey:    "myapikey",
+			SecretKey: "mysecretkey",
+		},
+
+		Subscriptions: []*websocket.TradeSubscription{
+			&websocket.TradeSubscription{
+				MarketID: common.MarketID("86"), // Trade on Kraken BTCEUR
+			},
 		},
 	})
 	if err != nil {
@@ -124,14 +133,10 @@ internal cache to initialize, which can be accomplished using the OnReady callba
 
 Error Handling and Connection States
 
-Both StreamClient and TradeClient can set error handlers using the OnError
-method:
-
-	var lastError error
-
-	client.OnError(func(err error, disconnecting bool) {
-    // Handle the error
-	})
+Both StreamClient and TradeClient define an OnError callback which you can use
+to respond to any error that may occur. The OnError callback function signature is
+slightly different for trading because it includes a MarketID for any error that is
+related to trading. The MarketID is blank for any error related to the connection itself.
 
 The "disconnecting" argument is set to true if the error is going to cause the
 disconnection: in this case, the app could store the error somewhere and show

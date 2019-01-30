@@ -10,6 +10,7 @@ import (
 
 	"code.cryptowat.ch/cw-sdk-go/common"
 	pbb "code.cryptowat.ch/cw-sdk-go/proto/broker"
+	pbs "code.cryptowat.ch/cw-sdk-go/proto/stream"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -136,7 +137,6 @@ type syncReq struct {
 // TradeClient is used to manage a connection to Cryptowatch's trading back end, and
 // provides functions for trading on the the subscribed markets. TradeClient
 // also has callbacks for updates related to trading.
-// NOTE multiple markets will be enabled in a future update.
 type TradeClient struct {
 	// marketIDs is a slice of all market IDs this trade client cares about right
 	// now.
@@ -156,12 +156,13 @@ type TradeClient struct {
 	cancelOrderRequests chan cancelOrderReq
 	syncRequests        chan syncReq
 
-	callOrdersListeners        chan callOrdersListenersReq
-	callTradesListeners        chan callTradesListenersReq
-	callBalancesListeners      chan callBalancesListenersReq
-	callPositionsListeners     chan callPositionsListenersReq
-	callSessionStatusListeners chan callSessionStatusListenersReq
-	callErrorListeners         chan callErrorListenersReq
+	callOrdersListeners             chan callOrdersListenersReq
+	callTradesListeners             chan callTradesListenersReq
+	callBalancesListeners           chan callBalancesListenersReq
+	callPositionsListeners          chan callPositionsListenersReq
+	callSessionStatusListeners      chan callSessionStatusListenersReq
+	callSubscriptionResultListeners chan callSubscriptionResultListenersReq
+	callErrorListeners              chan callErrorListenersReq
 
 	ordersListeners      []OrdersUpdateCB
 	tradesListeners      []PrivateTradesUpdateCB
@@ -169,9 +170,10 @@ type TradeClient struct {
 	positionsListeners   []OnPositionsUpdateCB
 	marketReadyListeners []OnMarketReadyCB
 
-	sessionStatusListeners []sessionStatusUpdateCB
-	onReadyCallbacks       []func()
-	onErrorCBs             []OnTradeErrorCB
+	sessionStatusListeners      []sessionStatusUpdateCB
+	subscriptionResultListeners []SubscriptionResultCB
+	onReadyCallbacks            []func()
+	onErrorCBs                  []OnTradeErrorCB
 
 	tradeStatus *tradeStatusTracker
 
@@ -184,22 +186,43 @@ type TradeClient struct {
 	mtx sync.Mutex
 }
 
+type TradeSessionAuth struct {
+	APIKey        string
+	APISecret     string
+	CustomerID    string // Bitstamp
+	KeyPassphrase string // Coinbase-pro
+}
+
+type TradeSubscription struct {
+	MarketID common.MarketID
+	Auth     *TradeSessionAuth // nil defaults to CW exchange keys
+}
+
+func (s *TradeSubscription) GetResource() string {
+	return string(s.MarketID)
+}
+
+type TradeClientParams struct {
+	WSParams      *WSParams
+	Subscriptions []*TradeSubscription
+}
+
 // NewTradeClient creates a new TradeClient based on the given WSParams. Subscriptions
 // should be an array of market IDs that you have access to trade on.
-// NOTE multiple markets will be enabled in a future update.
-func NewTradeClient(params *WSParams) (*TradeClient, error) {
+func NewTradeClient(params *TradeClientParams) (*TradeClient, error) {
 	// Make a copy of params struct because we might alter it below
 	paramsCopy := *params
 	params = &paramsCopy
 
-	if params.URL == "" {
-		params.URL = DefaultTradeURL
+	if params.WSParams.URL == "" {
+		params.WSParams.URL = DefaultTradeURL
 	}
 
 	wsConn, err := newWsConn(
-		params,
+		params.WSParams,
 		&wsConnParamsInternal{
 			unmarshalAuthnResult: unmarshalAuthnResultTrade,
+			subscriptions:        tradeSubsToSubs(params.Subscriptions),
 		},
 	)
 	if err != nil {
@@ -208,7 +231,7 @@ func NewTradeClient(params *WSParams) (*TradeClient, error) {
 
 	marketIDs := make([]common.MarketID, 0, len(params.Subscriptions))
 	for _, s := range params.Subscriptions {
-		marketIDs = append(marketIDs, common.MarketID(s))
+		marketIDs = append(marketIDs, s.MarketID)
 	}
 
 	tc := &TradeClient{
@@ -231,12 +254,13 @@ func NewTradeClient(params *WSParams) (*TradeClient, error) {
 		cancelOrderRequests: make(chan cancelOrderReq, 1),
 		syncRequests:        make(chan syncReq, 1),
 
-		callOrdersListeners:        make(chan callOrdersListenersReq, 1),
-		callTradesListeners:        make(chan callTradesListenersReq, 1),
-		callBalancesListeners:      make(chan callBalancesListenersReq, 1),
-		callPositionsListeners:     make(chan callPositionsListenersReq, 1),
-		callSessionStatusListeners: make(chan callSessionStatusListenersReq, 1),
-		callErrorListeners:         make(chan callErrorListenersReq, 1),
+		callOrdersListeners:             make(chan callOrdersListenersReq, 1),
+		callTradesListeners:             make(chan callTradesListenersReq, 1),
+		callBalancesListeners:           make(chan callBalancesListenersReq, 1),
+		callPositionsListeners:          make(chan callPositionsListenersReq, 1),
+		callSessionStatusListeners:      make(chan callSessionStatusListenersReq, 1),
+		callSubscriptionResultListeners: make(chan callSubscriptionResultListenersReq, 1),
+		callErrorListeners:              make(chan callErrorListenersReq, 1),
 	}
 
 	tc.wsConn.onRead(func(data []byte) {
@@ -262,6 +286,9 @@ func NewTradeClient(params *WSParams) (*TradeClient, error) {
 
 		case *pbb.BrokerUpdateMessage_PositionsUpdate:
 			tc.positionsUpdateHandler(tc.sMarketID(msg.GetMarketId()), msg.GetPositionsUpdate())
+
+		case *pbb.BrokerUpdateMessage_SubscriptionResult:
+			tc.subscriptionResultHandler(msg.GetSubscriptionResult())
 
 		case *pbb.BrokerUpdateMessage_SessionStatusUpdate:
 			tc.sessionStatusUpdateHandler(tc.sMarketID(msg.GetMarketId()), msg.GetSessionStatusUpdate())
@@ -516,6 +543,20 @@ func (tc *TradeClient) apiAccessorStatusUpdateHandler(marketID common.MarketID, 
 	}
 }
 
+func (tc *TradeClient) subscriptionResultHandler(update *pbs.SubscriptionResult) {
+	result := subscriptionResultFromProto(update)
+
+	tc.mtx.Lock()
+	subresListeners := make([]SubscriptionResultCB, len(tc.subscriptionResultListeners))
+	copy(subresListeners, tc.subscriptionResultListeners)
+	tc.mtx.Unlock()
+
+	tc.callSubscriptionResultListeners <- callSubscriptionResultListenersReq{
+		result:    result,
+		listeners: subresListeners,
+	}
+}
+
 func (tc *TradeClient) scheduleCallErrorHandlers(
 	marketID common.MarketID, err error, disconnecting bool,
 ) {
@@ -619,23 +660,6 @@ func (tc *TradeClient) CancelOrder(marketID common.MarketID, order common.Privat
 	return <-response
 }
 
-// Sync forces a cache update by polling the exchange on behalf of the user.
-// This function should not normally be needed, and is only useful in two scenarios:
-// 1) an order is placed or cancelled outside of this client.
-// 2) there is something preventing our trading back end from actively polling for updates.
-// This happens rarely, and for various reasons. For example, an exchange may rate limit
-// one of our servers.
-func (tc *TradeClient) Sync(marketID common.MarketID) error {
-	response := make(chan error, 1)
-
-	tc.syncRequests <- syncReq{
-		marketID: marketID,
-		response: response,
-	}
-
-	return <-response
-}
-
 func (tc *TradeClient) cancelOrderInt(marketID common.MarketID, orderID string) error {
 	res, err := tc.makeRequest(
 		marketID,
@@ -654,6 +678,23 @@ func (tc *TradeClient) cancelOrderInt(marketID common.MarketID, orderID string) 
 	}
 
 	return nil
+}
+
+// Sync forces a cache update by polling the exchange on behalf of the user.
+// This function should not normally be needed, and is only useful in two scenarios:
+// 1) an order is placed or cancelled outside of this client.
+// 2) there is something preventing our trading back end from actively polling for updates.
+// This happens rarely, and for various reasons. For example, an exchange may rate limit
+// one of our servers.
+func (tc *TradeClient) Sync(marketID common.MarketID) error {
+	response := make(chan error, 1)
+
+	tc.syncRequests <- syncReq{
+		marketID: marketID,
+		response: response,
+	}
+
+	return <-response
 }
 
 func (tc *TradeClient) syncInt(marketID common.MarketID) error {
@@ -912,6 +953,15 @@ func (tc *TradeClient) OnError(cb OnTradeErrorCB) {
 	tc.onErrorCBs = append(tc.onErrorCBs, cb)
 }
 
+// OnSubscriptionResult is called whenever a subscription attempt was made; it
+// happens after the connection and authentication is successful.
+func (tc *TradeClient) OnSubscriptionResult(cb SubscriptionResultCB) {
+	tc.mtx.Lock()
+	defer tc.mtx.Unlock()
+
+	tc.subscriptionResultListeners = append(tc.subscriptionResultListeners, cb)
+}
+
 // OnOrdersUpdate sets a callback for order updates. This will be called
 // immediately when the client initializes, and for every subsequent order
 // update. Each time this callback is executed, the entire list of open orders
@@ -1053,30 +1103,14 @@ func (tc *TradeClient) OnStateChangeOpt(state ConnState, cb StateCallback, opt S
 }
 
 // GetSubscriptions returns a slice of the current subscriptions.
-func (tc *TradeClient) GetSubscriptions() []string {
-	return tc.wsConn.getSubscriptions()
+func (tc *TradeClient) GetSubscriptions() []*TradeSubscription {
+	return subsToTradeSubs(tc.wsConn.getSubscriptions())
 }
 
 // OnConnClosed allows the client to set a callback for when the connection is lost.
 // The new state of the client could be ConnStateDisconnected or ConnStateWaitBeforeReconnect.
 func (tc *TradeClient) OnConnClosed(cb ConnClosedCallback) {
 	tc.wsConn.onConnClosed(cb)
-}
-
-// Subscribe makes a request to subscribe to the given keys. Example:
-//
-//   client.Subscribe([]string{"1", "86"})
-//
-// The client must be connected and authenticated for this to work. See
-// WSParams.Subscriptions for more details.
-func (tc *TradeClient) Subscribe(keys []string) error {
-	return tc.wsConn.subscribe(keys)
-}
-
-// Unsubscribe unsubscribes from the given set of keys. Also see notes for
-// subscribe.
-func (tc *TradeClient) Unsubscribe(keys []string) error {
-	return tc.wsConn.unsubscribe(keys)
 }
 
 // URL returns the url the client is connected to, e.g. wss://stream.cryptowat.ch.
@@ -1098,4 +1132,29 @@ func (tc *TradeClient) Connect() (err error) {
 // websocket connection is active at the moment, closes it as well.
 func (tc *TradeClient) Close() (err error) {
 	return tc.wsConn.close()
+}
+
+func tradeSubsToSubs(tradeSubs []*TradeSubscription) []Subscription {
+	subs := make([]Subscription, 0, len(tradeSubs))
+
+	for _, v := range tradeSubs {
+		subs = append(subs, v)
+	}
+
+	return subs
+}
+
+func subsToTradeSubs(subs []Subscription) []*TradeSubscription {
+	tradeSubs := make([]*TradeSubscription, 0, len(subs))
+
+	for _, sub := range subs {
+		v, ok := sub.(*TradeSubscription)
+		if !ok {
+			panic(errInvalidSubType)
+		}
+
+		tradeSubs = append(tradeSubs, v)
+	}
+
+	return tradeSubs
 }

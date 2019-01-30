@@ -62,14 +62,20 @@ func main() {
 		}
 	}
 
+	streamSubs := make([]*websocket.StreamSubscription, 0, len(subs))
+	for _, v := range subs {
+		streamSubs = append(streamSubs, &websocket.StreamSubscription{Resource: v})
+	}
+
 	// Setup market connection (but don't connect just yet)
-	c, err := websocket.NewStreamClient(&websocket.WSParams{
-		URL: u,
+	c, err := websocket.NewStreamClient(&websocket.StreamClientParams{
+		WSParams: &websocket.WSParams{
+			URL:       u,
+			APIKey:    cr.APIKey,
+			SecretKey: cr.SecretKey,
+		},
 
-		Subscriptions: subs,
-
-		APIKey:    cr.APIKey,
-		SecretKey: cr.SecretKey,
+		Subscriptions: streamSubs,
 	})
 
 	if err != nil {

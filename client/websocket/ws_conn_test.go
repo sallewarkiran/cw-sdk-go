@@ -238,12 +238,13 @@ func TestWsConn(t *testing.T) {
 		// TODO test the generic handler
 		// marketRx := make(chan *pbm.MarketUpdateMessage, 128)
 
-		client, err := NewStreamClient(&WSParams{
-			URL:           tp.url,
-			Subscriptions: testSubscriptions,
-
-			APIKey:    testApiKey1,
-			SecretKey: testSecretKey1,
+		client, err := NewStreamClient(&StreamClientParams{
+			WSParams: &WSParams{
+				URL:       tp.url,
+				APIKey:    testApiKey1,
+				SecretKey: testSecretKey1,
+			},
+			Subscriptions: testStreamSubscriptions,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -292,12 +293,12 @@ func TestWsConn(t *testing.T) {
 		}
 
 		// Subscribe to one more topic
-		if err := client.Subscribe([]string{"baz"}); err != nil {
+		if err := client.Subscribe([]*StreamSubscription{{Resource: "baz"}}); err != nil {
 			return errors.Errorf("subscribing to baz: %s", err)
 		}
 
 		// Wait for the subscribe-to-baz message
-		if err := waitSubscribeMsg(t, tp, []string{"baz"}); err != nil {
+		if err := waitSubscribeMsg(t, tp, []Subscription{&StreamSubscription{Resource: "baz"}}); err != nil {
 			return errors.Errorf("waiting for subscribe message: %s", err)
 		}
 
@@ -458,12 +459,13 @@ func TestWsConn(t *testing.T) {
 
 func TestStateListeners(t *testing.T) {
 	err := withTestServer(streamServer, t, func(tp *testServerParams) error {
-		c, err := NewStreamClient(&WSParams{
-			URL: tp.url,
-
-			APIKey:        testApiKey1,
-			SecretKey:     testSecretKey1,
-			Subscriptions: testSubscriptions,
+		c, err := NewStreamClient(&StreamClientParams{
+			WSParams: &WSParams{
+				URL:       tp.url,
+				APIKey:    testApiKey1,
+				SecretKey: testSecretKey1,
+			},
+			Subscriptions: testStreamSubscriptions,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -780,12 +782,13 @@ func TestStateListeners(t *testing.T) {
 
 func TestAuthnErrors(t *testing.T) {
 	err := withTestServer(streamServer, t, func(tp *testServerParams) error {
-		client, err := NewStreamClient(&WSParams{
-			URL:           tp.url,
-			Subscriptions: testSubscriptions,
-
-			APIKey:    testApiKey1,
-			SecretKey: testSecretKeyWrong,
+		client, err := NewStreamClient(&StreamClientParams{
+			WSParams: &WSParams{
+				URL:       tp.url,
+				APIKey:    testApiKey1,
+				SecretKey: testSecretKeyWrong,
+			},
+			Subscriptions: testStreamSubscriptions,
 		})
 		if err != nil {
 			return errors.Trace(err)
@@ -996,7 +999,7 @@ func sendStreamAuthnResp(t *testing.T, tp *testServerParams, status pbs.Authenti
 	return nil
 }
 
-func waitSubscribeMsg(t *testing.T, tp *testServerParams, subs []string) error {
+func waitSubscribeMsg(t *testing.T, tp *testServerParams, subs []Subscription) error {
 	select {
 	case event := <-tp.rx:
 		if want, got := eventTypeMsg, event.eventType; want != got {
@@ -1015,9 +1018,9 @@ func waitSubscribeMsg(t *testing.T, tp *testServerParams, subs []string) error {
 
 		// Check subscription keys
 		{
-			want := subs
-			if !reflect.DeepEqual(want, cs.SubscriptionKeys) {
-				return errors.Errorf("SubscriptionKeys: want: %+v, got: %+v", want, cs.SubscriptionKeys)
+			actual := subsFromProto(cs.Subscriptions)
+			if !reflect.DeepEqual(subs, actual) {
+				return errors.Errorf("SubscriptionKeys: want: %+v, got: %+v", subs, actual)
 			}
 		}
 
@@ -1139,7 +1142,10 @@ const (
 	testSecretKeyWrong = "YmFyYmFyYmFy" // base64-encoded "barbarbar"
 )
 
-var testSubscriptions = []string{"foo", "bar"}
+var testSubscriptions = []Subscription{
+	&StreamSubscription{Resource: "foo"},
+	&StreamSubscription{Resource: "bar"},
+}
 
 // testWriteToNonConnected ensures that sending to a non-established StreamConn
 // results in an error
@@ -1155,7 +1161,7 @@ func testWriteToNonConnected(t *testing.T) {
 			return errors.Trace(err)
 		}
 
-		subErr := conn.subscribe([]string{"foo"})
+		subErr := conn.subscribe([]Subscription{&StreamSubscription{Resource: "foo"}})
 		if want, got := ErrNotConnected, errors.Cause(subErr); got != want {
 			return errors.Errorf("want: %v, got: %v", want, got)
 		}
@@ -1230,12 +1236,13 @@ func testSubscribe(t *testing.T) {
 	err := withTestServer(streamServer, t, func(tp *testServerParams) error {
 		conn, err := newWsConn(
 			&WSParams{
-				URL:           tp.url,
-				APIKey:        testApiKey1,
-				SecretKey:     testSecretKey1,
-				Subscriptions: []string{"foo", "bar"},
+				URL:       tp.url,
+				APIKey:    testApiKey1,
+				SecretKey: testSecretKey1,
 			},
-			&wsConnParamsInternal{},
+			&wsConnParamsInternal{
+				subscriptions: testSubscriptions,
+			},
 		)
 		if err != nil {
 			return errors.Trace(err)
@@ -1256,14 +1263,20 @@ func testSubscribe(t *testing.T) {
 		}
 
 		// Subscribe to new sub keys
-		if err := conn.subscribe([]string{"baz", "woo"}); err != nil {
+		subsToAdd := []Subscription{
+			&StreamSubscription{Resource: "baz"},
+			&StreamSubscription{Resource: "woo"},
+		}
+
+		if err := conn.subscribe(subsToAdd); err != nil {
 			return errors.Trace(err)
 		}
 
 		have := conn.getSubscriptions()
-		want := []string{"foo", "bar", "baz", "woo"}
-		sort.Strings(have)
-		sort.Strings(want)
+		want := append(testSubscriptions, subsToAdd...)
+
+		sort.Slice(have, func(i, j int) bool { return have[i].GetResource() < have[j].GetResource() })
+		sort.Slice(want, func(i, j int) bool { return want[i].GetResource() < want[j].GetResource() })
 
 		if !reflect.DeepEqual(want, have) {
 			return errors.Errorf("SubscriptionKeys: want: %+v have: %v", want, have)

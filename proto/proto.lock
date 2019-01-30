@@ -469,6 +469,11 @@
                 "id": 10,
                 "name": "authenticationResult",
                 "type": "ProtobufStream.AuthenticationResult"
+              },
+              {
+                "id": 12,
+                "name": "subscriptionResult",
+                "type": "ProtobufStream.SubscriptionResult"
               }
             ]
           }
@@ -1000,6 +1005,71 @@
             ]
           },
           {
+            "name": "TradeSessionAuth",
+            "fields": [
+              {
+                "id": 1,
+                "name": "api_key",
+                "type": "string"
+              },
+              {
+                "id": 2,
+                "name": "api_secret",
+                "type": "string"
+              },
+              {
+                "id": 3,
+                "name": "customer_id",
+                "type": "string"
+              },
+              {
+                "id": 4,
+                "name": "key_passphrase",
+                "type": "string"
+              }
+            ]
+          },
+          {
+            "name": "TradeSubscription",
+            "fields": [
+              {
+                "id": 1,
+                "name": "marketId",
+                "type": "string"
+              },
+              {
+                "id": 2,
+                "name": "auth",
+                "type": "TradeSessionAuth"
+              }
+            ]
+          },
+          {
+            "name": "StreamSubscription",
+            "fields": [
+              {
+                "id": 1,
+                "name": "resource",
+                "type": "string"
+              }
+            ]
+          },
+          {
+            "name": "ClientSubscription",
+            "fields": [
+              {
+                "id": 1,
+                "name": "stream_subscription",
+                "type": "StreamSubscription"
+              },
+              {
+                "id": 2,
+                "name": "trade_subscription",
+                "type": "TradeSubscription"
+              }
+            ]
+          },
+          {
             "name": "APIAuthenticationMessage",
             "fields": [
               {
@@ -1031,6 +1101,18 @@
                 "id": 6,
                 "name": "subscriptions",
                 "type": "string",
+                "is_repeated": true,
+                "options": [
+                  {
+                    "name": "deprecated",
+                    "value": "true"
+                  }
+                ]
+              },
+              {
+                "id": 7,
+                "name": "client_subscriptions",
+                "type": "ClientSubscription",
                 "is_repeated": true
               }
             ]
@@ -1104,6 +1186,18 @@
                 "id": 1,
                 "name": "subscriptionKeys",
                 "type": "string",
+                "is_repeated": true,
+                "options": [
+                  {
+                    "name": "deprecated",
+                    "value": "true"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "subscriptions",
+                "type": "ClientSubscription",
                 "is_repeated": true
               }
             ]
@@ -1115,6 +1209,18 @@
                 "id": 1,
                 "name": "subscriptionKeys",
                 "type": "string",
+                "is_repeated": true,
+                "options": [
+                  {
+                    "name": "deprecated",
+                    "value": "true"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "subscriptions",
+                "type": "ClientSubscription",
                 "is_repeated": true
               }
             ]
@@ -1960,7 +2066,13 @@
                 "id": 1,
                 "name": "subscribed",
                 "type": "string",
-                "is_repeated": true
+                "is_repeated": true,
+                "options": [
+                  {
+                    "name": "deprecated",
+                    "value": "true"
+                  }
+                ]
               },
               {
                 "id": 2,
@@ -1972,6 +2084,12 @@
                 "id": 3,
                 "name": "status",
                 "type": "SubscriptionStatus"
+              },
+              {
+                "id": 4,
+                "name": "subscriptions",
+                "type": "ProtobufClient.ClientSubscription",
+                "is_repeated": true
               }
             ]
           },
@@ -1982,7 +2100,13 @@
                 "id": 1,
                 "name": "unsubscribed",
                 "type": "string",
-                "is_repeated": true
+                "is_repeated": true,
+                "options": [
+                  {
+                    "name": "deprecated",
+                    "value": "true"
+                  }
+                ]
               },
               {
                 "id": 2,
@@ -1994,6 +2118,12 @@
                 "id": 3,
                 "name": "status",
                 "type": "SubscriptionStatus"
+              },
+              {
+                "id": 4,
+                "name": "subscriptions",
+                "type": "ProtobufClient.ClientSubscription",
+                "is_repeated": true
               }
             ]
           },
@@ -2003,12 +2133,23 @@
               {
                 "id": 1,
                 "name": "key",
-                "type": "string"
+                "type": "string",
+                "options": [
+                  {
+                    "name": "deprecated",
+                    "value": "true"
+                  }
+                ]
               },
               {
                 "id": 2,
                 "name": "error",
                 "type": "string"
+              },
+              {
+                "id": 3,
+                "name": "subscription",
+                "type": "ProtobufClient.ClientSubscription"
               }
             ]
           },
@@ -2018,12 +2159,23 @@
               {
                 "id": 1,
                 "name": "key",
-                "type": "string"
+                "type": "string",
+                "options": [
+                  {
+                    "name": "deprecated",
+                    "value": "true"
+                  }
+                ]
               },
               {
                 "id": 2,
                 "name": "error",
                 "type": "string"
+              },
+              {
+                "id": 3,
+                "name": "subscription",
+                "type": "ProtobufClient.ClientSubscription"
               }
             ]
           },
@@ -2034,6 +2186,18 @@
                 "id": 1,
                 "name": "keys",
                 "type": "string",
+                "is_repeated": true,
+                "options": [
+                  {
+                    "name": "deprecated",
+                    "value": "true"
+                  }
+                ]
+              },
+              {
+                "id": 2,
+                "name": "subscriptions",
+                "type": "ProtobufClient.ClientSubscription",
                 "is_repeated": true
               }
             ]
@@ -2050,6 +2214,9 @@
           }
         ],
         "imports": [
+          {
+            "path": "client/client.proto"
+          },
           {
             "path": "markets/market.proto"
           },

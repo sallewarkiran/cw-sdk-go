@@ -73,22 +73,36 @@ type StreamClient struct {
 	mtx sync.Mutex
 }
 
+type StreamSubscription struct {
+	Resource string
+}
+
+func (s *StreamSubscription) GetResource() string {
+	return s.Resource
+}
+
+type StreamClientParams struct {
+	WSParams      *WSParams
+	Subscriptions []*StreamSubscription
+}
+
 // NewStreamClient creates a new StreamClient instance with the given params.
 // Although it starts listening for data immediately, you will still have to
 // register listeners to handle that data, and then call Connect() explicitly.
-func NewStreamClient(params *WSParams) (*StreamClient, error) {
+func NewStreamClient(params *StreamClientParams) (*StreamClient, error) {
 	// Make a copy of params struct because we might alter it below
 	paramsCopy := *params
 	params = &paramsCopy
 
-	if params.URL == "" {
-		params.URL = DefaultStreamURL
+	if params.WSParams.URL == "" {
+		params.WSParams.URL = DefaultStreamURL
 	}
 
 	wsConn, err := newWsConn(
-		params,
+		params.WSParams,
 		&wsConnParamsInternal{
 			unmarshalAuthnResult: unmarshalAuthnResultStream,
+			subscriptions:        streamSubsToSubs(params.Subscriptions),
 		},
 	)
 	if err != nil {
@@ -439,8 +453,8 @@ func (sc *StreamClient) OnStateChangeOpt(state ConnState, cb StateCallback, opt 
 }
 
 // GetSubscriptions returns a slice of the current subscriptions.
-func (sc *StreamClient) GetSubscriptions() []string {
-	return sc.wsConn.getSubscriptions()
+func (sc *StreamClient) GetSubscriptions() []*StreamSubscription {
+	return subsToStreamSubs(sc.wsConn.getSubscriptions())
 }
 
 // OnConnClosed allows the client to set a callback for when the connection is lost.
@@ -451,18 +465,22 @@ func (sc *StreamClient) OnConnClosed(cb ConnClosedCallback) {
 
 // Subscribe makes a request to subscribe to the given keys. Example:
 //
-//   client.Subscribe([]string{
-//           "markets:1:book:deltas",
-//           "markets:1:book:spread",
+//   client.Subscribe([]*StreamSubscription{
+//           &StreamSubscription{
+//                   Resource: "markets:1:book:deltas",
+//           },
+//           &StreamSubscription{
+//                   Resource: "markets:1:book:spread",
+//           },
 //   })
 //
 // The client must be connected and authenticated for this to work. See
-// WSParams.Subscriptions for more details.
+// StreamClientParams.Subscriptions for more details.
 //
 // The subscription result, together with the current subscription status, will
 // be delivered to the callback registered with OnSubscriptionResult.
-func (sc *StreamClient) Subscribe(keys []string) error {
-	return sc.wsConn.subscribe(keys)
+func (sc *StreamClient) Subscribe(subs []*StreamSubscription) error {
+	return sc.wsConn.subscribe(streamSubsToSubs(subs))
 }
 
 // Unsubscribe unsubscribes from the given set of keys. Also see notes for
@@ -470,8 +488,8 @@ func (sc *StreamClient) Subscribe(keys []string) error {
 //
 // The unsubscription result, together with the current subscription status,
 // will be delivered to the callback registered with OnUnsubscriptionResult.
-func (sc *StreamClient) Unsubscribe(keys []string) error {
-	return sc.wsConn.unsubscribe(keys)
+func (sc *StreamClient) Unsubscribe(subs []*StreamSubscription) error {
+	return sc.wsConn.unsubscribe(streamSubsToSubs(subs))
 }
 
 // URL returns the url the client is connected to, e.g. wss://stream.cryptowat.ch.
@@ -493,4 +511,29 @@ func (sc *StreamClient) Connect() (err error) {
 // websocket connection is active at the moment, closes it as well.
 func (sc *StreamClient) Close() (err error) {
 	return sc.wsConn.close()
+}
+
+func streamSubsToSubs(streamSubs []*StreamSubscription) []Subscription {
+	subs := make([]Subscription, 0, len(streamSubs))
+
+	for _, v := range streamSubs {
+		subs = append(subs, v)
+	}
+
+	return subs
+}
+
+func subsToStreamSubs(subs []Subscription) []*StreamSubscription {
+	streamSubs := make([]*StreamSubscription, 0, len(subs))
+
+	for _, sub := range subs {
+		v, ok := sub.(*StreamSubscription)
+		if !ok {
+			panic(errInvalidSubType)
+		}
+
+		streamSubs = append(streamSubs, v)
+	}
+
+	return streamSubs
 }

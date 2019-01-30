@@ -111,13 +111,20 @@ func TestTradeConn(t *testing.T) {
 	marketIDint := int64(1)
 
 	err := withTestServer(brokerServer, t, func(tp *testServerParams) error {
-		client, err := NewTradeClient(&WSParams{
-			URL:           tp.url,
-			Subscriptions: []string{marketID},
+		tradeParams := &TradeClientParams{
+			WSParams: &WSParams{
+				URL:       tp.url,
+				APIKey:    testApiKey1,
+				SecretKey: testSecretKey1,
+			},
+			Subscriptions: []*TradeSubscription{
+				&TradeSubscription{
+					MarketID: common.MarketID(marketID),
+				},
+			},
+		}
 
-			APIKey:    testApiKey1,
-			SecretKey: testSecretKey1,
-		})
+		client, err := NewTradeClient(tradeParams)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -277,12 +284,17 @@ func TestTrading(t *testing.T) {
 		marketID := common.MarketID("1")
 		marketIDint := int64(1)
 
-		client, err := NewTradeClient(&WSParams{
-			URL:           tp.url,
-			Subscriptions: []string{string(marketID)},
-
-			APIKey:    testApiKey1,
-			SecretKey: testSecretKey1,
+		client, err := NewTradeClient(&TradeClientParams{
+			WSParams: &WSParams{
+				URL:       tp.url,
+				APIKey:    testApiKey1,
+				SecretKey: testSecretKey1,
+			},
+			Subscriptions: []*TradeSubscription{
+				&TradeSubscription{
+					MarketID: common.MarketID(marketID),
+				},
+			},
 		})
 
 		if err != nil {

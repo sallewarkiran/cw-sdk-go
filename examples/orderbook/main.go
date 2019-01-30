@@ -43,16 +43,21 @@ func main() {
 
 	// Create a new stream connection instance. Note that this does not yet
 	// initiate the actual connection.
-	c, err := websocket.NewStreamClient(&websocket.WSParams{
-		URL: *streamURL,
-
-		Subscriptions: []string{
-			fmt.Sprintf("markets:%d:book:deltas", market.ID),
-			fmt.Sprintf("markets:%d:book:snapshots", market.ID),
+	c, err := websocket.NewStreamClient(&websocket.StreamClientParams{
+		WSParams: &websocket.WSParams{
+			URL:       *streamURL,
+			APIKey:    *apiKey,
+			SecretKey: *secretKey,
 		},
 
-		APIKey:    *apiKey,
-		SecretKey: *secretKey,
+		Subscriptions: []*websocket.StreamSubscription{
+			&websocket.StreamSubscription{
+				Resource: fmt.Sprintf("markets:%d:book:deltas", market.ID),
+			},
+			&websocket.StreamSubscription{
+				Resource: fmt.Sprintf("markets:%d:book:snapshots", market.ID),
+			},
+		},
 	})
 	if err != nil {
 		log.Fatalf("%s", err)

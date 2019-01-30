@@ -50,6 +50,10 @@ var (
 	// ErrUnknownAuthnError means some unexpected authentication problem;
 	// possibly caused by an internal error on stream server.
 	ErrUnknownAuthnError = errors.New("unknown authentication error")
+
+	// errInvalidSubType means that different types of subscriptions were mixed
+	// in the same list.
+	errInvalidSubType = errors.New("invalid subscription type")
 )
 
 // WSParams contains options for opening a websocket connection.
@@ -58,11 +62,6 @@ type WSParams struct {
 	// Inquire about getting access here: https://docs.google.com/forms/d/e/1FAIpQLSdhv_ceVtKA0qQcW6zQzBniRBaZ_cC4al31lDCeZirntkmWQw/viewform?c=0&w=1
 	APIKey    string
 	SecretKey string
-
-	// Subscriptions is a list of subscription keys for the client to subscribe to. The
-	// client will subscribe when it is initially authenticated, or when it reconnects
-	// after being disconnected.
-	Subscriptions []string
 
 	// URL is the URL to connect to over websockets. You will not have to set this
 	// unless testing against a non-production environment since a default is
@@ -74,8 +73,17 @@ type WSParams struct {
 	ReconnectOpts *ReconnectOpts
 }
 
+type Subscription interface {
+	GetResource() string
+}
+
 type wsConnParamsInternal struct {
 	unmarshalAuthnResult func(data []byte) (*pbs.AuthenticationResult, error)
+
+	// subscriptions is a list of subscriptions.
+	// When using a StreamClient the values are of concrete type StreamSubscription; when using a
+	// TradeClient the values are of type TradeSubscription.
+	subscriptions []Subscription
 }
 
 // ReconnectOpts are settings used to reconnect after being disconnected. By default, the client will reconnect
@@ -115,7 +123,7 @@ type ConnState int
 // to subscribe.
 type SubscriptionResult struct {
 	// Successful subscriptions
-	Subscribed []string
+	Subscriptions []Subscription
 	// Failed subscriptions
 	Failed []SubscribeError `json:"Failed,omitempty"`
 	// Current status: list of the keys to which the client is now subscribed
@@ -135,7 +143,7 @@ func (v SubscriptionResult) String() string {
 // unsubscribe.
 type UnsubscriptionResult struct {
 	// Successful unsubscriptions
-	Unsubscribed []string
+	Subscriptions []Subscription
 	// Faied unsubscriptions
 	Failed []UnsubscribeError `json:"Failed,omitempty"`
 	// Current status: list of the keys to which the client is now subscribed
@@ -164,22 +172,24 @@ func (v UnsubscriptionResult) String() string {
 // the error message explaining why subscription has failed. Sent as part of
 // SubscriptionResult.
 type SubscribeError struct {
-	Key   string
-	Error string
+	Key          string
+	Error        string
+	Subscription Subscription
 }
 
 // UnsubscribeError represents an error of a single key: it contains the key
 // and the error message explaining why unsubscription has failed. Sent as part
 // of UnsubscriptionResult.
 type UnsubscribeError struct {
-	Key   string
-	Error string
+	Key          string
+	Error        string
+	Subscription Subscription
 }
 
 // SubscriptionStatus contains the key to which the client is subscribed right
 // now. Sent as part of SubscriptionResult and UnsubscriptionResult.
 type SubscriptionStatus struct {
-	Keys []string
+	Subscriptions []Subscription
 }
 
 // SubscriptionResultCB defines a callback function for OnSubscriptionResult.
@@ -236,6 +246,7 @@ type wsConn struct {
 	paramsInternal wsConnParamsInternal
 
 	subscriptions map[string]struct{}
+	subs          map[string]Subscription
 
 	transport *internal.StreamTransportConn
 
@@ -302,13 +313,13 @@ type reqConnState struct {
 
 // reqSubscribe is a client request of conn state via Subscribe().
 type reqSubscribe struct {
-	keys   []string
+	subs   []Subscription
 	result chan<- error
 }
 
 // reqUnsubscribe is a client request of conn state via Unsubscribe().
 type reqUnsubscribe struct {
-	keys   []string
+	subs   []Subscription
 	result chan<- error
 }
 
@@ -353,13 +364,14 @@ func newWsConn(params *WSParams, paramsInternal *wsConnParamsInternal) (*wsConn,
 		params:         p,
 		paramsInternal: *paramsInternal,
 		subscriptions:  make(map[string]struct{}),
+		subs:           make(map[string]Subscription),
 		transport:      transport,
 		stateListeners: make(map[ConnState][]stateListener),
 		internalEvents: make(chan internalEvent, 8),
 	}
 
-	for _, sub := range params.Subscriptions {
-		c.subscriptions[sub] = struct{}{}
+	for _, sub := range paramsInternal.subscriptions {
+		c.subs[sub.GetResource()] = sub
 	}
 
 	transport.OnStateChange(
@@ -590,8 +602,9 @@ func (c *wsConn) onConnClosed(cb ConnClosedCallback) {
 	})
 }
 
-// getSubscriptions returns a slice of the current subscriptions.
-func (c *wsConn) getSubscriptions() []string {
+// TODO: remove after we are no longer supporting string subscriptions.
+// getSubscriptionsDeprecated returns a slice of the current subscriptions.
+func (c *wsConn) getSubscriptionsDeprecated() []string {
 	subs := []string{}
 	for sub, _ := range c.subscriptions {
 		subs = append(subs, sub)
@@ -599,21 +612,36 @@ func (c *wsConn) getSubscriptions() []string {
 	return subs
 }
 
+// getSubscriptions returns a slice of the current subscriptions.
+func (c *wsConn) getSubscriptions() []Subscription {
+	subs := []Subscription{}
+
+	for _, sub := range c.subs {
+		subs = append(subs, sub)
+	}
+
+	return subs
+}
+
 // subscribe subscribes to the given set of keys. Example:
 //
-//   conn.subscribe([]string{
-//           "markets:1:book:deltas",
-//           "markets:1:book:spread",
+//   conn.subscribe([]Subscription{
+//           &StreamSubscription{
+//                   Resource: "markets:1:book:deltas",
+//           },
+//           &StreamSubscription{
+//                   Resource: "markets:1:book:spread",
+//           },
 //   })
 //
 // The client must be connected and authenticated for this to work. See
-// WSParams.Subscriptions for more details.
-func (c *wsConn) subscribe(keys []string) error {
+// StreamClientParams.Subscriptions or TradeClientParams.Subscriptionsfor more details.
+func (c *wsConn) subscribe(subs []Subscription) error {
 	result := make(chan error, 1)
 
 	c.internalEvents <- internalEvent{
 		reqSubscribe: &reqSubscribe{
-			keys:   keys,
+			subs:   subs,
 			result: result,
 		},
 	}
@@ -621,14 +649,14 @@ func (c *wsConn) subscribe(keys []string) error {
 	return <-result
 }
 
-// unsubscribe unsubscribes from the given set of keys. Also see notes for
+// unsubscribe unsubscribes from the given set of subs. Also see notes for
 // subscribe.
-func (c *wsConn) unsubscribe(keys []string) error {
+func (c *wsConn) unsubscribe(subs []Subscription) error {
 	result := make(chan error, 1)
 
 	c.internalEvents <- internalEvent{
 		reqUnsubscribe: &reqUnsubscribe{
-			keys:   keys,
+			subs:   subs,
 			result: result,
 		},
 	}
@@ -746,11 +774,11 @@ func removeOneOff(listeners []stateListener) []stateListener {
 }
 
 // NOTE: subscribeInternal should only be called from eventLoop.
-func (c *wsConn) subscribeInternal(keys []string) error {
+func (c *wsConn) subscribeInternal(subs []Subscription) error {
 	cm := &pbc.ClientMessage{
 		Body: &pbc.ClientMessage_Subscribe{
 			Subscribe: &pbc.ClientSubscribeMessage{
-				SubscriptionKeys: keys,
+				Subscriptions: subsToProto(subs),
 			},
 		},
 	}
@@ -759,19 +787,19 @@ func (c *wsConn) subscribeInternal(keys []string) error {
 		return errors.Annotatef(err, "subscribe")
 	}
 
-	for _, sub := range keys {
-		c.subscriptions[sub] = struct{}{}
+	for _, sub := range subs {
+		c.subs[sub.GetResource()] = sub
 	}
 
 	return nil
 }
 
 // NOTE: unsubscribeInternal should only be called from eventLoop.
-func (c *wsConn) unsubscribeInternal(keys []string) error {
+func (c *wsConn) unsubscribeInternal(subs []Subscription) error {
 	cm := &pbc.ClientMessage{
 		Body: &pbc.ClientMessage_Unsubscribe{
 			Unsubscribe: &pbc.ClientUnsubscribeMessage{
-				SubscriptionKeys: keys,
+				Subscriptions: subsToProto(subs),
 			},
 		},
 	}
@@ -780,8 +808,8 @@ func (c *wsConn) unsubscribeInternal(keys []string) error {
 		return errors.Annotatef(err, "unsubscribe")
 	}
 
-	for _, sub := range keys {
-		delete(c.subscriptions, sub)
+	for _, sub := range subs {
+		delete(c.subs, sub.GetResource())
 	}
 
 	return nil
@@ -867,12 +895,13 @@ loop:
 				authMsg := &pbc.ClientMessage{
 					Body: &pbc.ClientMessage_ApiAuthentication{
 						ApiAuthentication: &pbc.APIAuthenticationMessage{
-							Token:         token,
-							Nonce:         nonce,
-							ApiKey:        c.params.APIKey,
-							Source:        pbc.APIAuthenticationMessage_GOLANG_SDK,
-							Version:       version.Version,
-							Subscriptions: c.getSubscriptions(),
+							Token:               token,
+							Nonce:               nonce,
+							ApiKey:              c.params.APIKey,
+							Source:              pbc.APIAuthenticationMessage_GOLANG_SDK,
+							Version:             version.Version,
+							Subscriptions:       c.getSubscriptionsDeprecated(),
+							ClientSubscriptions: subsToProto(c.getSubscriptions()),
 						},
 					},
 				}
@@ -971,11 +1000,11 @@ loop:
 			req.result <- c.state
 		} else if req := event.reqSubscribe; req != nil {
 			// Request to subscribe
-			err := c.subscribeInternal(req.keys)
+			err := c.subscribeInternal(req.subs)
 			req.result <- err
 		} else if req := event.reqUnsubscribe; req != nil {
 			// Request to unsubscribe
-			err := c.unsubscribeInternal(req.keys)
+			err := c.unsubscribeInternal(req.subs)
 			req.result <- err
 		}
 	}
@@ -1019,4 +1048,14 @@ func isClosedConnError(err error) bool {
 	}
 
 	return false
+}
+
+func subsToKeys(subs []Subscription) []string {
+	keys := make([]string, 0, len(subs))
+
+	for _, v := range subs {
+		keys = append(keys, v.GetResource())
+	}
+
+	return keys
 }
