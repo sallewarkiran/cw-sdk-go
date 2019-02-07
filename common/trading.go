@@ -108,7 +108,7 @@ type OrderParams struct {
 	PriceParams PriceParams
 	Amount      string
 	OrderSide   OrderSide
-	Type        OrderType
+	OrderType   OrderType
 	FundingType FundingType
 	Leverage    string
 	ExpireTime  time.Time

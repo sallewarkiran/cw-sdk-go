@@ -128,6 +128,7 @@ func trade(client *websocket.TradeClient, ready <-chan struct{}, done <-chan str
 				},
 				Amount:    "0.01",
 				OrderSide: common.BuyOrder,
+				OrderType: common.LimitOrder,
 			})
 
 			if err == nil {

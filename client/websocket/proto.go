@@ -220,7 +220,7 @@ func orderParamsToProto(o common.OrderParams) *pbb.PrivateOrder {
 
 	return &pbb.PrivateOrder{
 		Side:              int32(o.OrderSide),
-		Type:              pbb.PrivateOrder_Type(o.Type),
+		Type:              pbb.PrivateOrder_Type(o.OrderType),
 		FundingType:       pbb.FundingType(o.FundingType),
 		PriceParams:       priceParams,
 		AmountParamString: o.Amount,

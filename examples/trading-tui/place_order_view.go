@@ -150,7 +150,7 @@ func NewPlaceOrderView(
 						},
 					},
 					OrderSide:   orderSide,
-					Type:        orderType,
+					OrderType:   orderType,
 					FundingType: common.SpotFunding,
 				},
 			)

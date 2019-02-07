@@ -24,7 +24,7 @@ var testOrderParams = common.OrderParams{
 		Type:  common.AbsoluteValuePrice,
 	}},
 	OrderSide:   common.BuyOrder,
-	Type:        common.LimitOrder,
+	OrderType:   common.LimitOrder,
 	FundingType: common.SpotFunding,
 
 	// Truncate to second precision because Broker sends unix timestamps (seconds)
@@ -397,7 +397,7 @@ func TestTrading(t *testing.T) {
 		assert.Equal(order.PriceParams, testOrderParams.PriceParams)
 		assert.Equal(order.Amount, testOrderParams.Amount)
 		assert.Equal(order.OrderSide, testOrderParams.OrderSide)
-		assert.Equal(order.OrderType, testOrderParams.Type)
+		assert.Equal(order.OrderType, testOrderParams.OrderType)
 		assert.Equal(order.FundingType, testOrderParams.FundingType)
 		assert.Equal(order.AmountFilled, "0.0")
 		assert.Equal(order.Error, int32(0))
