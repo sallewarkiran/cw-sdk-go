@@ -85,11 +85,19 @@ The stream client can be set up to process live market-level or pair-level data 
 		log.Fatal("%s", err)
 	}
 
-	client.OnTradesUpdate(func(m websocket.Market, tu websocket.TradesUpdate) {
-		// Do stuff with trades
+	c.OnSubscriptionResult(func(sr websocket.SubscriptionResult) {
+		// Verify subscriptions
 	})
 
-	// Set more handlers
+	client.OnError(func(err error, disconnecting bool) {
+		// Handle errors
+	})
+
+	client.OnTradesUpdate(func(m websocket.Market, tu websocket.TradesUpdate) {
+		// Handle live trade data
+	})
+
+	// Set more handlers for market and pair data
 
 	client.Connect()
 
@@ -123,11 +131,19 @@ API keys for the exchange, or the client will fall back on your API keys loaded 
 		log.Fatal("%s", err)
 	}
 
-	// Set handlers for orders, trades, positions, or balance updates
+	client.OnSubscriptionResult(func(sr websocket.SubscriptionResult) {
+		// Verify subscriptions (trade sessions)
+	})
+
+	tc.OnError(func(mID common.MarketID, err error, disconnecting bool) {
+		// Handle errors
+	})
 
 	client.OnReady(func() {
-		// Now you can place/cancel orders
+		// Start trading
 	})
+
+	// Set more handlers for orders, trades, positions, or balance updates
 
 	client.Connect()
 
