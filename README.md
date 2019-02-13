@@ -1,10 +1,16 @@
-# Cryptowatch Websocket Client (Golang)
+# Cryptowatch Go SDK (beta)
 
-This library provides a Golang SDK to connect to the Cryptowatch Websocket API. This product is in beta.
-Please refer to the GoDoc documentation here: https://godoc.org/code.cryptowat.ch/ws-client-go
+The Cryptowatch Golang SDK provides tools for
+- REST API
+- Streaming over websocket
+- Trading over websocket
+- Order book management
 
-## Trading
-The `1.0.0-beta` version adds trading functionality to the stream client. This feature is currently disabled on our back end, but it is coming soon!
+Please refer to the Go SDK documentation here: https://godoc.org/code.cryptowat.ch/ws-client-go
+
+API documentation:
+- REST API: https://cryptowat.ch/docs/api
+- Websocket API: https://staging.cryptowat.ch/docs/websocket-api
 
 ## License
 [BSD-2-Clause](LICENSE)
