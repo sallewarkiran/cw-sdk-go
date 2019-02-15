@@ -373,6 +373,11 @@ listenloop:
 				l(req.marketID, req.update)
 			}
 
+		case req := <-tc.callSubscriptionResultListeners:
+			for _, l := range req.listeners {
+				l(req.result)
+			}
+
 		case req := <-tc.callTradesListeners:
 			tc.mtx.Lock()
 			tc.tradeStatus.setModuleReady(req.marketID, tradeModuleTrades)
