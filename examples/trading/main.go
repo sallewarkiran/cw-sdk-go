@@ -21,10 +21,23 @@ var (
 	exchangeAPIKey    = flag.String("exchangekey", "", "Exchange API key")
 	exchangeSecretKey = flag.String("exchangesecret", "", "Exchange secret key")
 	url               = flag.String("url", "", "Trading API url")
+	mode              = flag.String("mode", "place", "PlaceOrder or CancelOrder mode")
+	orderID           = flag.String("orderId", "", "OrderID to cancel")
 )
 
 func main() {
 	flag.Parse()
+
+	if *mode != "place" && *mode != "cancel" {
+		log.Println("mode must be either place or cancel")
+		os.Exit(1)
+	}
+
+	if *mode == "cancel" && *orderID == "" {
+		log.Println("orderId must be a non-empty string")
+		os.Exit(1)
+	}
+
 	ready := make(chan struct{}, 1)
 	clientErr := make(chan error, 1)
 	client, err := setupClient(ready, clientErr)
@@ -117,26 +130,42 @@ func trade(client *websocket.TradeClient, ready <-chan struct{}, done <-chan str
 	for {
 		select {
 		case <-ready:
-			log.Println("Trading ready: placing order...")
+			switch *mode {
+			case "place":
+				log.Println("Trading ready: placing order...")
 
-			order, err := client.PlaceOrder(common.MarketID(*marketID), common.OrderParams{
-				PriceParams: []*common.PriceParam{
-					&common.PriceParam{
-						Type:  common.AbsoluteValuePrice,
-						Value: "0.01",
+				order, err := client.PlaceOrder(common.MarketID(*marketID), common.OrderParams{
+					PriceParams: []*common.PriceParam{
+						&common.PriceParam{
+							Type:  common.AbsoluteValuePrice,
+							Value: "0.01",
+						},
 					},
-				},
-				Amount:    "0.01",
-				OrderSide: common.BuyOrder,
-				OrderType: common.LimitOrder,
-			})
+					Amount:    "0.01",
+					OrderSide: common.BuyOrder,
+					OrderType: common.LimitOrder,
+				})
 
-			if err == nil {
-				log.Println("Order placed:", order)
+				if err == nil {
+					log.Println("Order placed:", order)
+				}
+
+				errChan <- err
+				return
+			case "cancel":
+				log.Println("Trading ready: canceling order...")
+
+				err := client.CancelOrder(common.MarketID(*marketID), common.PrivateOrder{
+					ExternalID: *orderID,
+				})
+
+				if err == nil {
+					log.Println("Order canceled:", *orderID)
+				}
+
+				errChan <- err
+				return
 			}
-
-			errChan <- err
-			return
 		case <-done:
 			return
 		}
