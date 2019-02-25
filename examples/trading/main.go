@@ -134,13 +134,14 @@ func trade(client *websocket.TradeClient, ready <-chan struct{}, done <-chan str
 			case "place":
 				log.Println("Trading ready: placing order...")
 
-				order, err := client.PlaceOrder(common.MarketID(*marketID), common.OrderParams{
+				order, err := client.PlaceOrder(common.PlaceOrderOpt{
 					PriceParams: []*common.PriceParam{
 						&common.PriceParam{
 							Type:  common.AbsoluteValuePrice,
 							Value: "0.01",
 						},
 					},
+					MarketID:  common.MarketID(*marketID),
 					Amount:    "0.01",
 					OrderSide: common.BuyOrder,
 					OrderType: common.LimitOrder,
@@ -155,8 +156,9 @@ func trade(client *websocket.TradeClient, ready <-chan struct{}, done <-chan str
 			case "cancel":
 				log.Println("Trading ready: canceling order...")
 
-				err := client.CancelOrder(common.MarketID(*marketID), common.PrivateOrder{
-					ExternalID: *orderID,
+				err := client.CancelOrder(common.CancelOrderOpt{
+					MarketID: common.MarketID(*marketID),
+					OrderID:  *orderID,
 				})
 
 				if err == nil {

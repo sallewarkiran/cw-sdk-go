@@ -201,7 +201,7 @@ func privateOrderFromProto(order *pbb.PrivateOrder) common.PrivateOrder {
 		FundingType: common.FundingType(order.FundingType),
 		ExpireTime:  time.Unix(order.ExpireTime, 0),
 
-		ExternalID:   order.Id,
+		ID:           order.Id,
 		Leverage:     order.Leverage,
 		CurrentStop:  order.CurrentStopString,
 		InitialStop:  order.InitialStopString,
@@ -209,9 +209,9 @@ func privateOrderFromProto(order *pbb.PrivateOrder) common.PrivateOrder {
 	}
 }
 
-func orderParamsToProto(o common.OrderParams) *pbb.PrivateOrder {
-	priceParams := []*pbb.PrivateOrder_PriceParam{}
-	for _, p := range o.PriceParams {
+func placeOrderOptToProto(orderOpt common.PlaceOrderOpt) *pbb.PrivateOrder {
+	priceParams := make([]*pbb.PrivateOrder_PriceParam, 0, len(orderOpt.PriceParams))
+	for _, p := range orderOpt.PriceParams {
 		priceParams = append(priceParams, &pbb.PrivateOrder_PriceParam{
 			ValueString: p.Value,
 			Type:        pbb.PrivateOrder_PriceParamType(p.Type),
@@ -219,13 +219,13 @@ func orderParamsToProto(o common.OrderParams) *pbb.PrivateOrder {
 	}
 
 	return &pbb.PrivateOrder{
-		Side:              int32(o.OrderSide),
-		Type:              pbb.PrivateOrder_Type(o.OrderType),
-		FundingType:       pbb.FundingType(o.FundingType),
+		Side:              int32(orderOpt.OrderSide),
+		Type:              pbb.PrivateOrder_Type(orderOpt.OrderType),
+		FundingType:       pbb.FundingType(orderOpt.FundingType),
 		PriceParams:       priceParams,
-		AmountParamString: o.Amount,
-		Leverage:          o.Leverage,
-		ExpireTime:        timeToUnix(o.ExpireTime),
+		AmountParamString: orderOpt.Amount,
+		Leverage:          orderOpt.Leverage,
+		ExpireTime:        timeToUnix(orderOpt.ExpireTime),
 	}
 }
 
@@ -239,7 +239,7 @@ func privateOrderToProto(o common.PrivateOrder) *pbb.PrivateOrder {
 	}
 
 	return &pbb.PrivateOrder{
-		Id:          o.ExternalID,
+		Id:          o.ID,
 		Side:        int32(o.OrderSide),
 		Type:        pbb.PrivateOrder_Type(o.OrderType),
 		FundingType: pbb.FundingType(o.FundingType),

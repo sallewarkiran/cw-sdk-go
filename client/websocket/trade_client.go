@@ -118,14 +118,14 @@ type placeOrderResp struct {
 }
 
 type placeOrderReq struct {
-	marketID    common.MarketID
-	orderParams common.OrderParams
-	response    chan placeOrderResp
+	marketID common.MarketID
+	orderOpt common.PlaceOrderOpt
+	response chan placeOrderResp
 }
 
 type cancelOrderReq struct {
 	marketID common.MarketID
-	orderID  string
+	orderOpt common.CancelOrderOpt
 	response chan error
 }
 
@@ -347,7 +347,7 @@ listenloop:
 			}
 
 			go func() {
-				req.response <- tc.placeOrderInt(req.marketID, req.orderParams)
+				req.response <- tc.placeOrderInt(req.orderOpt)
 			}()
 
 		case req := <-tc.cancelOrderRequests:
@@ -357,7 +357,7 @@ listenloop:
 			}
 
 			go func() {
-				req.response <- tc.cancelOrderInt(req.marketID, req.orderID)
+				req.response <- tc.cancelOrderInt(req.orderOpt)
 			}()
 
 		case req := <-tc.syncRequests:
@@ -595,13 +595,13 @@ func (tc *TradeClient) requestResolutionHandler(marketID common.MarketID, res *p
 // PlaceOrder creates a new order based on the given OrderParams. PlaceOrder blocks
 // until the order has been placed on the exchange or an error occurs. PlaceOrder
 // can be called concurrently as many times as needed.
-func (tc *TradeClient) PlaceOrder(marketID common.MarketID, o common.OrderParams) (common.PrivateOrder, error) {
+func (tc *TradeClient) PlaceOrder(orderOpt common.PlaceOrderOpt) (common.PrivateOrder, error) {
 	response := make(chan placeOrderResp, 1)
 
 	tc.placeOrderRequests <- placeOrderReq{
-		marketID:    marketID,
-		orderParams: o,
-		response:    response,
+		marketID: orderOpt.MarketID,
+		orderOpt: orderOpt,
+		response: response,
 	}
 
 	res := <-response
@@ -609,12 +609,12 @@ func (tc *TradeClient) PlaceOrder(marketID common.MarketID, o common.OrderParams
 	return res.order, res.err
 }
 
-func (tc *TradeClient) placeOrderInt(marketID common.MarketID, o common.OrderParams) placeOrderResp {
+func (tc *TradeClient) placeOrderInt(orderOpt common.PlaceOrderOpt) placeOrderResp {
 	res, err := tc.makeRequest(
-		marketID,
+		orderOpt.MarketID,
 		&pbb.BrokerRequest_PlaceOrderRequest{
 			PlaceOrderRequest: &pbb.PlaceOrderRequest{
-				Order: orderParamsToProto(o),
+				Order: placeOrderOptToProto(orderOpt),
 			},
 		},
 	)
@@ -633,7 +633,7 @@ func (tc *TradeClient) placeOrderInt(marketID common.MarketID, o common.OrderPar
 	if res.Error == 0 {
 		order = privateOrderFromProto(res.GetPlaceOrderResult().Order)
 		tc.mtx.Lock()
-		tc.orders[marketID][order.ExternalID] = order
+		tc.orders[orderOpt.MarketID][order.ID] = order
 		tc.mtx.Unlock()
 	} else {
 		returnErr = fmt.Errorf("[%v] %v", res.Error, res.Message)
@@ -649,31 +649,31 @@ func (tc *TradeClient) placeOrderInt(marketID common.MarketID, o common.OrderPar
 // CancelOrder cancels the given order on the exchange. CancelOrder blocks
 // until the order has been placed or if an error occurs. it can be called
 // concurrently on as many different orders as needed.
-func (tc *TradeClient) CancelOrder(marketID common.MarketID, order common.PrivateOrder) error {
-	if order.ExternalID == "" {
+func (tc *TradeClient) CancelOrder(orderOpt common.CancelOrderOpt) error {
+	if orderOpt.OrderID == "" {
 		return ErrInvalidOrder
 	}
 
 	response := make(chan error, 1)
 
 	tc.cancelOrderRequests <- cancelOrderReq{
-		marketID: marketID,
-		orderID:  order.ExternalID,
+		marketID: orderOpt.MarketID,
+		orderOpt: orderOpt,
 		response: response,
 	}
 
 	return <-response
 }
 
-func (tc *TradeClient) cancelOrderInt(marketID common.MarketID, orderID string) error {
+func (tc *TradeClient) cancelOrderInt(orderOpt common.CancelOrderOpt) error {
 	res, err := tc.makeRequest(
-		marketID,
+		orderOpt.MarketID,
 		&pbb.BrokerRequest_CancelOrderRequest{
 			CancelOrderRequest: &pbb.CancelOrderRequest{
-				OrderId: orderID,
+				OrderId: orderOpt.OrderID,
 			},
-		})
-
+		},
+	)
 	if err != nil {
 		return errors.Annotate(err, "request failed: cancel-order")
 	}
@@ -809,7 +809,7 @@ func (tc *TradeClient) ordersUpdateHandler(marketID common.MarketID, update *pbb
 
 	for _, order := range orders {
 		o := privateOrderFromProto(order)
-		orderCache[o.ExternalID] = o
+		orderCache[o.ID] = o
 		returnOrders = append(returnOrders, o)
 	}
 

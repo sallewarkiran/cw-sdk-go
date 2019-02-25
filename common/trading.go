@@ -101,19 +101,31 @@ const (
 // TODO this should probably not be a reference
 type PriceParams []*PriceParam
 
-// OrderParams contains the necessary options for creating a new order with
+// TODO(pavelb): cleanup.
+// PlaceOrderOpt contains the necessary options for creating a new order with
 // the trade client.
 // See TradeClient.PlaceOrder.
-type OrderParams struct {
+type PlaceOrderOpt struct {
 	PriceParams PriceParams
+	MarketID    MarketID
 	Amount      string
+	Leverage    string
 	OrderSide   OrderSide
 	OrderType   OrderType
 	FundingType FundingType
-	Leverage    string
 	ExpireTime  time.Time
 }
 
+// TODO(pavelb): cleanup.
+// CancelOrderOpt contains the necessary options for canceling an existing order with
+// the trade client.
+// See TradeClient.CancelOrder.
+type CancelOrderOpt struct {
+	MarketID MarketID
+	OrderID  string
+}
+
+// TODO(pavelb): cleanup.
 // PrivateOrder represents an order you have placed on an exchange, either
 // through the TradeClient, or on the exchange itself.
 type PrivateOrder struct {
@@ -125,7 +137,8 @@ type PrivateOrder struct {
 	ExpireTime  time.Time
 
 	// Set by server and updated internally by client
-	ExternalID   string
+	// ExternalID   string
+	ID           string
 	Timestamp    time.Time
 	Leverage     string
 	CurrentStop  string
@@ -156,7 +169,7 @@ func (o PrivateOrder) String() string {
 
 	return fmt.Sprintf("[%v] [%s - %s/%s] id=%s amount=%s amount_filled=%v value=%s expires=%v",
 		o.Timestamp, OrderSideNames[o.OrderSide], FundingTypeNames[o.FundingType],
-		OrderTypeNames[o.OrderType], o.ExternalID, o.Amount, o.AmountFilled, priceStr, expiresStr,
+		OrderTypeNames[o.OrderType], o.ID, o.Amount, o.AmountFilled, priceStr, expiresStr,
 	)
 }
 

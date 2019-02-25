@@ -17,24 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var testOrderParams = common.OrderParams{
-	Amount: "0.1",
-	PriceParams: common.PriceParams{&common.PriceParam{
-		Value: "1.0",
-		Type:  common.AbsoluteValuePrice,
-	}},
-	OrderSide:   common.BuyOrder,
-	OrderType:   common.LimitOrder,
-	FundingType: common.SpotFunding,
-
-	// Truncate to second precision because Broker sends unix timestamps (seconds)
-	ExpireTime: time.Now().Add(10 * time.Minute).Truncate(1 * time.Second),
-}
-
 // The following orders/trades/balances already exist on broker
 var mockOrders = []common.PrivateOrder{
 	common.PrivateOrder{
-		ExternalID:   uuid.New().String(),
+		ID:           uuid.New().String(),
 		Amount:       "0.02",
 		AmountFilled: "0.0",
 		PriceParams: common.PriceParams{&common.PriceParam{
@@ -48,7 +34,7 @@ var mockOrders = []common.PrivateOrder{
 		Timestamp:   time.Now().Add(-30 * time.Minute).Truncate(1 * time.Second),
 	},
 	common.PrivateOrder{
-		ExternalID:   uuid.New().String(),
+		ID:           uuid.New().String(),
 		Amount:       "0.03",
 		AmountFilled: "0.5",
 		OrderSide:    common.SellOrder,
@@ -101,7 +87,7 @@ var mockPositions = []common.PrivatePosition{
 		AvgPrice:     "1.3243",
 		AmountOpen:   "1.0",
 		AmountClosed: "0.5",
-		OrderIDs:     []string{mockOrders[0].ExternalID, mockOrders[1].ExternalID},
+		OrderIDs:     []string{mockOrders[0].ID, mockOrders[1].ID},
 		TradeIDs:     []string{mockTrades[0].ExternalID, mockTrades[1].ExternalID},
 	},
 }
@@ -284,6 +270,24 @@ func TestTrading(t *testing.T) {
 		marketID := common.MarketID("1")
 		marketIDint := int64(1)
 
+		// TODO(pavelb): cleanup.
+		testOrderParams := common.PlaceOrderOpt{
+			PriceParams: common.PriceParams{&common.PriceParam{
+				// Value: "1.0",
+				Value: "0.01",
+				Type:  common.AbsoluteValuePrice,
+			}},
+			MarketID: marketID,
+			// Amount: "0.1",
+			Amount:      "0.01",
+			OrderSide:   common.BuyOrder,
+			OrderType:   common.LimitOrder,
+			FundingType: common.SpotFunding,
+
+			// Truncate to second precision because Broker sends unix timestamps (seconds)
+			ExpireTime: time.Now().Add(10 * time.Minute).Truncate(1 * time.Second),
+		}
+
 		client, err := NewTradeClient(&TradeClientParams{
 			WSParams: &WSParams{
 				URL:       tp.url,
@@ -292,11 +296,10 @@ func TestTrading(t *testing.T) {
 			},
 			Subscriptions: []*TradeSubscription{
 				&TradeSubscription{
-					MarketID: common.MarketID(marketID),
+					MarketID: marketID,
 				},
 			},
 		})
-
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -344,7 +347,7 @@ func TestTrading(t *testing.T) {
 		})
 
 		// Test placing order before client is ready
-		order, err := client.PlaceOrder(marketID, testOrderParams)
+		order, err := client.PlaceOrder(testOrderParams)
 		assert.Equal(ErrNotInitialized, errors.Cause(err))
 
 		_, err = client.GetOrders(marketID)
@@ -386,7 +389,7 @@ func TestTrading(t *testing.T) {
 		assert.Equal(nil, err)
 
 		// Order should work now
-		order, err = client.PlaceOrder(marketID, testOrderParams)
+		order, err = client.PlaceOrder(testOrderParams)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -424,7 +427,10 @@ func TestTrading(t *testing.T) {
 		assert.Equal("1.1", orders[2].AmountFilled)
 		assert.Equal(nil, err)
 
-		if err := client.CancelOrder(marketID, order); err != nil {
+		if err := client.CancelOrder(common.CancelOrderOpt{
+			MarketID: marketID,
+			OrderID:  order.ID,
+		}); err != nil {
 			return errors.Trace(err)
 		}
 
@@ -433,8 +439,7 @@ func TestTrading(t *testing.T) {
 
 	if err != nil {
 		t.Log(errors.ErrorStack(err))
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 }
 
@@ -475,7 +480,7 @@ func mockBrokerServer(t *testing.T, tp *testServerParams, marketIDs []int64) {
 				order = privateOrderFromProto(r.PlaceOrderRequest.Order)
 
 				// The following would normally come from the exchange
-				order.ExternalID = uuid.New().String()
+				order.ID = uuid.New().String()
 				order.AmountFilled = "0.0"
 				order.Timestamp = time.Now()
 
@@ -504,7 +509,7 @@ func mockBrokerServer(t *testing.T, tp *testServerParams, marketIDs []int64) {
 
 			case *pbb.BrokerRequest_CancelOrderRequest:
 				orderId := r.CancelOrderRequest.GetOrderId()
-				assert.Equal(orderId, order.ExternalID)
+				assert.Equal(orderId, order.ID)
 				res := &pbb.BrokerUpdateMessage{
 					MarketId: marketID,
 					Update: &pbb.BrokerUpdateMessage_RequestResolutionUpdate{
@@ -777,7 +782,7 @@ func checkOrder(t *testing.T, expected, actual common.PrivateOrder) {
 	assert.Equal(expected.OrderSide, actual.OrderSide)
 	assert.Equal(expected.OrderType, actual.OrderType)
 	assert.Equal(expected.FundingType, actual.FundingType)
-	assert.Equal(expected.ExternalID, actual.ExternalID)
+	assert.Equal(expected.ID, actual.ID)
 	assert.Equal(expected.Leverage, actual.Leverage)
 	assert.Equal(expected.CurrentStop, actual.CurrentStop)
 	assert.Equal(expected.InitialStop, actual.InitialStop)
