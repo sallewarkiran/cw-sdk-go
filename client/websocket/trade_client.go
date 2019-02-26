@@ -633,7 +633,7 @@ func (tc *TradeClient) placeOrderInt(orderOpt common.PlaceOrderOpt) placeOrderRe
 	if res.Error == 0 {
 		order = privateOrderFromProto(res.GetPlaceOrderResult().Order)
 		tc.mtx.Lock()
-		tc.orders[orderOpt.MarketID][order.ID] = order
+		tc.orders[orderOpt.MarketID][order.CacheKey(orderOpt.MarketID)] = order
 		tc.mtx.Unlock()
 	} else {
 		returnErr = fmt.Errorf("[%v] %v", res.Error, res.Message)
@@ -809,7 +809,8 @@ func (tc *TradeClient) ordersUpdateHandler(marketID common.MarketID, update *pbb
 
 	for _, order := range orders {
 		o := privateOrderFromProto(order)
-		orderCache[o.ID] = o
+		// orderCache[o.ID] = o
+		orderCache[o.CacheKey(marketID)] = o
 		returnOrders = append(returnOrders, o)
 	}
 

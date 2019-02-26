@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -105,13 +106,13 @@ type PriceParams []*PriceParam
 // the trade client.
 // See TradeClient.PlaceOrder.
 type PlaceOrderOpt struct {
-	PriceParams PriceParams
 	MarketID    MarketID
+	PriceParams PriceParams
 	Amount      string
-	Leverage    string
 	OrderSide   OrderSide
 	OrderType   OrderType
 	FundingType FundingType
+	Leverage    string
 	ExpireTime  time.Time
 }
 
@@ -168,6 +169,11 @@ func (o PrivateOrder) String() string {
 		o.Timestamp, OrderSideNames[o.OrderSide], FundingTypeNames[o.FundingType],
 		OrderTypeNames[o.OrderType], o.ID, o.Amount, o.AmountFilled, priceStr, expiresStr,
 	)
+}
+
+// CacheKey returns the key composed by joining the market ID with the ID.
+func (o PrivateOrder) CacheKey(mID MarketID) string {
+	return strings.Join([]string{string(mID), o.ID}, "_")
 }
 
 // PrivateTrade represents a trade made on your account.
