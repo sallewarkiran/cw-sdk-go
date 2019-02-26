@@ -50,7 +50,7 @@ func main() {
 	}
 
 	if len(*marketStrings) == 0 {
-		fmt.Fprintf(os.Stderr, "No markets are given, use --market <exchange>/<base>/<quote>")
+		fmt.Fprintf(os.Stderr, "No markets are given, use --market <exchange>/<base>/<quote>\n")
 		os.Exit(1)
 	}
 
