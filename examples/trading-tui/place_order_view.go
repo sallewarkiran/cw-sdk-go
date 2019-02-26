@@ -49,7 +49,6 @@ type PlaceOrderView struct {
 	price        string
 }
 
-// TODO(pavelb): cleanup.
 func NewPlaceOrderView(
 	mainView *MainView, params *PlaceOrderViewParams,
 ) *PlaceOrderView {
@@ -139,22 +138,6 @@ func NewPlaceOrderView(
 			default:
 				panic(fmt.Sprintf("invalid order type idx: %v", pov.orderTypeIdx))
 			}
-
-			// pov.mainView.params.OnPlaceOrderRequest(
-			// 	pov.params.Market.ID,
-			// 	common.OrderParams{
-			// 		Amount: pov.amount,
-			// 		PriceParams: common.PriceParams{
-			// 			&common.PriceParam{
-			// 				Value: pov.price,
-			// 				Type:  common.AbsoluteValuePrice,
-			// 			},
-			// 		},
-			// 		OrderSide:   orderSide,
-			// 		OrderType:   orderType,
-			// 		FundingType: common.SpotFunding,
-			// 	},
-			// )
 
 			pov.mainView.params.OnPlaceOrderRequest(
 				common.PlaceOrderOpt{

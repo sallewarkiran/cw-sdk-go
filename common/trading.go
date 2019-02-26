@@ -101,7 +101,6 @@ const (
 // TODO this should probably not be a reference
 type PriceParams []*PriceParam
 
-// TODO(pavelb): cleanup.
 // PlaceOrderOpt contains the necessary options for creating a new order with
 // the trade client.
 // See TradeClient.PlaceOrder.
@@ -116,7 +115,6 @@ type PlaceOrderOpt struct {
 	ExpireTime  time.Time
 }
 
-// TODO(pavelb): cleanup.
 // CancelOrderOpt contains the necessary options for canceling an existing order with
 // the trade client.
 // See TradeClient.CancelOrder.
@@ -125,7 +123,6 @@ type CancelOrderOpt struct {
 	OrderID  string
 }
 
-// TODO(pavelb): cleanup.
 // PrivateOrder represents an order you have placed on an exchange, either
 // through the TradeClient, or on the exchange itself.
 type PrivateOrder struct {
@@ -136,8 +133,8 @@ type PrivateOrder struct {
 	FundingType FundingType
 	ExpireTime  time.Time
 
-	// Set by server and updated internally by client
-	// ExternalID   string
+	// Set by server and updated internally by client.
+	// ID previously was ExternalID.
 	ID           string
 	Timestamp    time.Time
 	Leverage     string

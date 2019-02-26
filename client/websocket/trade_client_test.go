@@ -270,15 +270,12 @@ func TestTrading(t *testing.T) {
 		marketID := common.MarketID("1")
 		marketIDint := int64(1)
 
-		// TODO(pavelb): cleanup.
 		testOrderParams := common.PlaceOrderOpt{
 			PriceParams: common.PriceParams{&common.PriceParam{
-				// Value: "1.0",
 				Value: "0.01",
 				Type:  common.AbsoluteValuePrice,
 			}},
-			MarketID: marketID,
-			// Amount: "0.1",
+			MarketID:    marketID,
 			Amount:      "0.01",
 			OrderSide:   common.BuyOrder,
 			OrderType:   common.LimitOrder,

@@ -325,10 +325,8 @@ func setupTradeClient(
 		getStateListener(statesTracker, mainView, ConnComponentTrading),
 	)
 
-	// TODO(pavelb): cleanup.
 	// Link UI requests to place/cancel orders with the trade client {{{
 	mainView.SetOnPlaceOrderRequestCallback(
-		// func(marketID common.MarketID, op common.OrderParams) {
 		func(orderOpt common.PlaceOrderOpt) {
 			// It's called from the UI eventloop, so we can mess with UI right here.
 			msgv := NewMessageView(mainView, &MessageViewParams{
@@ -338,7 +336,6 @@ func setupTradeClient(
 			msgv.Show()
 
 			go func() {
-				// _, orderErr := tc.PlaceOrder(marketID, op)
 				_, orderErr := tc.PlaceOrder(orderOpt)
 
 				// This isn't UI eventloop, so we need to get there.
@@ -355,9 +352,7 @@ func setupTradeClient(
 		},
 	)
 
-	// TODO(pavelb): cleanup.
 	mainView.SetOnCancelOrderRequestCallback(
-		// func(marketID common.MarketID, order common.PrivateOrder) {
 		func(orderOpts common.CancelOrderOpt) {
 			// It's called from the UI eventloop, so we can mess with UI right here.
 			msgv := NewMessageView(mainView, &MessageViewParams{
@@ -367,7 +362,6 @@ func setupTradeClient(
 			msgv.Show()
 
 			go func() {
-				// orderErr := tc.CancelOrder(marketID, order)
 				orderErr := tc.CancelOrder(orderOpts)
 
 				// This isn't UI eventloop, so we need to get there.
