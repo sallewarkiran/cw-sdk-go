@@ -29,10 +29,6 @@ var (
 	authn  *ConfigAuthn
 )
 
-func (md MarketDescr) String() string {
-	return fmt.Sprintf("%s %s%s", md.Exchange, md.Base, md.Quote)
-}
-
 func main() {
 	configFilenameDefault := getConfigFilenameDefault()
 	configFilename = pflag.String("config-file", configFilenameDefault, "Config filename to use")

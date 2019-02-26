@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"code.cryptowat.ch/cw-sdk-go/common"
 )
 
@@ -9,6 +11,10 @@ type MarketDescr struct {
 	Exchange string
 	Base     string
 	Quote    string
+}
+
+func (md MarketDescr) String() string {
+	return fmt.Sprintf("%s %s%s", md.Exchange, md.Base, md.Quote)
 }
 
 // MarketDescrsSorted {{{
