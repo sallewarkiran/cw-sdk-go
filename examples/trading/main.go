@@ -22,19 +22,24 @@ var (
 	exchangeSecretKey = flag.String("exchangesecret", "", "Exchange secret key")
 	url               = flag.String("url", "", "Trading API url")
 	mode              = flag.String("mode", "place", "PlaceOrder or CancelOrder mode")
-	orderID           = flag.String("orderId", "", "OrderID to cancel")
+	orderID           = flag.String("orderid", "", "OrderID to cancel")
 )
 
 func main() {
 	flag.Parse()
 
-	if *mode != "place" && *mode != "cancel" {
-		log.Println("mode must be either place or cancel")
+	if *mode != "place" && *mode != "cancel" && *mode != "list" {
+		log.Println("mode must be either list, place or cancel")
 		os.Exit(1)
 	}
 
 	if *mode == "cancel" && *orderID == "" {
 		log.Println("orderId must be a non-empty string")
+		os.Exit(1)
+	}
+
+	if *marketID == "" {
+		log.Println("marketid must be a non-empty string")
 		os.Exit(1)
 	}
 
@@ -131,6 +136,21 @@ func trade(client *websocket.TradeClient, ready <-chan struct{}, done <-chan str
 		select {
 		case <-ready:
 			switch *mode {
+			case "list":
+				log.Println("Trading ready: getting orders...")
+
+				orders, err := client.GetOrders(common.MarketID(*marketID))
+				if err == nil {
+					oids := make([]string, 0, len(orders))
+					for _, o := range orders {
+						oids = append(oids, o.ID)
+					}
+
+					log.Println("Orders:", oids)
+				}
+
+				errChan <- err
+				return
 			case "place":
 				log.Println("Trading ready: placing order...")
 
@@ -166,6 +186,10 @@ func trade(client *websocket.TradeClient, ready <-chan struct{}, done <-chan str
 				}
 
 				errChan <- err
+				return
+			default:
+				log.Println("Operation is not supported")
+				errChan <- nil
 				return
 			}
 		case <-done:
