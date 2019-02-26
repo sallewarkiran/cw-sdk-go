@@ -1,6 +1,6 @@
 .PHONY: all test
 
-all: clean test stream-client trading-tui
+all: clean test stream-client trading-tui trading
 
 stream-client:
 	go build --race -o bin/stream-client ./cmd/stream-client
