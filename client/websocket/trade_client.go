@@ -809,7 +809,6 @@ func (tc *TradeClient) ordersUpdateHandler(marketID common.MarketID, update *pbb
 
 	for _, order := range orders {
 		o := privateOrderFromProto(order)
-		// orderCache[o.ID] = o
 		orderCache[o.CacheKey(marketID)] = o
 		returnOrders = append(returnOrders, o)
 	}
