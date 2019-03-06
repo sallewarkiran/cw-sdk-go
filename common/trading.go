@@ -99,7 +99,6 @@ const (
 // Usually you will just need one PriceParam input, but some order types take
 // multiple PriceParam inputs, such as TrailingStopLossOrder.
 // TODO document different PriceParam uses
-// TODO this should probably not be a reference
 type PriceParams []*PriceParam
 
 // PlaceOrderOpt contains the necessary options for creating a new order with

@@ -1,3 +1,6 @@
+/*
+Package rest provides a client for using the Cryptowatch REST API.
+*/
 package rest // import "code.cryptowat.ch/cw-sdk-go/client/rest"
 
 import (

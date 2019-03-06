@@ -3,7 +3,7 @@
 // license which can be found in the LICENSE file.
 
 /*
-Package websocket manages connections to Cryptowatch Websocket API. The API consists of
+Package websocket provides a client for managing connections to the Cryptowatch Websocket API. The API consists of
 two separate back ends for streaming and trading. Although they are separate services, both share
 the same underlying connection logic. Each service has its own respective client: StreamClient and TradeClient.
 
@@ -46,10 +46,10 @@ reconnect with linear backoff up to 30 seconds.
 Subscriptions
 
 The Subscriptions supplied in StreamClientParams determine what resources will be streamed.
-Read the streaming subscriptions documentation here: https://cryptowat.ch/docs/websocket-api#data-subscriptions
+Read the streaming subscriptions documentation here: https://cryptowat.ch/docs/websocket-api#data-streaming
 
 The Subscriptions supplied in TradeClientParams determine what markets can be traded on. Read
-about the trading subscription documentation here: https://cryptowat.ch/docs/websocket-api#trading-subscriptions
+about the trading subscription documentation here: https://cryptowat.ch/docs/websocket-api#trading
 
 Both StreamClient and TradeClient can define OnSubscriptionResult which gives information about what was successfully subscribed to, and if there were any errors (e.g. Access Denied).
 
