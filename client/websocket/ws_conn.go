@@ -602,16 +602,6 @@ func (c *wsConn) onConnClosed(cb ConnClosedCallback) {
 	})
 }
 
-// TODO: remove after we are no longer supporting string subscriptions.
-// getSubscriptionsDeprecated returns a slice of the current subscriptions.
-func (c *wsConn) getSubscriptionsDeprecated() []string {
-	subs := []string{}
-	for sub, _ := range c.subscriptions {
-		subs = append(subs, sub)
-	}
-	return subs
-}
-
 // getSubscriptions returns a slice of the current subscriptions.
 func (c *wsConn) getSubscriptions() []Subscription {
 	subs := []Subscription{}
@@ -900,7 +890,6 @@ loop:
 							ApiKey:              c.params.APIKey,
 							Source:              pbc.APIAuthenticationMessage_GOLANG_SDK,
 							Version:             version.Version,
-							Subscriptions:       c.getSubscriptionsDeprecated(),
 							ClientSubscriptions: subsToProto(c.getSubscriptions()),
 						},
 					},
