@@ -278,9 +278,10 @@ func setupTradeClient(
 		mainView.SetMarketOrders(marketID, orders)
 	})
 
-	tc.OnBalancesUpdate(func(marketID common.MarketID, balances common.Balances) {
-		mainView.SetMarketBalances(marketID, balances)
-	})
+	// Balances grep flag: Ki49fK
+	// tc.OnBalancesUpdate(func(marketID common.MarketID, balances common.Balances) {
+	// 	mainView.SetMarketBalances(marketID, balances)
+	// })
 
 	tc.OnTradesUpdate(func(marketID common.MarketID, trades []common.PrivateTrade) {
 		// If this is the first trades update after we've connected, reset the

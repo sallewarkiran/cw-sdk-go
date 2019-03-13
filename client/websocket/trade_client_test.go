@@ -63,21 +63,22 @@ var mockTrades = []common.PrivateTrade{
 	},
 }
 
-var mockBalances = common.Balances{
-	common.SpotFunding: []common.Balance{
-		common.Balance{
-			Currency: "usd",
-			Amount:   "1.0",
-		},
-	},
+// Balances grep flag: Ki49fK
+// var mockBalances = common.Balances{
+// 	common.SpotFunding: []common.Balance{
+// 		common.Balance{
+// 			Currency: "usd",
+// 			Amount:   "1.0",
+// 		},
+// 	},
 
-	common.MarginFunding: []common.Balance{
-		common.Balance{
-			Currency: "eth",
-			Amount:   "1.0",
-		},
-	},
-}
+// 	common.MarginFunding: []common.Balance{
+// 		common.Balance{
+// 			Currency: "eth",
+// 			Amount:   "1.0",
+// 		},
+// 	},
+// }
 
 var mockPositions = []common.PrivatePosition{
 	common.PrivatePosition{
@@ -356,8 +357,9 @@ func TestTrading(t *testing.T) {
 		_, err = client.GetPositions(marketID)
 		assert.Equal(ErrNotInitialized, errors.Cause(err))
 
-		_, err = client.GetBalances(marketID)
-		assert.Equal(ErrNotInitialized, errors.Cause(err))
+		// Balances grep flag: Ki49fK
+		// _, err = client.GetBalances(marketID)
+		// assert.Equal(ErrNotInitialized, errors.Cause(err))
 
 		if err := initMockBrokerConn(t, tp, marketIDint); err != nil {
 			return errors.Trace(err)
@@ -371,9 +373,10 @@ func TestTrading(t *testing.T) {
 		// Make sure the client has initialized its cache correctly
 		//
 
-		balances, err := client.GetBalances(marketID)
-		assert.Equal(mockBalances, balances)
-		assert.Equal(nil, err)
+		// Balances grep flag: Ki49fK
+		// balances, err := client.GetBalances(marketID)
+		// assert.Equal(mockBalances, balances)
+		// assert.Equal(nil, err)
 
 		orders, err := client.GetOrders(marketID)
 		for i, o := range mockOrders {
@@ -556,9 +559,10 @@ func initMockBrokerConn(t *testing.T, tp *testServerParams, marketID int64) erro
 		return errors.Trace(err)
 	}
 
-	if err := sendBalanceUpdate(t, tp, marketID, mockBalances); err != nil {
-		return errors.Trace(err)
-	}
+	// Balances grep flag: Ki49fK
+	// if err := sendBalanceUpdate(t, tp, marketID, mockBalances); err != nil {
+	// 	return errors.Trace(err)
+	// }
 
 	return nil
 }
@@ -625,20 +629,21 @@ func sendPositionsUpdate(
 	return sendBrokerUpdate(tp, pu)
 }
 
-func sendBalanceUpdate(
-	t *testing.T, tp *testServerParams, marketID int64, balances common.Balances,
-) error {
-	bu := &pbb.BrokerUpdateMessage{
-		MarketId: marketID,
-		Update: &pbb.BrokerUpdateMessage_BalancesUpdate{
-			BalancesUpdate: &pbb.BalancesUpdate{
-				Balances: balancesToProto(balances),
-			},
-		},
-	}
+// Balances grep flag: Ki49fK
+// func sendBalanceUpdate(
+// 	t *testing.T, tp *testServerParams, marketID int64, balances common.Balances,
+// ) error {
+// 	bu := &pbb.BrokerUpdateMessage{
+// 		MarketId: marketID,
+// 		Update: &pbb.BrokerUpdateMessage_BalancesUpdate{
+// 			BalancesUpdate: &pbb.BalancesUpdate{
+// 				Balances: balancesToProto(balances),
+// 			},
+// 		},
+// 	}
 
-	return sendBrokerUpdate(tp, bu)
-}
+// 	return sendBrokerUpdate(tp, bu)
+// }
 
 func sendSessionStatusUpdate(t *testing.T, tp *testServerParams, marketID int64) error {
 	su := &pbb.BrokerUpdateMessage{

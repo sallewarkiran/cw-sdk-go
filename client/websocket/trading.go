@@ -11,7 +11,9 @@ const (
 	tradeModuleOrders    tradeModule = "orders"
 	tradeModuleTrades    tradeModule = "trades"
 	tradeModulePositions tradeModule = "positions"
-	tradeModuleBalances  tradeModule = "balances"
+
+// Balances grep flag: Ki49fK
+// tradeModuleBalances  tradeModule = "balances"
 )
 
 var tradeModules = [...]tradeModule{
@@ -19,7 +21,8 @@ var tradeModules = [...]tradeModule{
 	tradeModuleOrders,
 	tradeModuleTrades,
 	tradeModulePositions,
-	tradeModuleBalances,
+	// Balances grep flag: Ki49fK
+	// tradeModuleBalances,
 }
 
 type privateOrders []common.PrivateOrder
