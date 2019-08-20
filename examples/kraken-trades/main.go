@@ -16,6 +16,10 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
+const (
+	exchangeSymbol = "kraken"
+)
+
 func main() {
 	// We need this since getting user's home dir can fail.
 	defaultConfig, err := config.DefaultFilepath()
@@ -49,11 +53,16 @@ func main() {
 
 	// Get exchange description, in particular we'll need the ID to use it
 	// in stream subscriptions.
+	exchange, err := restclient.GetExchangeDescr(exchangeSymbol)
+	if err != nil {
+		log.Printf("failed to get details of %s: %s", exchangeSymbol, err)
+		os.Exit(1)
+	}
 
 	// Get market descriptions, to know symbols (like "btcusd") by integer ID.
-	marketsSlice, err := restclient.GetMarketsIndex()
+	marketsSlice, err := restclient.GetExchangeMarketsDescr(exchangeSymbol)
 	if err != nil {
-		log.Printf("failed to get markets: %s", err)
+		log.Printf("failed to get markets of %s: %s", exchangeSymbol, err)
 		os.Exit(1)
 	}
 
@@ -73,7 +82,7 @@ func main() {
 
 		Subscriptions: []*websocket.StreamSubscription{
 			&websocket.StreamSubscription{
-				Resource: "markets:*:trades",
+				Resource: fmt.Sprintf("exchanges:%d:trades", exchange.ID),
 			},
 		},
 	})
@@ -81,10 +90,6 @@ func main() {
 		log.Print(err)
 		os.Exit(1)
 	}
-
-	c.OnSubscriptionResult(func(sr websocket.SubscriptionResult) {
-		log.Println(sr)
-	})
 
 	if verbose {
 		lastErrChan := make(chan error, 1)
@@ -116,7 +121,7 @@ func main() {
 		)
 	}
 
-	// Listen for received market messages and print them.
+	// Listen for received market messages and print them
 	c.OnMarketUpdate(func(market common.Market, md common.MarketUpdate) {
 		if md.TradesUpdate == nil {
 			return
@@ -125,9 +130,8 @@ func main() {
 		tradesUpdate := md.TradesUpdate
 		for _, trade := range tradesUpdate.Trades {
 			log.Printf(
-				"%-25s %-25s %-25s %-25s",
-				fmt.Sprintf("Exchange: %s (%s)", market.ExchangeID, markets[market.ID].Exchange),
-				fmt.Sprintf("Pair: %s (%s)", market.CurrencyPairID, markets[market.ID].Pair),
+				"%-25s %-25s %-25s",
+				fmt.Sprintf("Trade: %s (%s)", market.CurrencyPairID, markets[market.ID].Pair),
 				fmt.Sprintf("Price: %s", trade.Price),
 				fmt.Sprintf("Amount: %s", trade.Amount),
 			)
@@ -155,4 +159,5 @@ func main() {
 	if err := c.Close(); err != nil {
 		log.Printf("Failed to close connection: %s", err)
 	}
+
 }

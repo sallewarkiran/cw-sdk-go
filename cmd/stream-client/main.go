@@ -1,14 +1,15 @@
+/*
+This is a simple app that allows to subscribe to and receive updates
+for a given list of subscriptions.
+*/
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
-	"code.cryptowat.ch/cw-sdk-go/client/rest"
 	"code.cryptowat.ch/cw-sdk-go/client/websocket"
 	"code.cryptowat.ch/cw-sdk-go/common"
 	"code.cryptowat.ch/cw-sdk-go/config"
@@ -27,12 +28,19 @@ func main() {
 	var (
 		configFile string
 		verbose    bool
+		subs       []string
 	)
 
 	flag.StringVarP(&configFile, "config", "c", defaultConfig, "Configuration file")
 	flag.BoolVarP(&verbose, "verbose", "v", false, "Prints all debug messages to stdout")
+	flag.StringSliceVarP(&subs, "sub", "s", []string{}, "Subscription key. This flag can be given multiple times")
 
 	flag.Parse()
+
+	if len(subs) == 0 {
+		log.Printf("Error: at least one subscription must be spicified")
+		os.Exit(1)
+	}
 
 	cfg, err := config.New(configFile)
 	if err != nil {
@@ -45,25 +53,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	restclient := rest.NewCWRESTClient(nil)
-
-	// Get exchange description, in particular we'll need the ID to use it
-	// in stream subscriptions.
-
-	// Get market descriptions, to know symbols (like "btcusd") by integer ID.
-	marketsSlice, err := restclient.GetMarketsIndex()
-	if err != nil {
-		log.Printf("failed to get markets: %s", err)
-		os.Exit(1)
+	streamSubs := make([]*websocket.StreamSubscription, 0, len(subs))
+	for _, s := range subs {
+		streamSubs = append(streamSubs, &websocket.StreamSubscription{Resource: s})
 	}
 
-	markets := map[common.MarketID]rest.MarketDescr{}
-	for _, market := range marketsSlice {
-		markets[common.MarketID(strconv.Itoa(market.ID))] = market
-	}
-
-	// Create a new stream connection instance. Note that the actual connection
-	// will happen later.
+	// Setup market connection (but don't connect just yet).
 	c, err := websocket.NewStreamClient(&websocket.StreamClientParams{
 		WSParams: &websocket.WSParams{
 			URL:       cfg.StreamURL,
@@ -71,34 +66,31 @@ func main() {
 			SecretKey: cfg.SecretKey,
 		},
 
-		Subscriptions: []*websocket.StreamSubscription{
-			&websocket.StreamSubscription{
-				Resource: "markets:*:trades",
-			},
-		},
+		Subscriptions: streamSubs,
 	})
 	if err != nil {
 		log.Print(err)
 		os.Exit(1)
 	}
 
-	c.OnSubscriptionResult(func(sr websocket.SubscriptionResult) {
-		log.Println(sr)
-	})
+	signals := make(chan os.Signal, 1)
 
+	// Will print state changes to the user.
 	if verbose {
 		lastErrChan := make(chan error, 1)
 
 		c.OnError(func(err error, disconnecting bool) {
+			// If the client is going to disconnect because of that error, just save
+			// the error to show later on the disconnection message.
 			if disconnecting {
 				lastErrChan <- err
 				return
 			}
 
+			// Otherwise, print the error message right away.
 			log.Printf("Error: %s", err)
 		})
 
-		// Ask for the state transition updates, and present them to the user somehow.
 		c.OnStateChange(
 			websocket.ConnStateAny,
 			func(oldState, state websocket.ConnState) {
@@ -114,24 +106,30 @@ func main() {
 				}
 			},
 		)
+
+		c.OnBandwidthUpdate(func(b websocket.Bandwidth) {
+			log.Println(b)
+			if !b.OK {
+				signals <- syscall.SIGQUIT
+			}
+		})
 	}
 
-	// Listen for received market messages and print them.
-	c.OnMarketUpdate(func(market common.Market, md common.MarketUpdate) {
-		if md.TradesUpdate == nil {
-			return
-		}
+	// Will print received market update messages.
+	c.OnMarketUpdate(func(market common.Market, update common.MarketUpdate) {
+		log.Printf("Update on market %s: %+v", market.ID, update)
+	})
 
-		tradesUpdate := md.TradesUpdate
-		for _, trade := range tradesUpdate.Trades {
-			log.Printf(
-				"%-25s %-25s %-25s %-25s",
-				fmt.Sprintf("Exchange: %s (%s)", market.ExchangeID, markets[market.ID].Exchange),
-				fmt.Sprintf("Pair: %s (%s)", market.CurrencyPairID, markets[market.ID].Pair),
-				fmt.Sprintf("Price: %s", trade.Price),
-				fmt.Sprintf("Amount: %s", trade.Amount),
-			)
-		}
+	c.OnPairUpdate(func(pair common.Pair, update common.PairUpdate) {
+		log.Printf("Pair update on pair %s: %+v", pair.ID, update)
+	})
+
+	c.OnSubscriptionResult(func(result websocket.SubscriptionResult) {
+		log.Printf("Subscription result: %+v", result)
+	})
+
+	c.OnUnsubscriptionResult(func(result websocket.UnsubscriptionResult) {
+		log.Printf("Unsubscription result: %+v\n", result)
 	})
 
 	if verbose {
@@ -144,7 +142,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 
 	// Wait until the OS signal is received, at which point we'll close the connection and quit.
@@ -152,7 +149,7 @@ func main() {
 
 	log.Print("Closing connection...")
 
-	if err := c.Close(); err != nil {
-		log.Printf("Failed to close connection: %s", err)
-	}
+	// The connection could already be closed, which would throw an error,
+	// but we can swallow it
+	c.Close()
 }
