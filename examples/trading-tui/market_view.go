@@ -147,16 +147,16 @@ func (mv *MarketView) SetBalances(balances common.Balances) {
 		mv.balances = balances
 
 		var baseBalance, quoteBalance string
-		for _, b := range balances[common.SpotFunding] {
-			if b.Currency == strings.ToLower(mv.market.Base) {
-				baseBalance = b.Amount
+		for _, b := range balances.All() {
+			if b.Asset.Symbol.String() == strings.ToLower(mv.market.Base) {
+				baseBalance = b.Amount.String()
 			}
 
-			switch b.Currency {
+			switch b.Asset.Symbol.String() {
 			case strings.ToLower(mv.market.Base):
-				baseBalance = b.Amount
+				baseBalance = b.Amount.String()
 			case strings.ToLower(mv.market.Quote):
-				quoteBalance = b.Amount
+				quoteBalance = b.Amount.String()
 			}
 		}
 

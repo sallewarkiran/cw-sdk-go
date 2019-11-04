@@ -35,20 +35,20 @@ func (pdu PrettyDeltaUpdate) String() string {
 
 	askSets := []order{}
 	for _, ask := range deltaUpdate.Asks.Set {
-		askSets = append(askSets, order{red(ask.Price), ask.Amount})
+		askSets = append(askSets, order{red(ask.Price.String()), ask.Amount.String()})
 	}
 	askRemoves := []string{}
 	for _, ask := range deltaUpdate.Asks.Remove {
-		askRemoves = append(askRemoves, yellow(ask))
+		askRemoves = append(askRemoves, yellow(ask.String()))
 	}
 
 	bidSets := []order{}
 	for _, bid := range deltaUpdate.Bids.Set {
-		bidSets = append(bidSets, order{green(bid.Price), bid.Amount})
+		bidSets = append(bidSets, order{green(bid.Price.String()), bid.Amount.String()})
 	}
 	bidRemoves := []string{}
 	for _, bid := range deltaUpdate.Bids.Remove {
-		bidRemoves = append(bidRemoves, blue(bid))
+		bidRemoves = append(bidRemoves, blue(bid.String()))
 	}
 
 	rows := []string{
@@ -84,11 +84,11 @@ func NewOrderBookMirror(bookMsg common.OrderBookSnapshot) *OrderBookMirror {
 
 	for _, order := range bookMsg.Asks {
 		price, amount := order.Price, order.Amount
-		book.Asks[price] = amount
+		book.Asks[price.String()] = amount.String()
 	}
 	for _, order := range bookMsg.Bids {
 		price, amount := order.Price, order.Amount
-		book.Bids[price] = amount
+		book.Bids[price.String()] = amount.String()
 	}
 
 	return book

@@ -15,7 +15,7 @@ import (
 
 // Default URLs used if one of the URLs isn't specified.
 const (
-	DefaultAPIURL    = "https://api.cryptowat.ch"
+	DefaultRESTURL   = "https://api.cryptowat.ch"
 	DefaultStreamURL = "wss://stream.cryptowat.ch"
 	DefaultTradeURL  = "wss://trading.service.cryptowat.ch"
 
@@ -34,23 +34,37 @@ var (
 	ErrNilArgs = Error{Type: "args", Why: "args is nil", How: "create an instance of args"}
 )
 
-// CW holds the configuration.
-type CW struct {
+// CWConfig holds the configuration.
+type CWConfig struct {
 	mu        sync.Mutex `yaml:"-"` // protects the fields below
 	APIKey    string     `yaml:"api_key"`
 	SecretKey string     `yaml:"secret_key"`
+	RESTURL   string     `yaml:"rest_url"`
 	StreamURL string     `yaml:"stream_url"`
 	TradeURL  string     `yaml:"trade_url"`
-	APIURL    string     `yaml:"api_url"`
+}
+
+func Get() *CWConfig {
+	cfg := &CWConfig{}
+
+	defaultPath, dfErr := DefaultFilepath()
+	if dfErr == nil {
+		cfgFile, _ := New(defaultPath)
+		if cfgFile != nil {
+			cfg = cfgFile
+		}
+	}
+
+	return cfg
 }
 
 // New creates a new CW from a file by the given name.
-func New(name string) (*CW, error) {
+func New(name string) (*CWConfig, error) {
 	return NewFromFilename(name)
 }
 
 // NewFromFilename creates a new CW from a file by the given filename.
-func NewFromFilename(filename string) (*CW, error) {
+func NewFromFilename(filename string) (*CWConfig, error) {
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -60,52 +74,33 @@ func NewFromFilename(filename string) (*CW, error) {
 }
 
 // NewFromRaw creates a new CW by unmarshaling the given raw data.
-func NewFromRaw(raw []byte) (*CW, error) {
-	cfg := &CW{}
+func NewFromRaw(raw []byte) (*CWConfig, error) {
+	cfg := &CWConfig{}
 	if err := yaml.Unmarshal(raw, cfg); err != nil {
 		return nil, errors.Trace(err)
 	}
 
+	cfg.setDefaults()
+
 	return cfg, nil
 }
 
-// ValidateFunc validates the config by applying each of given vfs to it.
-func (c *CW) ValidateFunc(vfs ...ValidateFuncCW) error {
-	if c == nil {
-		return ErrNilConfig
+func (c *CWConfig) setDefaults() {
+	if c.RESTURL == "" {
+		c.RESTURL = DefaultRESTURL
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	for _, f := range vfs {
-		if err := f(c); err != nil {
-			return errors.Trace(err)
-		}
+	if c.StreamURL == "" {
+		c.StreamURL = DefaultStreamURL
 	}
 
-	return nil
-}
-
-// Validate validates the config by applying ValidatorDefault.
-func (c *CW) Validate() error {
-	return c.ValidateFunc(ValidateCWDefault)
-}
-
-func (c *CW) Example() *CW {
-	cw := &CW{}
-
-	cw.APIKey = "example_api_key"
-	cw.SecretKey = "example_api_key"
-	cw.StreamURL = DefaultStreamURL
-	cw.TradeURL = DefaultTradeURL
-	cw.APIURL = DefaultAPIURL
-
-	return cw
+	if c.TradeURL == "" {
+		c.TradeURL = DefaultTradeURL
+	}
 }
 
 // String can't be defined on a value receiver here because of the mutex.
-func (c *CW) String() string {
+func (c *CWConfig) String() string {
 	raw, err := yaml.Marshal(c)
 	if err != nil {
 		return err.Error()
@@ -141,9 +136,6 @@ func (e Error) Error() string {
 	return fmt.Sprintf("invalid %s: %s - %s. Possible fix: %s", e.Type, e.What, e.Why, e.How)
 }
 
-// ValidateFuncCW takes an instance of CW and returns an error if any occured during validation process.
-type ValidateFuncCW func(*CW) error
-
 // CheckURL checks that the url has the correct scheme.
 func CheckURL(given string, schemes ...string) error {
 	u, err := url.Parse(given)
@@ -158,42 +150,4 @@ func CheckURL(given string, schemes ...string) error {
 	}
 
 	return ErrInvalidScheme
-}
-
-// ValidateCWDefault performs validation of the given config by checking all the fields for correctness.
-// It does set default values for an url if one wasn't specified.
-func ValidateCWDefault(c *CW) error {
-	if c.APIKey == "" {
-		return ErrEmptyAPIKey
-	}
-
-	if c.SecretKey == "" {
-		return ErrEmptySecretKey
-	}
-
-	if c.APIURL == "" {
-		c.APIURL = DefaultAPIURL
-	} else {
-		if err := CheckURL(c.APIURL, "http", "https"); err != nil {
-			return ErrInvalidHTTPURL
-		}
-	}
-
-	if c.StreamURL == "" {
-		c.StreamURL = DefaultStreamURL
-	} else {
-		if err := CheckURL(c.StreamURL, "ws", "wss"); err != nil {
-			return ErrInvalidWSURL
-		}
-	}
-
-	if c.TradeURL == "" {
-		c.TradeURL = DefaultTradeURL
-	} else {
-		if err := CheckURL(c.TradeURL, "ws", "wss"); err != nil {
-			return ErrInvalidWSURL
-		}
-	}
-
-	return nil
 }

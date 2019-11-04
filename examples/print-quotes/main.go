@@ -48,12 +48,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := cfg.Validate(); err != nil {
-		log.Print(err)
-		os.Exit(1)
-	}
-
-	restclient := rest.NewCWRESTClient(nil)
+	restclient := rest.NewRESTClient(nil)
 
 	marketsIndex, err := restclient.GetMarketsIndex()
 	if err != nil {
@@ -71,7 +66,7 @@ func main() {
 	marketSymbols := make(map[common.MarketID]string)
 
 	for _, market := range marketsIndex {
-		marketSymbols[common.MarketID(strconv.Itoa(market.ID))] = market.Exchange + " " + market.Pair
+		marketSymbols[common.MarketID(market.ID)] = market.Exchange + " " + market.Pair
 	}
 
 	c, err := websocket.NewStreamClient(&websocket.StreamClientParams{
@@ -92,7 +87,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	c.OnMarketUpdate(func(market common.Market, md common.MarketUpdate) {
+	c.OnMarketUpdate(func(marketID common.MarketID, md common.MarketUpdate) {
 		if md.TradesUpdate == nil {
 			return
 		}
@@ -100,7 +95,7 @@ func main() {
 		tradesUpdate := md.TradesUpdate
 		trades := tradesUpdate.Trades
 
-		quoteVals[market.ID] = trades[len(trades)-1].Price
+		quoteVals[marketID] = trades[len(trades)-1].Price.String()
 
 		// Possible race - an update might be received when quoteVals are being read.
 		// The same applies to marketSymbols.

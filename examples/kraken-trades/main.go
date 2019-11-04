@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"code.cryptowat.ch/cw-sdk-go/client/rest"
@@ -38,18 +37,7 @@ func main() {
 
 	flag.Parse()
 
-	cfg, err := config.New(configFile)
-	if err != nil {
-		log.Print(err)
-		os.Exit(1)
-	}
-
-	if err := cfg.Validate(); err != nil {
-		log.Print(err)
-		os.Exit(1)
-	}
-
-	restclient := rest.NewCWRESTClient(nil)
+	restclient := rest.NewRESTClient(nil)
 
 	// Get exchange description, in particular we'll need the ID to use it
 	// in stream subscriptions.
@@ -68,18 +56,13 @@ func main() {
 
 	markets := map[common.MarketID]rest.MarketDescr{}
 	for _, market := range marketsSlice {
-		markets[common.MarketID(strconv.Itoa(market.ID))] = market
+		markets[common.MarketID(market.ID)] = market
 	}
 
 	// Create a new stream connection instance. Note that the actual connection
 	// will happen later.
 	c, err := websocket.NewStreamClient(&websocket.StreamClientParams{
-		WSParams: &websocket.WSParams{
-			URL:       cfg.StreamURL,
-			APIKey:    cfg.APIKey,
-			SecretKey: cfg.SecretKey,
-		},
-
+		// api key will be read from ~/.cw/credentials.yml
 		Subscriptions: []*websocket.StreamSubscription{
 			&websocket.StreamSubscription{
 				Resource: fmt.Sprintf("exchanges:%d:trades", exchange.ID),
@@ -122,7 +105,7 @@ func main() {
 	}
 
 	// Listen for received market messages and print them
-	c.OnMarketUpdate(func(market common.Market, md common.MarketUpdate) {
+	c.OnMarketUpdate(func(marketID common.MarketID, md common.MarketUpdate) {
 		if md.TradesUpdate == nil {
 			return
 		}
@@ -131,7 +114,8 @@ func main() {
 		for _, trade := range tradesUpdate.Trades {
 			log.Printf(
 				"%-25s %-25s %-25s",
-				fmt.Sprintf("Trade: %s (%s)", market.CurrencyPairID, markets[market.ID].Pair),
+				// fmt.Sprintf("Trade: %s (%s)", market.CurrencyPairID, markets[marketID].Pair),
+				fmt.Sprintf("Trade: (%s)", markets[marketID].Pair),
 				fmt.Sprintf("Price: %s", trade.Price),
 				fmt.Sprintf("Amount: %s", trade.Amount),
 			)

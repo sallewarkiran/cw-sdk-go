@@ -141,7 +141,7 @@ func NewPlaceOrderView(
 			}
 
 			pov.mainView.params.OnPlaceOrderRequest(
-				common.PlaceOrderOpt{
+				common.PlaceOrderParams{
 					PriceParams: common.PriceParams{
 						&common.PriceParam{
 							Value: pov.price,

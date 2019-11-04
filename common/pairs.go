@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type PairID string
@@ -56,7 +58,7 @@ const (
 // TODO explain calculation
 type PerformanceUpdate struct {
 	Window      PerformanceWindow
-	Performance string
+	Performance decimal.Decimal
 }
 
 // TrendlineUpdate represents the trendline update for a market for a particular
@@ -65,14 +67,14 @@ type PerformanceUpdate struct {
 type TrendlineUpdate struct {
 	Window    PerformanceWindow
 	Timestamp time.Time
-	Price     string
-	Volume    string
+	Price     decimal.Decimal
+	Volume    decimal.Decimal
 }
 
 // VWAPUpdate represents the most recent volume weighted average price update
 // for a market at a given time.
 // TODO explain calculation
 type VWAPUpdate struct {
-	VWAP      string
+	VWAP      decimal.Decimal
 	Timestamp time.Time
 }

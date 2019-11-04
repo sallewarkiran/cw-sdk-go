@@ -48,11 +48,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := cfg.Validate(); err != nil {
-		log.Print(err)
-		os.Exit(1)
-	}
-
 	streamSubs := make([]*websocket.StreamSubscription, 0, len(subs))
 	for _, s := range subs {
 		streamSubs = append(streamSubs, &websocket.StreamSubscription{Resource: s})
@@ -116,8 +111,8 @@ func main() {
 	}
 
 	// Will print received market update messages.
-	c.OnMarketUpdate(func(market common.Market, update common.MarketUpdate) {
-		log.Printf("Update on market %s: %+v", market.ID, update)
+	c.OnMarketUpdate(func(marketID common.MarketID, update common.MarketUpdate) {
+		log.Printf("Update on market %d: %+v", marketID, update)
 	})
 
 	c.OnPairUpdate(func(pair common.Pair, update common.PairUpdate) {

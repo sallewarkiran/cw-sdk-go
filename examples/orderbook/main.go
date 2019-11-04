@@ -50,12 +50,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := cfg.Validate(); err != nil {
-		log.Print(err)
-		os.Exit(1)
-	}
-
-	restclient := rest.NewCWRESTClient(nil)
+	restclient := rest.NewRESTClient(nil)
 
 	// Get market description, in particular we'll need the ID to use it
 	// in the stream subscription.
@@ -95,8 +90,8 @@ func main() {
 	// subscribe on orderbook updates using OnOrderBookUpdate.
 	orderbookUpdater := orderbooks.NewOrderBookUpdater(&orderbooks.OrderBookUpdaterParams{
 		SnapshotGetter: orderbooks.NewOrderBookSnapshotGetterRESTBySymbol(
-			exchange, pair, &rest.CWRESTClientParams{
-				APIURL: cfg.APIURL,
+			exchange, pair, &rest.RESTClientParams{
+				URL: cfg.RESTURL,
 			},
 		),
 	})
@@ -115,7 +110,7 @@ func main() {
 
 	// Listen for market changes.
 	c.OnMarketUpdate(
-		func(market common.Market, md common.MarketUpdate) {
+		func(marketID common.MarketID, md common.MarketUpdate) {
 			if snapshot := md.OrderBookSnapshot; snapshot != nil {
 				orderbookUpdater.ReceiveSnapshot(*snapshot)
 			} else if delta := md.OrderBookDelta; delta != nil {

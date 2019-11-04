@@ -23,8 +23,8 @@ type MainViewParams struct {
 	OnCancelOrderRequest OnCancelOrderRequestCallback
 }
 
-type OnPlaceOrderRequestCallback func(orderOpts common.PlaceOrderOpt)
-type OnCancelOrderRequestCallback func(orderOpts common.CancelOrderOpt)
+type OnPlaceOrderRequestCallback func(orderOpts common.PlaceOrderParams)
+type OnCancelOrderRequestCallback func(orderOpts common.CancelOrderParams)
 
 type MainView struct {
 	params    MainViewParams
@@ -90,7 +90,7 @@ func NewMainView(params *MainViewParams) *MainView {
 						mv.marketViewsByID[marketID].FocusOrdersList(
 							func(order common.PrivateOrder) {
 								// TODO: confirm
-								mv.params.OnCancelOrderRequest(common.CancelOrderOpt{
+								mv.params.OnCancelOrderRequest(common.CancelOrderParams{
 									MarketID: marketID,
 									OrderID:  order.ID,
 								})

@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/juju/errors"
+	"github.com/shopspring/decimal"
 
 	"code.cryptowat.ch/cw-sdk-go/common"
 	pbb "code.cryptowat.ch/cw-sdk-go/proto/broker"
@@ -14,75 +15,112 @@ import (
 	pbs "code.cryptowat.ch/cw-sdk-go/proto/stream"
 )
 
-// TODO check if pointers are null
-
-func marketFromProto(m *pbm.Market) common.Market {
-	return common.Market{
-		ID:             common.MarketID(uint64ToString(m.MarketId)),
-		ExchangeID:     uint64ToString(m.ExchangeId),
-		CurrencyPairID: uint64ToString(m.CurrencyPairId),
+func publicOrderFromProto(po *pbm.Order) (common.PublicOrder, error) {
+	price, err := decimal.NewFromString(po.PriceStr)
+	if err != nil {
+		return common.PublicOrder{}, errors.Annotatef(err, "parsing order price")
 	}
-}
 
-func publicOrderFromProto(po *pbm.Order) common.PublicOrder {
+	amount, err := decimal.NewFromString(po.AmountStr)
+	if err != nil {
+		return common.PublicOrder{}, errors.Annotatef(err, "parsing order amount")
+	}
+
 	return common.PublicOrder{
-		Price:  po.PriceStr,
-		Amount: po.AmountStr,
-	}
+		Price:  price,
+		Amount: amount,
+	}, nil
 }
 
-func orderBookSnapshotUpdateFromProto(obu *pbm.OrderBookUpdate) common.OrderBookSnapshot {
+func orderBookSnapshotUpdateFromProto(obu *pbm.OrderBookUpdate) (common.OrderBookSnapshot, error) {
 	bids := make([]common.PublicOrder, len(obu.Bids))
 	for i, b := range obu.Bids {
-		bids[i] = publicOrderFromProto(b)
+		var err error
+		bids[i], err = publicOrderFromProto(b)
+		if err != nil {
+			return common.OrderBookSnapshot{}, errors.Trace(err)
+		}
 	}
 
 	asks := make([]common.PublicOrder, len(obu.Asks))
 	for i, a := range obu.Asks {
-		asks[i] = publicOrderFromProto(a)
+		var err error
+		asks[i], err = publicOrderFromProto(a)
+		if err != nil {
+			return common.OrderBookSnapshot{}, errors.Trace(err)
+		}
 	}
 
 	return common.OrderBookSnapshot{
 		SeqNum: common.SeqNum(obu.SeqNum),
 		Bids:   bids,
 		Asks:   asks,
-	}
+	}, nil
 }
 
-func orderBookDeltaUpdateFromProto(obdu *pbm.OrderBookDeltaUpdate) common.OrderBookDelta {
-	bidSet := make([]common.PublicOrder, len(obdu.Bids.Set))
-	for i, o := range obdu.Bids.Set {
-		bidSet[i] = publicOrderFromProto(o)
+func orderBookDeltasFromProto(deltas *pbm.OrderBookDeltaUpdate_OrderDeltas) (common.OrderDeltas, error) {
+	set := make([]common.PublicOrder, len(deltas.Set))
+	for i, o := range deltas.Set {
+		var err error
+		set[i], err = publicOrderFromProto(o)
+		if err != nil {
+			return common.OrderDeltas{}, errors.Trace(err)
+		}
 	}
 
-	askSet := make([]common.PublicOrder, len(obdu.Asks.Set))
-	for i, o := range obdu.Asks.Set {
-		askSet[i] = publicOrderFromProto(o)
+	remove := make([]decimal.Decimal, len(deltas.RemoveStr))
+	for i, v := range deltas.RemoveStr {
+		var err error
+		remove[i], err = decimal.NewFromString(v)
+		if err != nil {
+			return common.OrderDeltas{}, errors.Annotatef(err, "parsing remove delta price")
+		}
+	}
+
+	return common.OrderDeltas{
+		Set:    set,
+		Remove: remove,
+	}, nil
+}
+
+func orderBookDeltaUpdateFromProto(obdu *pbm.OrderBookDeltaUpdate) (common.OrderBookDelta, error) {
+	deltaBids, err := orderBookDeltasFromProto(obdu.Bids)
+	if err != nil {
+		return common.OrderBookDelta{}, errors.Trace(err)
+	}
+
+	deltaAsks, err := orderBookDeltasFromProto(obdu.Asks)
+	if err != nil {
+		return common.OrderBookDelta{}, errors.Trace(err)
 	}
 
 	return common.OrderBookDelta{
 		SeqNum: common.SeqNum(obdu.SeqNum),
 
-		Bids: common.OrderDeltas{
-			Set:    bidSet,
-			Remove: obdu.Bids.RemoveStr,
-		},
-		Asks: common.OrderDeltas{
-			Set:    askSet,
-			Remove: obdu.Asks.RemoveStr,
-		},
-	}
+		Bids: deltaBids,
+		Asks: deltaAsks,
+	}, nil
 }
 
-func orderBookSpreadUpdateFromProto(obsu *pbm.OrderBookSpreadUpdate) common.OrderBookSpreadUpdate {
+func orderBookSpreadUpdateFromProto(obsu *pbm.OrderBookSpreadUpdate) (common.OrderBookSpreadUpdate, error) {
+	bid, err := publicOrderFromProto(obsu.Bid)
+	if err != nil {
+		return common.OrderBookSpreadUpdate{}, errors.Trace(err)
+	}
+
+	ask, err := publicOrderFromProto(obsu.Ask)
+	if err != nil {
+		return common.OrderBookSpreadUpdate{}, errors.Trace(err)
+	}
+
 	return common.OrderBookSpreadUpdate{
 		Timestamp: time.Unix(0, obsu.Timestamp*int64(time.Millisecond)),
-		Bid:       publicOrderFromProto(obsu.Bid),
-		Ask:       publicOrderFromProto(obsu.Ask),
-	}
+		Bid:       bid,
+		Ask:       ask,
+	}, nil
 }
 
-func tradesUpdateFromProto(tu *pbm.TradesUpdate) common.TradesUpdate {
+func tradesUpdateFromProto(tu *pbm.TradesUpdate) (common.TradesUpdate, error) {
 	pt := make([]common.PublicTrade, len(tu.Trades))
 
 	for i, t := range tu.Trades {
@@ -97,87 +135,189 @@ func tradesUpdateFromProto(tu *pbm.TradesUpdate) common.TradesUpdate {
 			timestamp = time.Unix(t.Timestamp, 0)
 		}
 
+		price, err := decimal.NewFromString(t.PriceStr)
+		if err != nil {
+			return common.TradesUpdate{}, errors.Annotatef(err, "parsing delta price")
+		}
+
+		amount, err := decimal.NewFromString(t.AmountStr)
+		if err != nil {
+			return common.TradesUpdate{}, errors.Annotatef(err, "parsing delta amount")
+		}
+
 		pt[i] = common.PublicTrade{
 			ExternalID: t.ExternalId,
 			Timestamp:  timestamp,
-			Price:      t.PriceStr,
-			Amount:     t.AmountStr,
+			Price:      price,
+			Amount:     amount,
 		}
 	}
 
 	return common.TradesUpdate{
 		Trades: pt,
-	}
+	}, nil
 }
 
-func intervalsUpdateFromProto(iu *pbm.IntervalsUpdate) common.IntervalsUpdate {
+func intervalsUpdateFromProto(iu *pbm.IntervalsUpdate) (common.IntervalsUpdate, error) {
 	var is []common.Interval
 
 	for _, i := range iu.Intervals {
-		is = append(is, intervalFromProto(i))
+		v, err := intervalFromProto(i)
+		if err != nil {
+			return common.IntervalsUpdate{}, errors.Trace(err)
+		}
+		is = append(is, v)
 	}
 
 	return common.IntervalsUpdate{
 		Intervals: is,
-	}
+	}, nil
 }
 
-func intervalFromProto(i *pbm.Interval) common.Interval {
+func intervalFromProto(i *pbm.Interval) (common.Interval, error) {
+	open, err := decimal.NewFromString(i.Ohlc.OpenStr)
+	if err != nil {
+		return common.Interval{}, errors.Annotatef(err, "parsing OHLC open")
+	}
+
+	high, err := decimal.NewFromString(i.Ohlc.HighStr)
+	if err != nil {
+		return common.Interval{}, errors.Annotatef(err, "parsing OHLC high")
+	}
+
+	low, err := decimal.NewFromString(i.Ohlc.LowStr)
+	if err != nil {
+		return common.Interval{}, errors.Annotatef(err, "parsing OHLC low")
+	}
+
+	close, err := decimal.NewFromString(i.Ohlc.CloseStr)
+	if err != nil {
+		return common.Interval{}, errors.Annotatef(err, "parsing OHLC close")
+	}
+
+	volumeBase, err := decimal.NewFromString(i.VolumeBaseStr)
+	if err != nil {
+		return common.Interval{}, errors.Annotatef(err, "parsing OHLC volumeBase")
+	}
+
+	volumeQuote, err := decimal.NewFromString(i.VolumeQuoteStr)
+	if err != nil {
+		return common.Interval{}, errors.Annotatef(err, "parsing OHLC volumeQuote")
+	}
+
 	return common.Interval{
 		CloseTime: time.Unix(i.Closetime, 0),
 		Period:    common.Period(i.Period),
 		OHLC: common.OHLC{
-			Open:  i.Ohlc.OpenStr,
-			High:  i.Ohlc.HighStr,
-			Low:   i.Ohlc.LowStr,
-			Close: i.Ohlc.CloseStr,
+			Open:  open,
+			High:  high,
+			Low:   low,
+			Close: close,
 		},
-		VolumeBase:  i.VolumeBaseStr,
-		VolumeQuote: i.VolumeQuoteStr,
-	}
+		VolumeBase:  volumeBase,
+		VolumeQuote: volumeQuote,
+	}, nil
 }
 
-func summaryUpdateFromProto(su *pbm.SummaryUpdate) common.SummaryUpdate {
+func summaryUpdateFromProto(su *pbm.SummaryUpdate) (common.SummaryUpdate, error) {
+	last, err := decimal.NewFromString(su.LastStr)
+	if err != nil {
+		return common.SummaryUpdate{}, errors.Annotatef(err, "parsing summary last price")
+	}
+
+	high, err := decimal.NewFromString(su.HighStr)
+	if err != nil {
+		return common.SummaryUpdate{}, errors.Annotatef(err, "parsing summary high")
+	}
+
+	low, err := decimal.NewFromString(su.LowStr)
+	if err != nil {
+		return common.SummaryUpdate{}, errors.Annotatef(err, "parsing summary low")
+	}
+
+	volumeBase, err := decimal.NewFromString(su.VolumeBaseStr)
+	if err != nil {
+		return common.SummaryUpdate{}, errors.Annotatef(err, "parsing summary volumeBase")
+	}
+
+	volumeQuote, err := decimal.NewFromString(su.VolumeQuoteStr)
+	if err != nil {
+		return common.SummaryUpdate{}, errors.Annotatef(err, "parsing summary volumeQuote")
+	}
+
+	changeAbsolute, err := decimal.NewFromString(su.ChangeAbsoluteStr)
+	if err != nil {
+		return common.SummaryUpdate{}, errors.Annotatef(err, "parsing summary changeAbsolute")
+	}
+
+	changePercent, err := decimal.NewFromString(su.ChangePercentStr)
+	if err != nil {
+		return common.SummaryUpdate{}, errors.Annotatef(err, "parsing summary changePercent")
+	}
+
 	return common.SummaryUpdate{
-		Last:           su.LastStr,
-		High:           su.HighStr,
-		Low:            su.LowStr,
-		VolumeBase:     su.VolumeBaseStr,
-		VolumeQuote:    su.VolumeQuoteStr,
-		ChangeAbsolute: su.ChangeAbsoluteStr,
-		ChangePercent:  su.ChangePercentStr,
+		Last:           last,
+		High:           high,
+		Low:            low,
+		VolumeBase:     volumeBase,
+		VolumeQuote:    volumeQuote,
+		ChangeAbsolute: changeAbsolute,
+		ChangePercent:  changePercent,
 		NumTrades:      su.NumTrades,
-	}
+	}, nil
 }
 
-func sparklineUpdateFromProto(su *pbm.SparklineUpdate) common.SparklineUpdate {
+func sparklineUpdateFromProto(su *pbm.SparklineUpdate) (common.SparklineUpdate, error) {
+	price, err := decimal.NewFromString(su.PriceStr)
+	if err != nil {
+		return common.SparklineUpdate{}, errors.Annotatef(err, "parsing sparkline price")
+	}
+
 	return common.SparklineUpdate{
 		Timestamp: time.Unix(su.Time, 0),
-		Price:     su.PriceStr,
-	}
+		Price:     price,
+	}, nil
 }
 
 func vwapUpdateFromProto(vu *pbm.PairVwapUpdate) common.VWAPUpdate {
+	// Eliminate timestamp redundancy
+	var t time.Time
+	if vu.TimestampNano > 0 {
+		t = time.Unix(0, vu.TimestampNano)
+	} else {
+		t = time.Unix(vu.Timestamp, 0)
+	}
+
 	return common.VWAPUpdate{
-		VWAP:      float64ToString(vu.Vwap),
-		Timestamp: time.Unix(vu.Timestamp, 0),
+		VWAP:      decimal.NewFromFloat(vu.Vwap),
+		Timestamp: t,
 	}
 }
 
 func performanceUpdateFromProto(pu *pbm.PairPerformanceUpdate) common.PerformanceUpdate {
 	return common.PerformanceUpdate{
 		Window:      common.PerformanceWindow(pu.Window),
-		Performance: float64ToString(pu.Performance),
+		Performance: decimal.NewFromFloat(pu.Performance),
 	}
 }
 
-func trendlineUpdateFromProto(tu *pbm.PairTrendlineUpdate) common.TrendlineUpdate {
+func trendlineUpdateFromProto(tu *pbm.PairTrendlineUpdate) (common.TrendlineUpdate, error) {
+	price, err := decimal.NewFromString(tu.Price)
+	if err != nil {
+		return common.TrendlineUpdate{}, errors.Annotatef(err, "parsing trendline price")
+	}
+
+	volume, err := decimal.NewFromString(tu.Volume)
+	if err != nil {
+		return common.TrendlineUpdate{}, errors.Annotatef(err, "parsing trendline volume")
+	}
+
 	return common.TrendlineUpdate{
 		Window:    common.PerformanceWindow(tu.Window),
 		Timestamp: time.Unix(tu.Time, 0),
-		Price:     tu.Price,
-		Volume:    tu.Volume,
-	}
+		Price:     price,
+		Volume:    volume,
+	}, nil
 }
 
 func privateOrderFromProto(order *pbb.PrivateOrder) common.PrivateOrder {
@@ -210,7 +350,7 @@ func privateOrderFromProto(order *pbb.PrivateOrder) common.PrivateOrder {
 	}
 }
 
-func placeOrderOptToProto(orderOpt common.PlaceOrderOpt) *pbb.PrivateOrder {
+func placeOrderParamsToProto(orderOpt common.PlaceOrderParams) *pbb.PrivateOrder {
 	priceParams := make([]*pbb.PrivateOrder_PriceParam, 0, len(orderOpt.PriceParams))
 	for _, p := range orderOpt.PriceParams {
 		priceParams = append(priceParams, &pbb.PrivateOrder_PriceParam{
@@ -254,70 +394,22 @@ func privateOrderToProto(o common.PrivateOrder) *pbb.PrivateOrder {
 	}
 }
 
-func balanceFromProto(balance *pbb.Balance) common.Balance {
-	return common.Balance{
-		Currency: balance.Currency,
-		Amount:   balance.AmountString,
-
-		// AllBalances grep flag: Ai33fA
-		// Asset:     balance.Asset,
-		// Symbol:    balance.Symbol,
-		// Total:     balance.AmountTotal,
-		// Available: balance.AmountAvailable,
-	}
-}
-
-// AllBalances grep flag: Ai33fA
-// func exchangeBalancesFromProto(balances []*pbb.Balances) common.ExchangeBalances {
-// 	result := make(common.ExchangeBalances)
-
-// 	for _, xbalance := range balances {
-// 		xbals, ok := result[xbalance.Name]
-// 		if !ok {
-// 			xbals = common.ExchangeBalance{
-// 				Name:     xbalance.Name,
-// 				Error:    xbalance.Error,
-// 				Balances: make(common.Balances),
-// 			}
-// 		}
-
-// 		ft := common.FundingType(xbalance.FundingType)
-
-// 		ftBals, ok := xbals.Balances[ft]
-// 		if !ok {
-// 			ftBals = make([]common.Balance, 0, len(xbalance.Balances))
-// 		}
-
-// 		for _, b := range xbalance.Balances {
-// 			ftBals = append(ftBals, balanceFromProto(b))
-// 		}
-
-// 		xbals.Balances[ft] = ftBals
-// 		result[xbalance.Name] = xbals
-// 	}
-
-// 	return result
-// }
-
 func balancesToProto(balances common.Balances) []*pbb.Balances {
-	var ret []*pbb.Balances
-
-	for ftype, fbals := range balances {
-		var balances []*pbb.Balance
-		for _, bal := range fbals {
-			balances = append(balances, &pbb.Balance{
-				Currency:     bal.Currency,
-				AmountString: bal.Amount,
-
-				// AllBalances grep flag: Ai33fA
-				// Asset:           bal.Asset,
-				// Symbol:          bal.Symbol,
-				// AmountTotal:     bal.Total,
-				// AmountAvailable: bal.Available,
+	balancesByFType := map[pbb.FundingType][]*pbb.Balance{}
+	for _, xchBalances := range balances {
+		for _, balance := range xchBalances {
+			fType := pbb.FundingType(balance.FundingType)
+			balancesByFType[fType] = append(balancesByFType[fType], &pbb.Balance{
+				Currency:     balance.Asset.String(),
+				AmountString: balance.Amount.String(),
 			})
 		}
+	}
+
+	ret := []*pbb.Balances{}
+	for fundingType, balances := range balancesByFType {
 		ret = append(ret, &pbb.Balances{
-			FundingType: pbb.FundingType(ftype),
+			FundingType: fundingType,
 			Balances:    balances,
 		})
 	}
@@ -472,7 +564,7 @@ func subsToProto(subs []Subscription) []*pbc.ClientSubscription {
 	switch subs[0].(type) {
 	case *StreamSubscription:
 		return streamSubsToProto(subs)
-	case *TradeSubscription:
+	case *tradeSubscription:
 		return tradeSubsToProto(subs)
 	}
 
@@ -523,14 +615,14 @@ func streamSubFromProto(sub *pbc.ClientSubscription_StreamSubscription) *StreamS
 	}
 }
 
-func tradeSubFromProto(sub *pbc.ClientSubscription_TradeSubscription) *TradeSubscription {
+func tradeSubFromProto(sub *pbc.ClientSubscription_TradeSubscription) *tradeSubscription {
 	if sub == nil {
-		return &TradeSubscription{}
+		return &tradeSubscription{}
 	}
 
-	var auth *TradeSessionAuth
+	var auth *ExchangeAuth
 	if ta := sub.TradeSubscription.GetAuth(); ta != nil {
-		auth = &TradeSessionAuth{
+		auth = &ExchangeAuth{
 			APIKey:        ta.ApiKey,
 			APISecret:     ta.ApiSecret,
 			CustomerID:    ta.CustomerId,
@@ -538,9 +630,16 @@ func tradeSubFromProto(sub *pbc.ClientSubscription_TradeSubscription) *TradeSubs
 		}
 	}
 
-	return &TradeSubscription{
-		MarketID: common.MarketID(sub.TradeSubscription.GetMarketId()),
-		Auth:     auth,
+	marketIDStr := sub.TradeSubscription.GetMarketId()
+	marketID, err := strconv.Atoi(marketIDStr)
+	if err != nil {
+		// This should never happen, it indicates there is a problem with the backend
+		panic("invalid market id")
+	}
+
+	return &tradeSubscription{
+		marketID: common.MarketID(marketID),
+		auth:     auth,
 	}
 }
 
@@ -580,26 +679,26 @@ func tradeSubsToProto(subs []Subscription) []*pbc.ClientSubscription {
 	ret := make([]*pbc.ClientSubscription, 0, len(subs))
 
 	for _, sub := range subs {
-		v, ok := sub.(*TradeSubscription)
+		v, ok := sub.(*tradeSubscription)
 		if !ok {
 			panic(errInvalidSubType)
 		}
 
 		var auth *pbc.TradeSessionAuth
 
-		if v.Auth != nil {
+		if v.auth != nil {
 			auth = &pbc.TradeSessionAuth{
-				ApiKey:        v.Auth.APIKey,
-				ApiSecret:     v.Auth.APISecret,
-				CustomerId:    v.Auth.CustomerID,
-				KeyPassphrase: v.Auth.KeyPassphrase,
+				ApiKey:        v.auth.APIKey,
+				ApiSecret:     v.auth.APISecret,
+				CustomerId:    v.auth.CustomerID,
+				KeyPassphrase: v.auth.KeyPassphrase,
 			}
 		}
 
 		ret = append(ret, &pbc.ClientSubscription{
 			Body: &pbc.ClientSubscription_TradeSubscription{
 				TradeSubscription: &pbc.TradeSubscription{
-					MarketId: string(v.MarketID),
+					MarketId: v.marketID.String(),
 					Auth:     auth,
 				},
 			},
@@ -609,8 +708,8 @@ func tradeSubsToProto(subs []Subscription) []*pbc.ClientSubscription {
 	return ret
 }
 
-func tradeSubsFromProto(subs []*pbc.ClientSubscription) []*TradeSubscription {
-	ret := make([]*TradeSubscription, 0, len(subs))
+func tradeSubsFromProto(subs []*pbc.ClientSubscription) []*tradeSubscription {
+	ret := make([]*tradeSubscription, 0, len(subs))
 
 	for _, s := range subs {
 		v, ok := s.Body.(*pbc.ClientSubscription_TradeSubscription)
