@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/juju/errors"
+	"github.com/shopspring/decimal"
 
 	"code.cryptowat.ch/cw-sdk-go/common"
 )
@@ -20,14 +21,14 @@ func testOrderBook(t *testing.T) error {
 	ob := NewOrderBook(common.OrderBookSnapshot{
 		SeqNum: 1,
 		Bids: []common.PublicOrder{
-			common.PublicOrder{Price: "100", Amount: "1"},
-			common.PublicOrder{Price: "92", Amount: "2"},
-			common.PublicOrder{Price: "91", Amount: "2"},
-			common.PublicOrder{Price: "90", Amount: "3"},
+			common.PublicOrder{Price: dfs("100"), Amount: dfs("1")},
+			common.PublicOrder{Price: dfs("92"), Amount: dfs("2")},
+			common.PublicOrder{Price: dfs("91"), Amount: dfs("2")},
+			common.PublicOrder{Price: dfs("90"), Amount: dfs("3")},
 		},
 		Asks: []common.PublicOrder{
-			common.PublicOrder{Price: "110", Amount: "4"},
-			common.PublicOrder{Price: "120", Amount: "5"},
+			common.PublicOrder{Price: dfs("110"), Amount: dfs("4")},
+			common.PublicOrder{Price: dfs("120"), Amount: dfs("5")},
 		},
 	})
 
@@ -35,14 +36,14 @@ func testOrderBook(t *testing.T) error {
 		common.OrderBookSnapshot{
 			SeqNum: 1,
 			Bids: []common.PublicOrder{
-				common.PublicOrder{Price: "100", Amount: "1"},
-				common.PublicOrder{Price: "92", Amount: "2"},
-				common.PublicOrder{Price: "91", Amount: "2"},
-				common.PublicOrder{Price: "90", Amount: "3"},
+				common.PublicOrder{Price: dfs("100"), Amount: dfs("1")},
+				common.PublicOrder{Price: dfs("92"), Amount: dfs("2")},
+				common.PublicOrder{Price: dfs("91"), Amount: dfs("2")},
+				common.PublicOrder{Price: dfs("90"), Amount: dfs("3")},
 			},
 			Asks: []common.PublicOrder{
-				common.PublicOrder{Price: "110", Amount: "4"},
-				common.PublicOrder{Price: "120", Amount: "5"},
+				common.PublicOrder{Price: dfs("110"), Amount: dfs("4")},
+				common.PublicOrder{Price: dfs("120"), Amount: dfs("5")},
 			},
 		},
 		ob.GetSnapshot(),
@@ -55,16 +56,16 @@ func testOrderBook(t *testing.T) error {
 		SeqNum: 2,
 		Bids: common.OrderDeltas{
 			Set: []common.PublicOrder{
-				common.PublicOrder{Price: "100", Amount: "8"},
-				common.PublicOrder{Price: "96", Amount: "6"},
-				common.PublicOrder{Price: "95", Amount: "7"},
+				common.PublicOrder{Price: dfs("100"), Amount: dfs("8")},
+				common.PublicOrder{Price: dfs("96"), Amount: dfs("6")},
+				common.PublicOrder{Price: dfs("95"), Amount: dfs("7")},
 			},
-			Remove: []string{"92"},
+			Remove: []decimal.Decimal{dfs("92")},
 		},
 		Asks: common.OrderDeltas{
 			Set: []common.PublicOrder{
-				common.PublicOrder{Price: "110", Amount: "9"},
-				common.PublicOrder{Price: "130", Amount: "10"},
+				common.PublicOrder{Price: dfs("110"), Amount: dfs("9")},
+				common.PublicOrder{Price: dfs("130"), Amount: dfs("10")},
 			},
 		},
 	})
@@ -76,16 +77,16 @@ func testOrderBook(t *testing.T) error {
 		common.OrderBookSnapshot{
 			SeqNum: 2,
 			Bids: []common.PublicOrder{
-				common.PublicOrder{Price: "100", Amount: "8"},
-				common.PublicOrder{Price: "96", Amount: "6"},
-				common.PublicOrder{Price: "95", Amount: "7"},
-				common.PublicOrder{Price: "91", Amount: "2"},
-				common.PublicOrder{Price: "90", Amount: "3"},
+				common.PublicOrder{Price: dfs("100"), Amount: dfs("8")},
+				common.PublicOrder{Price: dfs("96"), Amount: dfs("6")},
+				common.PublicOrder{Price: dfs("95"), Amount: dfs("7")},
+				common.PublicOrder{Price: dfs("91"), Amount: dfs("2")},
+				common.PublicOrder{Price: dfs("90"), Amount: dfs("3")},
 			},
 			Asks: []common.PublicOrder{
-				common.PublicOrder{Price: "110", Amount: "9"},
-				common.PublicOrder{Price: "120", Amount: "5"},
-				common.PublicOrder{Price: "130", Amount: "10"},
+				common.PublicOrder{Price: dfs("110"), Amount: dfs("9")},
+				common.PublicOrder{Price: dfs("120"), Amount: dfs("5")},
+				common.PublicOrder{Price: dfs("130"), Amount: dfs("10")},
 			},
 		},
 		ob.GetSnapshot(),
@@ -98,17 +99,17 @@ func testOrderBook(t *testing.T) error {
 	err = ob.ApplyDelta(common.OrderBookDelta{
 		SeqNum: 4,
 	})
-	if errors.Cause(err) != ErrSeqNumMismatch {
+	if errors.Cause(err) != common.ErrSeqNumMismatch {
 		return errors.Errorf("expected ErrSeqNumMismatch, got %v", err)
 	}
 
 	ob.ApplySnapshot(common.OrderBookSnapshot{
 		SeqNum: 100,
 		Bids: []common.PublicOrder{
-			common.PublicOrder{Price: "100", Amount: "1"},
+			common.PublicOrder{Price: dfs("100"), Amount: dfs("1")},
 		},
 		Asks: []common.PublicOrder{
-			common.PublicOrder{Price: "110", Amount: "2"},
+			common.PublicOrder{Price: dfs("110"), Amount: dfs("2")},
 		},
 	})
 
@@ -116,10 +117,10 @@ func testOrderBook(t *testing.T) error {
 		common.OrderBookSnapshot{
 			SeqNum: 100,
 			Bids: []common.PublicOrder{
-				common.PublicOrder{Price: "100", Amount: "1"},
+				common.PublicOrder{Price: dfs("100"), Amount: dfs("1")},
 			},
 			Asks: []common.PublicOrder{
-				common.PublicOrder{Price: "110", Amount: "2"},
+				common.PublicOrder{Price: dfs("110"), Amount: dfs("2")},
 			},
 		},
 		ob.GetSnapshot(),
@@ -167,4 +168,9 @@ func compareOrders(want, got []common.PublicOrder) error {
 	}
 
 	return nil
+}
+
+// dfs is a shortcut for dfs
+func dfs(s string) decimal.Decimal {
+	return decimal.RequireFromString(s)
 }

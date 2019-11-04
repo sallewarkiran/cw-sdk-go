@@ -24,23 +24,16 @@ var (
 )
 
 func main() {
-	// We need this since getting user's home dir can fail.
-	defaultConfig, err := config.DefaultFilepath()
-	if err != nil {
-		log.Print(err)
-		os.Exit(1)
-	}
-
 	var configFile string
 
 	// Define args struct for convenience.
 	args := &cliArgs{}
 
-	flag.StringVarP(&configFile, "config", "c", defaultConfig, "Configuration file")
+	flag.StringVarP(&configFile, "config", "c", "", "Configuration file")
 	flag.BoolVarP(&args.Verbose, "verbose", "v", false, "Prints all debug messages to stdout")
 
 	flag.StringVar(&args.Mode, "mode", "list", "Can be 'place', 'cancel', 'list', 'balances'")
-	flag.StringVar(&args.MarketID, "marketid", "1", "Market to trade on")
+	flag.IntVar(&args.MarketID, "marketid", 1, "Market to trade on")
 	flag.StringVar(&args.ExchAPIKey, "exchangekey", "", "Exchange API key")
 	flag.StringVar(&args.ExchSecretKey, "exchangesecret", "", "Exchange secret key")
 	flag.StringVar(&args.OrderID, "orderid", "", "OrderID to cancel")
@@ -52,15 +45,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg, err := config.New(configFile)
-	if err != nil {
-		log.Print(err)
-		os.Exit(1)
-	}
+	var (
+		cfg    *config.CWConfig
+		cfgErr error
+	)
 
-	if err := cfg.Validate(); err != nil {
-		log.Print(err)
-		os.Exit(1)
+	if configFile != "" {
+		cfg, cfgErr = config.New(configFile)
+		if cfgErr != nil {
+			log.Print(cfgErr)
+			os.Exit(1)
+		}
+	} else {
+		cfg = config.Get()
 	}
 
 	app, err := NewTradeApp(args, cfg)
@@ -107,7 +104,7 @@ type TradeApp struct {
 	errChan  chan error
 }
 
-func NewTradeApp(args *cliArgs, cfg *config.CW) (*TradeApp, error) {
+func NewTradeApp(args *cliArgs, cfg *config.CWConfig) (*TradeApp, error) {
 	marketID := common.MarketID(args.MarketID)
 
 	tc, err := websocket.NewTradeClient(&websocket.TradeClientParams{
@@ -116,13 +113,15 @@ func NewTradeApp(args *cliArgs, cfg *config.CW) (*TradeApp, error) {
 			SecretKey: cfg.SecretKey,
 			URL:       cfg.TradeURL,
 		},
-		Subscriptions: []*websocket.TradeSubscription{
-			&websocket.TradeSubscription{
-				MarketID: marketID,
+		TradeSessions: []*websocket.TradeSessionParams{
+			&websocket.TradeSessionParams{
+				MarketParams: websocket.MarketParams{
+					ID: marketID,
+				},
 
 				// If Auth is left out, the client will fall back on your bitfinex
 				// keys stored in Cryptowatch
-				Auth: &websocket.TradeSessionAuth{
+				ExchangeAuth: &websocket.ExchangeAuth{
 					APIKey:    args.ExchAPIKey,
 					APISecret: args.ExchSecretKey,
 				},
@@ -203,9 +202,6 @@ func (app *TradeApp) run(ctx context.Context) {
 		switch app.args.Mode {
 		case "list":
 			app.errChan <- app.list()
-		// AllBalances grep flag: Ai33fA
-		// case "allbalances":
-		// 	app.errChan <- app.allBalances()
 		case "balances":
 			app.errChan <- app.balances()
 		case "place":
@@ -236,38 +232,11 @@ func (app *TradeApp) list() error {
 	return nil
 }
 
-// AllBalances grep flag: Ai33fA
-// func (app *TradeApp) allBalances() error {
-// 	log.Println("Getting all balances...")
-
-// 	result, err := app.client.GetBalances()
-// 	if err != nil {
-// 		log.Println("ERROR: GetBalances()", err)
-// 		return err
-// 	}
-
-// 	lf := log.Flags()
-// 	log.SetFlags(0)
-
-// 	for _, v := range result {
-// 		log.Printf("exchange=%s:", v.Name)
-
-// 		for ft, ftb := range v.Balances {
-// 			log.Printf("\tfundingType=%s, balances=%v", common.FundingTypeNames[ft], ftb)
-// 		}
-// 	}
-
-// 	log.SetFlags(lf)
-// 	log.Println("All Balances:", "done")
-
-// 	return nil
-// }
-
 // Grep flag: Ki49fK
 func (app *TradeApp) balances() error {
 	log.Println("Getting balances...")
 
-	result, err := app.client.GetBalances(app.marketID)
+	result, err := app.client.GetBalances()
 	if err != nil {
 		log.Println("ERROR: GetBalances()", err)
 		return err
@@ -276,9 +245,7 @@ func (app *TradeApp) balances() error {
 	lf := log.Flags()
 	log.SetFlags(0)
 
-	for ft, ftb := range result {
-		log.Printf("fundingType=%s, balances=%v", common.FundingTypeNames[ft], ftb)
-	}
+	log.Printf("balances=%v", result)
 
 	log.SetFlags(lf)
 	log.Println("Balances:", "done")
@@ -289,7 +256,7 @@ func (app *TradeApp) balances() error {
 func (app *TradeApp) place() error {
 	log.Println("Trading ready: placing order...")
 
-	order, err := app.client.PlaceOrder(common.PlaceOrderOpt{
+	order, err := app.client.PlaceOrder(common.PlaceOrderParams{
 		PriceParams: []*common.PriceParam{
 			&common.PriceParam{
 				Type:  common.AbsoluteValuePrice,
@@ -314,7 +281,7 @@ func (app *TradeApp) place() error {
 func (app *TradeApp) cancel() error {
 	log.Println("Trading ready: canceling order...")
 
-	err := app.client.CancelOrder(common.CancelOrderOpt{
+	err := app.client.CancelOrder(common.CancelOrderParams{
 		MarketID: app.marketID,
 		OrderID:  app.args.OrderID,
 	})
@@ -331,7 +298,7 @@ func (app *TradeApp) cancel() error {
 type cliArgs struct {
 	Verbose       bool
 	Mode          string
-	MarketID      string
+	MarketID      int
 	ExchAPIKey    string
 	ExchSecretKey string
 	OrderID       string
@@ -346,7 +313,7 @@ func checkCliArgs(a *cliArgs) error {
 		return errUnknownMode
 	}
 
-	if a.MarketID == "" {
+	if a.MarketID == 0 {
 		return errors.New("marketid is empty")
 	}
 

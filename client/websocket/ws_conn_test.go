@@ -1073,7 +1073,9 @@ func NewStateTracker() *stateTracker {
 
 func (st *stateTracker) addStateListener(conn *wsConn, state ConnState, opt StateListenerOpt) {
 	conn.onError(func(connErr error, disconnecting bool) {
-		st.lastError = connErr
+		if disconnecting {
+			st.lastError = connErr
+		}
 	})
 
 	conn.onStateChangeOpt(

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/juju/errors"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 
 	"code.cryptowat.ch/clock"
@@ -82,7 +83,7 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		SeqNum: 100,
 		Bids: common.OrderDeltas{
 			Set: []common.PublicOrder{
-				common.PublicOrder{Price: "50", Amount: "1"},
+				common.PublicOrder{Price: dfs("50"), Amount: dfs("1")},
 			},
 		},
 	}); err != nil {
@@ -98,7 +99,7 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		snapshot: common.OrderBookSnapshot{
 			SeqNum: 90,
 			Bids: []common.PublicOrder{
-				common.PublicOrder{Price: "1000", Amount: "1"},
+				common.PublicOrder{Price: dfs("1000"), Amount: dfs("1")},
 			},
 		},
 	}
@@ -106,7 +107,7 @@ func testUpdaterRegular(t *testing.T) (err error) {
 	if err := mocks.expectOrderBookUpdate(common.OrderBookSnapshot{
 		SeqNum: 90,
 		Bids: []common.PublicOrder{
-			common.PublicOrder{Price: "1000", Amount: "1"},
+			common.PublicOrder{Price: dfs("1000"), Amount: dfs("1")},
 		},
 	}); err != nil {
 		return errors.Trace(err)
@@ -121,7 +122,7 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		SeqNum: 101,
 		Asks: common.OrderDeltas{
 			Set: []common.PublicOrder{
-				common.PublicOrder{Price: "100", Amount: "1"},
+				common.PublicOrder{Price: dfs("100"), Amount: dfs("1")},
 			},
 		},
 	}); err != nil {
@@ -132,7 +133,7 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		SeqNum: 102,
 		Asks: common.OrderDeltas{
 			Set: []common.PublicOrder{
-				common.PublicOrder{Price: "200", Amount: "1"},
+				common.PublicOrder{Price: dfs("200"), Amount: dfs("1")},
 			},
 		},
 	}); err != nil {
@@ -143,7 +144,7 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		SeqNum: 103,
 		Asks: common.OrderDeltas{
 			Set: []common.PublicOrder{
-				common.PublicOrder{Price: "300", Amount: "1"},
+				common.PublicOrder{Price: dfs("300"), Amount: dfs("1")},
 			},
 		},
 	}); err != nil {
@@ -162,7 +163,7 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		snapshot: common.OrderBookSnapshot{
 			SeqNum: 101,
 			Asks: []common.PublicOrder{
-				common.PublicOrder{Price: "1000", Amount: "1"},
+				common.PublicOrder{Price: dfs("1000"), Amount: dfs("1")},
 			},
 		},
 	}
@@ -181,9 +182,9 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		// More thorough testing of the logic for applying deltas is in
 		// orderbook_test.go
 		Asks: []common.PublicOrder{
-			common.PublicOrder{Price: "200", Amount: "1"},
-			common.PublicOrder{Price: "300", Amount: "1"},
-			common.PublicOrder{Price: "1000", Amount: "1"},
+			common.PublicOrder{Price: dfs("200"), Amount: dfs("1")},
+			common.PublicOrder{Price: dfs("300"), Amount: dfs("1")},
+			common.PublicOrder{Price: dfs("1000"), Amount: dfs("1")},
 		},
 	}); err != nil {
 		return errors.Trace(err)
@@ -202,7 +203,7 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		SeqNum: 104,
 		Asks: common.OrderDeltas{
 			Set: []common.PublicOrder{
-				common.PublicOrder{Price: "300", Amount: "2"},
+				common.PublicOrder{Price: dfs("300"), Amount: dfs("2")},
 			},
 		},
 	})
@@ -210,9 +211,9 @@ func testUpdaterRegular(t *testing.T) (err error) {
 	if err := mocks.expectOrderBookUpdate(common.OrderBookSnapshot{
 		SeqNum: 104,
 		Asks: []common.PublicOrder{
-			common.PublicOrder{Price: "200", Amount: "1"},
-			common.PublicOrder{Price: "300", Amount: "2"},
-			common.PublicOrder{Price: "1000", Amount: "1"},
+			common.PublicOrder{Price: dfs("200"), Amount: dfs("1")},
+			common.PublicOrder{Price: dfs("300"), Amount: dfs("2")},
+			common.PublicOrder{Price: dfs("1000"), Amount: dfs("1")},
 		},
 	}); err != nil {
 		return errors.Trace(err)
@@ -227,15 +228,15 @@ func testUpdaterRegular(t *testing.T) (err error) {
 	updater.ReceiveDelta(common.OrderBookDelta{
 		SeqNum: 105,
 		Asks: common.OrderDeltas{
-			Remove: []string{"300"},
+			Remove: []decimal.Decimal{dfs("300")},
 		},
 	})
 
 	if err := mocks.expectOrderBookUpdate(common.OrderBookSnapshot{
 		SeqNum: 105,
 		Asks: []common.PublicOrder{
-			common.PublicOrder{Price: "200", Amount: "1"},
-			common.PublicOrder{Price: "1000", Amount: "1"},
+			common.PublicOrder{Price: dfs("200"), Amount: dfs("1")},
+			common.PublicOrder{Price: dfs("1000"), Amount: dfs("1")},
 		},
 	}); err != nil {
 		return errors.Trace(err)
@@ -250,16 +251,16 @@ func testUpdaterRegular(t *testing.T) (err error) {
 	updater.ReceiveSnapshot(common.OrderBookSnapshot{
 		SeqNum: 105,
 		Asks: []common.PublicOrder{
-			common.PublicOrder{Price: "200", Amount: "1"},
-			common.PublicOrder{Price: "1000", Amount: "1"},
+			common.PublicOrder{Price: dfs("200"), Amount: dfs("1")},
+			common.PublicOrder{Price: dfs("1000"), Amount: dfs("1")},
 		},
 	})
 
 	if err := mocks.expectOrderBookUpdate(common.OrderBookSnapshot{
 		SeqNum: 105,
 		Asks: []common.PublicOrder{
-			common.PublicOrder{Price: "200", Amount: "1"},
-			common.PublicOrder{Price: "1000", Amount: "1"},
+			common.PublicOrder{Price: dfs("200"), Amount: dfs("1")},
+			common.PublicOrder{Price: dfs("1000"), Amount: dfs("1")},
 		},
 	}); err != nil {
 		return errors.Trace(err)
@@ -275,7 +276,7 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		SeqNum: 107,
 		Asks: common.OrderDeltas{
 			Set: []common.PublicOrder{
-				common.PublicOrder{Price: "20", Amount: "1"},
+				common.PublicOrder{Price: dfs("20"), Amount: dfs("1")},
 			},
 		},
 	})
@@ -294,7 +295,7 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		SeqNum: 108,
 		Asks: common.OrderDeltas{
 			Set: []common.PublicOrder{
-				common.PublicOrder{Price: "30", Amount: "1"},
+				common.PublicOrder{Price: dfs("30"), Amount: dfs("1")},
 			},
 		},
 	})
@@ -345,7 +346,7 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		snapshot: common.OrderBookSnapshot{
 			SeqNum: 107,
 			Asks: []common.PublicOrder{
-				common.PublicOrder{Price: "2000", Amount: "1"},
+				common.PublicOrder{Price: dfs("2000"), Amount: dfs("1")},
 			},
 		},
 	}
@@ -364,8 +365,8 @@ func testUpdaterRegular(t *testing.T) (err error) {
 		// More thorough testing of the logic for applying deltas is in
 		// orderbook_test.go
 		Asks: []common.PublicOrder{
-			common.PublicOrder{Price: "30", Amount: "1"},
-			common.PublicOrder{Price: "2000", Amount: "1"},
+			common.PublicOrder{Price: dfs("30"), Amount: dfs("1")},
+			common.PublicOrder{Price: dfs("2000"), Amount: dfs("1")},
 		},
 	}); err != nil {
 		return errors.Trace(err)
@@ -444,7 +445,7 @@ func testUpdaterNoSnapshotGetter(t *testing.T) (err error) {
 		SeqNum: 100,
 		Bids: common.OrderDeltas{
 			Set: []common.PublicOrder{
-				common.PublicOrder{Price: "50", Amount: "1"},
+				common.PublicOrder{Price: dfs("50"), Amount: dfs("1")},
 			},
 		},
 	}); err != nil {
@@ -459,8 +460,8 @@ func testUpdaterNoSnapshotGetter(t *testing.T) (err error) {
 	updater.ReceiveSnapshot(common.OrderBookSnapshot{
 		SeqNum: 100,
 		Asks: []common.PublicOrder{
-			common.PublicOrder{Price: "200", Amount: "1"},
-			common.PublicOrder{Price: "1000", Amount: "1"},
+			common.PublicOrder{Price: dfs("200"), Amount: dfs("1")},
+			common.PublicOrder{Price: dfs("1000"), Amount: dfs("1")},
 		},
 	})
 
@@ -471,8 +472,8 @@ func testUpdaterNoSnapshotGetter(t *testing.T) (err error) {
 	if err := mocks.expectOrderBookUpdate(common.OrderBookSnapshot{
 		SeqNum: 100,
 		Asks: []common.PublicOrder{
-			common.PublicOrder{Price: "200", Amount: "1"},
-			common.PublicOrder{Price: "1000", Amount: "1"},
+			common.PublicOrder{Price: dfs("200"), Amount: dfs("1")},
+			common.PublicOrder{Price: dfs("1000"), Amount: dfs("1")},
 		},
 	}); err != nil {
 		return errors.Trace(err)

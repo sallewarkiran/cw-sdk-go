@@ -1,6 +1,6 @@
 # Cryptowatch Go SDK
 
-The Cryptowatch Go SDK can be used to access both the REST and WebSocket APIs. Trading over WebSockets is in beta.
+The Cryptowatch Go SDK can be used to access both the REST and WebSocket APIs. Trading over WebSockets is in beta, and not available to the public yet.
 
 Documentation: https://godoc.org/code.cryptowat.ch/cw-sdk-go
 

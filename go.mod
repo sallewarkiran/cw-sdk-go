@@ -19,6 +19,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.4
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/rivo/tview v0.0.0-20190213202703-b373355e9db4
+	github.com/shopspring/decimal v0.0.0-20191009025716-f1972eb1d1f5
 	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.2.2
 	golang.org/x/sys v0.0.0-20181005133103-4497e2df6f9e

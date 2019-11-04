@@ -7,21 +7,100 @@ import (
 	"time"
 
 	"github.com/juju/errors"
+	"github.com/shopspring/decimal"
 )
 
-type MarketID string
+var (
+	// ErrSeqNumMismatch is returned from OrderBookSnapshot.ApplyDelta... family
+	// when new squence number isn't exactly the old one plus 1.
+	ErrSeqNumMismatch = errors.New("seq num mismatch")
+)
 
-func (id MarketID) Int64() (int64, error) {
-	if id == "" {
-		return 0, nil
+type MarketID int
+
+func (m MarketID) String() string {
+	return strconv.Itoa(int(m))
+}
+
+type MarketSymbol struct {
+	Exchange ExchangeSymbol
+	Base     AssetSymbol
+	Quote    AssetSymbol
+}
+
+func (ms MarketSymbol) String() string {
+	return fmt.Sprintf("%s:%s%s", ms.Exchange, ms.Base, ms.Quote)
+}
+
+type ExchangeID int
+type ExchangeSymbol string
+
+type InstrumentID int
+
+type AssetID int
+
+func (a AssetID) String() string {
+	return strconv.Itoa(int(a))
+}
+
+type AssetSymbol string
+
+func (as AssetSymbol) String() string {
+	return string(as)
+}
+
+// Market represents a market on Cryptowatch. A market consists of an exchange
+// and currency pair. For example, Kraken BTC/USD. IDs are used instead of
+// names to avoid inconsistencies associated with name changes.
+// Example: kraken:btcusd, bitfinex:btcusd
+type Market struct {
+	ID         MarketID   `json:"id"`
+	Exchange   Exchange   `json:"exchange"`
+	Instrument Instrument `json:"instrument"`
+}
+
+func (m Market) Symbol() MarketSymbol {
+	return MarketSymbol{
+		Exchange: m.Exchange.Symbol,
+		Base:     m.Instrument.Base.Symbol,
+		Quote:    m.Instrument.Quote.Symbol,
 	}
+}
 
-	n, err := strconv.ParseInt(string(id), 10, 64)
-	if err != nil {
-		return 0, errors.Annotatef(err, "invalid market id %q", id)
-	}
+func (m Market) String() string {
+	return m.Symbol().String()
+}
 
-	return n, nil
+// Exchange represents an exchange on Cryptowatch.
+// Examples: kraken, bitfinex, coinbase-pro
+type Exchange struct {
+	ID     ExchangeID     `json:"id"`
+	Symbol ExchangeSymbol `json:"symbol"`
+}
+
+// Instrument represents an instrument on Cryptowatch, which is essentially a base+quote,
+// or if it is a futures market, a settlement frequency as well.
+// Examples: btcusd, ethusd, btcusdt
+type Instrument struct {
+	ID    InstrumentID `json:"id"`
+	Base  Asset        `json:"base"`
+	Quote Asset        `json:"quote"`
+}
+
+type GetAssetParams struct {
+	ID     AssetID
+	Symbol AssetSymbol
+}
+
+// An asset represents an asset on Cryptowatch. Assets are the building blocks for instruments.
+// Examples: btc, usd, eth
+type Asset struct {
+	ID     AssetID     `json:"id"`
+	Symbol AssetSymbol `json:"symbol"`
+}
+
+func (a Asset) String() string {
+	return string(a.Symbol)
 }
 
 // MarketUpdate is a container for all market data callbacks. For any MarketUpdate
@@ -46,79 +125,11 @@ func (v MarketUpdate) String() string {
 	return string(data)
 }
 
-// Market represents a market on Cryptowatch. A market consists of an exchange
-// and currency pair. For example, Kraken BTC/USD. IDs are used instead of
-// names to avoid inconsistencies associated with name changes.
-//
-// IDs for exchanges, currency pairs, and markets can be found through the
-// following API URLs respectively:
-// https://api.cryptowat.ch/exchanges
-// https://api.cryptowat.ch/pairs
-// https://api.cryptowat.ch/markets
-type Market struct {
-	ID             MarketID
-	ExchangeID     string
-	CurrencyPairID string
-}
-
 // PublicOrder represents a public order placed on an exchange. They often come
 // as a slice of PublicOrder, which come with order book updates.
 type PublicOrder struct {
-	Price  string
-	Amount string
-}
-
-// SeqNum is used to make sure order book deltas are processed in order. Each order book delta update has
-// the sequence number incremented by 1. Sometimes sequence numbers reset to a smaller value (this happens when we deploy or
-// restart our back end for whatever reason). In those cases, the first broadcasted update is a snapshot, so clients should
-// not assume they are out of sync when they receive a snapshot with a lower seq number.
-type SeqNum uint32
-
-// OrderBookSnapshot represents a full order book snapshot.
-type OrderBookSnapshot struct {
-	// SeqNum	is the sequence number of the last order book delta received.
-	// Since snapshots are broadcast on a 1-minute interval regardless of updates,
-	// it's possible this value doesn't change.
-	// See the SeqNum definition for more information.
-	SeqNum SeqNum
-
-	Bids []PublicOrder
-	Asks []PublicOrder
-}
-
-// OrderBookDelta represents an order book delta update, which is
-// the minimum amount of data necessary to keep a local order book up to date.
-// Since order book snapshots are throttled at 1 per minute, subscribing to
-// the delta updates is the best way to keep an order book up to date.
-type OrderBookDelta struct {
-	// SeqNum is used to make sure deltas are processed in order.
-	// See the SeqNum definition for more information.
-	SeqNum SeqNum
-
-	Bids OrderDeltas
-	Asks OrderDeltas
-}
-
-// OrderDeltas are used to update an order book, either by setting (adding)
-// new PublicOrders, or removing orders at specific prices.
-type OrderDeltas struct {
-	// Set is a list of orders used to add or replace orders on an order book.
-	// Each order in Set is guaranteed to be a different price. For each of them,
-	// if the order at that price exists on the book, replace it. If an order
-	// at that price does not exist, add it to the book.
-	Set []PublicOrder
-
-	// Remove is a list of prices. To apply to an order book, remove all orders
-	// of that price from that book.
-	Remove []string
-}
-
-// OrderBookSpreadUpdate represents the most recent order book spread. It
-// consists of the best current bid and as price.
-type OrderBookSpreadUpdate struct {
-	Timestamp time.Time
-	Bid       PublicOrder
-	Ask       PublicOrder
+	Price  decimal.Decimal
+	Amount decimal.Decimal
 }
 
 // TradesUpdate represents the most recent trades that have occurred for a
@@ -135,8 +146,8 @@ type PublicTrade struct {
 	// these IDs, and some are strings.
 	ExternalID string
 	Timestamp  time.Time
-	Price      string
-	Amount     string
+	Price      decimal.Decimal
+	Amount     decimal.Decimal
 }
 
 // An interval represetns OHLC data for a particular Period and CloseTime.
@@ -149,11 +160,11 @@ type Interval struct {
 
 	// VolumeBase is the amount of volume traded over this Interval, represented
 	// in the base currency.
-	VolumeBase string
+	VolumeBase decimal.Decimal
 
 	// VolumeQuote is the amount of volume traded over this Interval, represented
 	// in the quote currency.
-	VolumeQuote string
+	VolumeQuote decimal.Decimal
 }
 
 // Period is the number of seconds in an Interval.
@@ -196,10 +207,10 @@ var PeriodNames = map[Period]string{
 
 // OHLC contains the open, low, high, and close prices for a given Interval.
 type OHLC struct {
-	Open  string
-	High  string
-	Low   string
-	Close string
+	Open  decimal.Decimal
+	High  decimal.Decimal
+	Low   decimal.Decimal
+	Close decimal.Decimal
 }
 
 // IntervalsUpdate represents an update for OHLC data, at all relevant periods.
@@ -213,13 +224,13 @@ type IntervalsUpdate struct {
 
 // SummaryUpdate represents recent summary information for a particular market.
 type SummaryUpdate struct {
-	Last           string
-	High           string
-	Low            string
-	VolumeBase     string
-	VolumeQuote    string
-	ChangeAbsolute string
-	ChangePercent  string
+	Last           decimal.Decimal
+	High           decimal.Decimal
+	Low            decimal.Decimal
+	VolumeBase     decimal.Decimal
+	VolumeQuote    decimal.Decimal
+	ChangeAbsolute decimal.Decimal
+	ChangePercent  decimal.Decimal
 	NumTrades      int32
 }
 
@@ -229,110 +240,5 @@ type SummaryUpdate struct {
 // https://en.wikipedia.org/wiki/Sparkline
 type SparklineUpdate struct {
 	Timestamp time.Time
-	Price     string
-}
-
-// PublicOrdersByPrice is the type needed for sorting public orders by price.
-type PublicOrdersByPrice []PublicOrder
-
-func (pos PublicOrdersByPrice) Len() int {
-	return len(pos)
-}
-
-func (pos PublicOrdersByPrice) Less(i, j int) bool {
-	// Parsing to float might be not exact, but for the comparison purposes it's
-	// fine.
-	//
-	// Maybe we could do some string padding tricks and compare them
-	// lexicographically at some point.
-	ifloat, _ := strconv.ParseFloat(pos[i].Price, 64)
-	jfloat, _ := strconv.ParseFloat(pos[j].Price, 64)
-
-	return ifloat < jfloat
-}
-
-func (pos PublicOrdersByPrice) Swap(i, j int) {
-	pos[i], pos[j] = pos[j], pos[i]
-}
-
-// Empty returns whether the OrderDeltas doesn't contain any deltas.
-func (d OrderDeltas) Empty() bool {
-	return len(d.Set) == 0 && len(d.Remove) == 0
-}
-
-// Empty returns whether OrderBookDelta doesn't contain any deltas for bids and
-// asks.
-func (delta OrderBookDelta) Empty() bool {
-	return delta.Bids.Empty() && delta.Asks.Empty()
-}
-
-// GetDeltasAgainst creates deltas which would have to be applied to oldOrders
-// to get newOrders.
-func GetDeltasAgainst(oldOrders, newOrders []PublicOrder) OrderDeltas {
-	newIndex := publicOrdersMap(newOrders)
-	oldIndex := publicOrdersMap(oldOrders)
-
-	deltas := OrderDeltas{}
-
-	// Calculate Set deltas
-	for price, amount := range newIndex {
-		if otherAmount, exists := oldIndex[price]; !exists || otherAmount != amount {
-			deltas.Set = append(deltas.Set, PublicOrder{
-				Price:  price,
-				Amount: amount,
-			})
-		}
-	}
-	// Calculate Remove deltas
-	for price := range oldIndex {
-		if _, exists := newIndex[price]; !exists {
-			deltas.Remove = append(deltas.Remove, price)
-		}
-	}
-	return deltas
-}
-
-// publicOrdersMap returns a map from price to amount
-func publicOrdersMap(orders []PublicOrder) map[string]string {
-	ret := make(map[string]string, len(orders))
-	for _, order := range orders {
-		ret[order.Price] = order.Amount
-	}
-	return ret
-}
-
-// GetDeltasAgainst creates deltas which would have to be applied to
-// oldSnapshot to get s.
-func (s *OrderBookSnapshot) GetDeltasAgainst(oldSnapshot OrderBookSnapshot) OrderBookDelta {
-	return OrderBookDelta{
-		Asks:   GetDeltasAgainst(oldSnapshot.Asks, s.Asks),
-		Bids:   GetDeltasAgainst(oldSnapshot.Bids, s.Bids),
-		SeqNum: s.SeqNum,
-	}
-}
-
-func (s *OrderBookSnapshot) Empty() bool {
-	return len(s.Bids) == 0 && len(s.Asks) == 0
-}
-
-func (s *OrderBookSnapshot) IsValid() bool {
-	if len(s.Bids) == 0 || len(s.Asks) == 0 {
-		return true
-	}
-
-	bidPrice, err := strconv.ParseFloat(s.Bids[0].Price, 64)
-	if err != nil {
-		return false
-	}
-
-	askPrice, err := strconv.ParseFloat(s.Asks[0].Price, 64)
-	if err != nil {
-		return false
-	}
-
-	if bidPrice >= askPrice {
-		return false
-	}
-
-	return true
+	Price     decimal.Decimal
 }

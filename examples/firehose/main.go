@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"code.cryptowat.ch/cw-sdk-go/client/rest"
@@ -40,12 +39,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := cfg.Validate(); err != nil {
-		log.Print(err)
-		os.Exit(1)
-	}
-
-	restclient := rest.NewCWRESTClient(nil)
+	restclient := rest.NewRESTClient(nil)
 
 	// Get exchange description, in particular we'll need the ID to use it
 	// in stream subscriptions.
@@ -59,7 +53,7 @@ func main() {
 
 	markets := map[common.MarketID]rest.MarketDescr{}
 	for _, market := range marketsSlice {
-		markets[common.MarketID(strconv.Itoa(market.ID))] = market
+		markets[common.MarketID(market.ID)] = market
 	}
 
 	// Create a new stream connection instance. Note that the actual connection
@@ -117,7 +111,7 @@ func main() {
 	}
 
 	// Listen for received market messages and print them.
-	c.OnMarketUpdate(func(market common.Market, md common.MarketUpdate) {
+	c.OnMarketUpdate(func(marketID common.MarketID, md common.MarketUpdate) {
 		if md.TradesUpdate == nil {
 			return
 		}
@@ -125,9 +119,10 @@ func main() {
 		tradesUpdate := md.TradesUpdate
 		for _, trade := range tradesUpdate.Trades {
 			log.Printf(
-				"%-25s %-25s %-25s %-25s",
-				fmt.Sprintf("Exchange: %s (%s)", market.ExchangeID, markets[market.ID].Exchange),
-				fmt.Sprintf("Pair: %s (%s)", market.CurrencyPairID, markets[market.ID].Pair),
+				// "%-25s %-25s %-25s %-25s",
+				"%-25s %-25s",
+				// fmt.Sprintf("Exchange: %s (%s)", market.ExchangeID, markets[market.ID].Exchange),
+				// fmt.Sprintf("Pair: %s (%s)", market.CurrencyPairID, markets[market.ID].Pair),
 				fmt.Sprintf("Price: %s", trade.Price),
 				fmt.Sprintf("Amount: %s", trade.Amount),
 			)

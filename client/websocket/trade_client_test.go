@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"testing"
 	"time"
@@ -11,13 +12,44 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/juju/errors"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 
+	"code.cryptowat.ch/cw-sdk-go/client/cw"
+	"code.cryptowat.ch/cw-sdk-go/client/rest"
 	"code.cryptowat.ch/cw-sdk-go/client/websocket/internal"
 	"code.cryptowat.ch/cw-sdk-go/common"
 	pbb "code.cryptowat.ch/cw-sdk-go/proto/broker"
 	pbs "code.cryptowat.ch/cw-sdk-go/proto/stream"
 )
+
+// Set up mock REST client with 1 market
+
+const krakenBTCUSDMarketID = common.MarketID(1)
+
+var kraken = common.Exchange{
+	ID:     common.ExchangeID(1),
+	Symbol: "kraken",
+}
+
+var btc = common.Asset{
+	ID:     common.AssetID(1),
+	Symbol: "btc",
+}
+
+var usd = common.Asset{
+	ID:     common.AssetID(2),
+	Symbol: "usd",
+}
+
+var krakenBTCUSD = common.Market{
+	ID:       krakenBTCUSDMarketID,
+	Exchange: kraken,
+	Instrument: common.Instrument{
+		Base:  btc,
+		Quote: usd,
+	},
+}
 
 // The following orders/trades/balances already exist on broker
 var mockOrders = []common.PrivateOrder{
@@ -65,54 +97,15 @@ var mockTrades = []common.PrivateTrade{
 	},
 }
 
-// Balances grep flag: Ki49fK
-var mockBalances = common.Balances{
-	common.SpotFunding: []common.Balance{
+var mockBalances = map[common.Exchange][]common.Balance{
+	kraken: []common.Balance{
 		common.Balance{
-			Currency: "usd",
-			Amount:   "1.0",
-		},
-	},
-
-	common.MarginFunding: []common.Balance{
-		common.Balance{
-			Currency: "eth",
-			Amount:   "1.0",
+			FundingType: common.SpotFunding,
+			Asset:       usd,
+			Amount:      decimal.RequireFromString("56"),
 		},
 	},
 }
-
-// AllBalances grep flag: Ai33fA
-// var mockAllBalances = common.ExchangeBalances{
-// 	"bitfinex": common.ExchangeBalance{
-// 		Name:  "bitfinex",
-// 		Error: "",
-// 		Balances: common.Balances{
-// 			0: []common.Balance{
-// 				common.Balance{
-// 					Asset:     "Bitcoin",
-// 					Symbol:    "btc",
-// 					Total:     "0.02324881",
-// 					Available: "0.00478881",
-// 				},
-// 				common.Balance{
-// 					Asset:     "United States dollar",
-// 					Symbol:    "usd",
-// 					Total:     "83.02322",
-// 					Available: "43.065998",
-// 				},
-// 			},
-// 			1: []common.Balance{
-// 				common.Balance{
-// 					Asset:     "Bitcoin Gold",
-// 					Symbol:    "btg",
-// 					Total:     "0.06",
-// 					Available: "0.06",
-// 				},
-// 			},
-// 		},
-// 	},
-// }
 
 var mockPositions = []common.PrivatePosition{
 	common.PrivatePosition{
@@ -131,8 +124,7 @@ func TestTradeConn(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	marketID := "1"
-	marketIDint := int64(1)
+	marketIDint := int64(krakenBTCUSDMarketID)
 
 	err := withTestServer(ctx, t, brokerServer, func(tp *testServerParams) error {
 		tradeParams := &TradeClientParams{
@@ -141,14 +133,23 @@ func TestTradeConn(t *testing.T) {
 				APIKey:    testApiKey1,
 				SecretKey: testSecretKey1,
 			},
-			Subscriptions: []*TradeSubscription{
-				&TradeSubscription{
-					MarketID: common.MarketID(marketID),
+			TradeSessions: []*TradeSessionParams{
+				&TradeSessionParams{
+					MarketParams: MarketParams{
+						ID: krakenBTCUSDMarketID,
+					},
 				},
 			},
 		}
 
-		client, err := NewTradeClient(tradeParams)
+		mockRESTClient := rest.NewMockV2Client()
+		mockRESTClient.C.SetMarket(krakenBTCUSD)
+
+		mockCWClient := cw.NewCWClient(&cw.CWClientParams{
+			RESTClient: mockRESTClient,
+		})
+
+		client, err := newTradeClientInternal(tradeParams, mockCWClient)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -308,15 +309,14 @@ func TestTrading(t *testing.T) {
 	assert := assert.New(t)
 
 	err := withTestServer(ctx, t, brokerServer, func(tp *testServerParams) error {
-		marketID := common.MarketID("1")
-		marketIDint := int64(1)
+		marketIDint := int64(krakenBTCUSDMarketID)
 
-		testOrderParams := common.PlaceOrderOpt{
+		testOrderParams := common.PlaceOrderParams{
 			PriceParams: common.PriceParams{&common.PriceParam{
 				Value: "0.01",
 				Type:  common.AbsoluteValuePrice,
 			}},
-			MarketID:    marketID,
+			MarketID:    krakenBTCUSDMarketID,
 			Amount:      "0.01",
 			OrderSide:   common.BuyOrder,
 			OrderType:   common.LimitOrder,
@@ -326,18 +326,27 @@ func TestTrading(t *testing.T) {
 			ExpireTime: time.Now().Add(10 * time.Minute).Truncate(1 * time.Second),
 		}
 
-		client, err := NewTradeClient(&TradeClientParams{
+		mockRESTClient := rest.NewMockV2Client()
+		mockRESTClient.C.SetMarket(krakenBTCUSD)
+
+		mockCWClient := cw.NewCWClient(&cw.CWClientParams{
+			RESTClient: mockRESTClient,
+		})
+
+		client, err := newTradeClientInternal(&TradeClientParams{
 			WSParams: &WSParams{
 				URL:       tp.url,
 				APIKey:    testApiKey1,
 				SecretKey: testSecretKey1,
 			},
-			Subscriptions: []*TradeSubscription{
-				&TradeSubscription{
-					MarketID: marketID,
+			TradeSessions: []*TradeSessionParams{
+				&TradeSessionParams{
+					MarketParams: MarketParams{
+						ID: krakenBTCUSDMarketID,
+					},
 				},
 			},
-		})
+		}, mockCWClient)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -388,17 +397,17 @@ func TestTrading(t *testing.T) {
 		order, err := client.PlaceOrder(testOrderParams)
 		assert.Equal(ErrNotInitialized, errors.Cause(err))
 
-		_, err = client.GetOrders(marketID)
+		_, err = client.GetOrders(krakenBTCUSDMarketID)
 		assert.Equal(ErrNotInitialized, errors.Cause(err))
 
-		_, err = client.GetTrades(marketID)
+		_, err = client.GetTrades(krakenBTCUSDMarketID)
 		assert.Equal(ErrNotInitialized, errors.Cause(err))
 
-		_, err = client.GetPositions(marketID)
+		_, err = client.GetPositions(krakenBTCUSDMarketID)
 		assert.Equal(ErrNotInitialized, errors.Cause(err))
 
 		// Balances grep flag: Ki49fK
-		_, err = client.GetBalances(marketID)
+		_, err = client.GetBalances()
 		assert.Equal(ErrNotInitialized, errors.Cause(err))
 
 		if err := initMockBrokerConn(t, tp, marketIDint); err != nil {
@@ -413,18 +422,17 @@ func TestTrading(t *testing.T) {
 		// Make sure the client has initialized its cache correctly
 		//
 
-		// Balances grep flag: Ki49fK
-		balances, err := client.GetBalances(marketID)
-		assert.Equal(mockBalances, balances)
+		balances, err := client.GetBalances()
 		assert.Equal(nil, err)
+		assert.Equal(mockBalances, balances)
 
-		orders, err := client.GetOrders(marketID)
+		orders, err := client.GetOrders(krakenBTCUSDMarketID)
 		for i, o := range mockOrders {
 			checkOrder(t, o, orders[i])
 		}
 		assert.Equal(nil, err)
 
-		trades, err := client.GetTrades(marketID)
+		trades, err := client.GetTrades(krakenBTCUSDMarketID)
 		assert.Equal(mockTrades, trades)
 		assert.Equal(nil, err)
 
@@ -463,21 +471,16 @@ func TestTrading(t *testing.T) {
 		}
 
 		// Make sure the last order matches what was updated on the fake server
-		orders, err = client.GetOrders(marketID)
+		orders, err = client.GetOrders(krakenBTCUSDMarketID)
 		assert.Equal("1.1", orders[2].AmountFilled)
 		assert.Equal(nil, err)
 
-		if err := client.CancelOrder(common.CancelOrderOpt{
-			MarketID: marketID,
+		if err := client.CancelOrder(common.CancelOrderParams{
+			MarketID: krakenBTCUSDMarketID,
 			OrderID:  order.ID,
 		}); err != nil {
 			return errors.Trace(err)
 		}
-
-		// AllBalances grep flag: Ai33fA
-		// allBalances, err := client.GetBalances()
-		// assert.Equal(mockAllBalances, allBalances)
-		// assert.Equal(nil, err)
 
 		return nil
 	})
@@ -585,19 +588,6 @@ func mockBrokerServer(ctx context.Context, t *testing.T, tp *testServerParams, m
 					Data:        data,
 				}
 
-			// AllBalances grep flag: Ai33fA
-			// case *pbb.BrokerRequest_AllBalancesRequest:
-			// 	res := createAllBalancesUpdate(req.Id, mockAllBalances)
-			// 	data, err := proto.Marshal(res)
-			// 	if err != nil {
-			// 		panic(err)
-			// 	}
-
-			// 	tp.tx <- internal.WebsocketTx{
-			// 		MessageType: websocket.BinaryMessage,
-			// 		Data:        data,
-			// 	}
-
 			default:
 				t.Fatal("invalid data received")
 			}
@@ -622,7 +612,6 @@ func initMockBrokerConn(t *testing.T, tp *testServerParams, marketID int64) erro
 		return errors.Trace(err)
 	}
 
-	// Balances grep flag: Ki49fK
 	if err := sendBalanceUpdate(t, tp, marketID, mockBalances); err != nil {
 		return errors.Trace(err)
 	}
@@ -693,7 +682,6 @@ func sendPositionsUpdate(
 	return sendBrokerUpdate(tp, pu)
 }
 
-// Balances grep flag: Ki49fK
 func sendBalanceUpdate(
 	t *testing.T, tp *testServerParams, marketID int64, balances common.Balances,
 ) error {
@@ -708,42 +696,6 @@ func sendBalanceUpdate(
 
 	return sendBrokerUpdate(tp, bu)
 }
-
-// AllBalances grep flag: Ai33fA
-// func createAllBalancesUpdate(id string, balances common.ExchangeBalances) *pbb.BrokerUpdateMessage {
-// 	var result []*pbb.Balances
-
-// 	for name, xbals := range balances {
-// 		for ft, ftBals := range xbals.Balances {
-// 			var bals []*pbb.Balance
-
-// 			for _, b := range ftBals {
-// 				bals = append(bals, &pbb.Balance{
-// 					Asset:           b.Asset,
-// 					Symbol:          b.Symbol,
-// 					AmountTotal:     b.Total,
-// 					AmountAvailable: b.Available,
-// 				})
-// 			}
-
-// 			result = append(result, &pbb.Balances{
-// 				FundingType: exchanges.FundingTypeToProto[exchanges.FundingType(common.FundingTypeNames[ft])],
-// 				Name:        name,
-// 				Error:       xbals.Error,
-// 				Balances:    bals,
-// 			})
-// 		}
-// 	}
-
-// 	return &pbb.BrokerUpdateMessage{
-// 		Update: &pbb.BrokerUpdateMessage_AllBalancesUpdate{
-// 			AllBalancesUpdate: &pbb.AllBalancesUpdate{
-// 				Id:       id,
-// 				Balances: result,
-// 			},
-// 		},
-// 	}
-// }
 
 func sendSessionStatusUpdate(t *testing.T, tp *testServerParams, marketID int64) error {
 	su := &pbb.BrokerUpdateMessage{
@@ -781,6 +733,7 @@ func waitOnReadyCalled(t *testing.T, tp *testServerParams, tc *TradeClient, onRe
 		return nil
 
 	case <-time.After(1 * time.Second):
+		log.Println("OnReady NOT CALLED", tc.sessionManager.getSessions())
 		return errors.New("client.OnReady() was never executed")
 	}
 }

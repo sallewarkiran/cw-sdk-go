@@ -22,7 +22,7 @@ var _ OrderBookSnapshotGetter = &OrderBookSnapshotGetterREST{}
 // OrderBookSnapshotGetterREST implements OrderBookSnapshotGetter; it
 // gets snapshot for the specified market from the REST API.
 type OrderBookSnapshotGetterREST struct {
-	client         *rest.CWRESTClient
+	client         *rest.RESTClient
 	exchangeSymbol string
 	pairSymbol     string
 }
@@ -30,10 +30,10 @@ type OrderBookSnapshotGetterREST struct {
 // NewOrderBookSnapshotGetterRESTBySymbol creates a new snapshot getter which
 // uses the REST API to get snapshots for the given market.
 func NewOrderBookSnapshotGetterRESTBySymbol(
-	exchangeSymbol string, pairSymbol string, restParams *rest.CWRESTClientParams,
+	exchangeSymbol string, pairSymbol string, restParams *rest.RESTClientParams,
 ) *OrderBookSnapshotGetterREST {
 	return &OrderBookSnapshotGetterREST{
-		client:         rest.NewCWRESTClient(restParams),
+		client:         rest.NewRESTClient(restParams),
 		exchangeSymbol: exchangeSymbol,
 		pairSymbol:     pairSymbol,
 	}

@@ -2,12 +2,14 @@ package websocket
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/juju/errors"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 
 	"code.cryptowat.ch/cw-sdk-go/client/websocket/internal"
@@ -19,6 +21,11 @@ import (
 var testStreamSubscriptions = []*StreamSubscription{
 	{Resource: "foo"},
 	{Resource: "bar"},
+}
+
+type receivedError struct {
+	err           string
+	disconnecting bool
 }
 
 func TestStreamClient(t *testing.T) {
@@ -49,28 +56,50 @@ func TestStreamClient(t *testing.T) {
 			"SummaryUpdate":         false,
 			"SparklineUpdate":       false,
 			"VWAPUpdate":            false,
+			"VWAPUpdateNano":        false,
 			"PerformanceUpdate":     false,
 			"TrendlineUpdate":       false,
 		}
 
 		updates := make(chan string, len(updatesReceived))
 
+		errorsCh := make(chan receivedError, 32)
+
+		expectError := func(want receivedError) {
+			select {
+			case got := <-errorsCh:
+				assert.Equal(want, got)
+			case <-time.After(1 * time.Second):
+				t.Errorf("Expected error %q, but got no errors", want.err)
+			}
+		}
+
+		expectNoErrors := func() {
+			select {
+			case got := <-errorsCh:
+				t.Errorf("Expected no errors, but got %+v", got)
+			default:
+			}
+		}
+
 		// Test market data callbacks
 
-		client.OnMarketUpdate(func(m common.Market, md common.MarketUpdate) {
-			assert.Equal(m.ID, common.MarketID("1"))
-			assert.Equal(m.ExchangeID, "1")
-			assert.Equal(m.CurrencyPairID, "1")
+		client.OnMarketUpdate(func(m common.MarketID, md common.MarketUpdate) {
+			assert.Equal(m, common.MarketID(1))
 
 			switch {
 			case md.OrderBookSnapshot != nil:
 				ob := md.OrderBookSnapshot
 				assert.Equal(ob.SeqNum, common.SeqNum(testOrderBookUpdate.SeqNum))
 				for i, o := range testOrderBookUpdate.Bids {
-					assert.Equal(publicOrderFromProto(o), ob.Bids[i])
+					bids, err := publicOrderFromProto(o)
+					assert.Nil(err)
+					assert.Equal(bids, ob.Bids[i])
 				}
 				for i, o := range testOrderBookUpdate.Asks {
-					assert.Equal(publicOrderFromProto(o), ob.Asks[i])
+					asks, err := publicOrderFromProto(o)
+					assert.Nil(err)
+					assert.Equal(asks, ob.Asks[i])
 				}
 				updates <- "OrderBookSnapshot"
 
@@ -78,25 +107,37 @@ func TestStreamClient(t *testing.T) {
 				ob := md.OrderBookDelta
 				assert.Equal(ob.SeqNum, common.SeqNum(testOrderBookDeltaUpdate.SeqNum))
 				for i, o := range testOrderBookDeltaUpdate.Bids.Set {
-					assert.Equal(publicOrderFromProto(o).Price, ob.Bids.Set[i].Price)
-					assert.Equal(publicOrderFromProto(o).Amount, ob.Bids.Set[i].Amount)
+					set, err := publicOrderFromProto(o)
+					assert.Nil(err)
+					assert.Equal(set.Price, ob.Bids.Set[i].Price)
+					assert.Equal(set.Amount, ob.Bids.Set[i].Amount)
 				}
-				assert.Equal(testOrderBookDeltaUpdate.Bids.RemoveStr, ob.Bids.Remove)
+				for i, vs := range testOrderBookDeltaUpdate.Bids.RemoveStr {
+					vd, err := decimal.NewFromString(vs)
+					assert.Nil(err)
+					assert.True(vd.Equal(ob.Bids.Remove[i]))
+				}
 
 				for i, o := range testOrderBookDeltaUpdate.Asks.Set {
-					assert.Equal(publicOrderFromProto(o).Price, ob.Asks.Set[i].Price)
-					assert.Equal(publicOrderFromProto(o).Amount, ob.Asks.Set[i].Amount)
+					set, err := publicOrderFromProto(o)
+					assert.Nil(err)
+					assert.Equal(set.Price, ob.Asks.Set[i].Price)
+					assert.Equal(set.Amount, ob.Asks.Set[i].Amount)
 				}
-				assert.Equal(testOrderBookDeltaUpdate.Asks.RemoveStr, ob.Asks.Remove)
+				for i, vs := range testOrderBookDeltaUpdate.Asks.RemoveStr {
+					vd, err := decimal.NewFromString(vs)
+					assert.Nil(err)
+					assert.True(vd.Equal(ob.Asks.Remove[i]))
+				}
 				updates <- "OrderBookDelta"
 
 			case md.OrderBookSpreadUpdate != nil:
 				ob := md.OrderBookSpreadUpdate
 				assert.Equal(testOrderBookSpreadUpdate.Timestamp, ob.Timestamp.UnixNano()/int64(time.Millisecond))
-				assert.Equal(testOrderBookSpreadUpdate.Bid.PriceStr, ob.Bid.Price)
-				assert.Equal(testOrderBookSpreadUpdate.Bid.AmountStr, ob.Bid.Price)
-				assert.Equal(testOrderBookSpreadUpdate.Ask.PriceStr, ob.Ask.Price)
-				assert.Equal(testOrderBookSpreadUpdate.Ask.AmountStr, ob.Ask.Amount)
+				assert.Equal("", cmpStrAndDecimal(testOrderBookSpreadUpdate.Bid.PriceStr, ob.Bid.Price))
+				assert.Equal("", cmpStrAndDecimal(testOrderBookSpreadUpdate.Bid.AmountStr, ob.Bid.Amount))
+				assert.Equal("", cmpStrAndDecimal(testOrderBookSpreadUpdate.Ask.PriceStr, ob.Ask.Price))
+				assert.Equal("", cmpStrAndDecimal(testOrderBookSpreadUpdate.Ask.AmountStr, ob.Ask.Amount))
 				updates <- "OrderBookSpreadUpdate"
 
 			case md.TradesUpdate != nil:
@@ -113,8 +154,8 @@ func TestStreamClient(t *testing.T) {
 					}
 
 					assert.Equal(t.ExternalId, tu.Trades[i].ExternalID)
-					assert.Equal(t.PriceStr, tu.Trades[i].Price)
-					assert.Equal(t.AmountStr, tu.Trades[i].Amount)
+					assert.Equal("", cmpStrAndDecimal(t.PriceStr, tu.Trades[i].Price))
+					assert.Equal("", cmpStrAndDecimal(t.AmountStr, tu.Trades[i].Amount))
 				}
 
 				updates <- "TradesUpdate"
@@ -124,57 +165,83 @@ func TestStreamClient(t *testing.T) {
 				for i, in := range testIntervalsUpdate.Intervals {
 					assert.Equal(in.Closetime, iu.Intervals[i].CloseTime.Unix())
 					assert.Equal(in.Period, int32(iu.Intervals[i].Period))
-					assert.Equal(in.Ohlc.OpenStr, iu.Intervals[i].OHLC.Open)
-					assert.Equal(in.Ohlc.HighStr, iu.Intervals[i].OHLC.High)
-					assert.Equal(in.Ohlc.LowStr, iu.Intervals[i].OHLC.Low)
-					assert.Equal(in.Ohlc.CloseStr, iu.Intervals[i].OHLC.Close)
-					assert.Equal(in.VolumeBaseStr, iu.Intervals[i].VolumeBase)
-					assert.Equal(in.VolumeQuoteStr, iu.Intervals[i].VolumeQuote)
+					assert.Equal("", cmpStrAndDecimal(in.Ohlc.OpenStr, iu.Intervals[i].OHLC.Open))
+					assert.Equal("", cmpStrAndDecimal(in.Ohlc.HighStr, iu.Intervals[i].OHLC.High))
+					assert.Equal("", cmpStrAndDecimal(in.Ohlc.LowStr, iu.Intervals[i].OHLC.Low))
+					assert.Equal("", cmpStrAndDecimal(in.Ohlc.CloseStr, iu.Intervals[i].OHLC.Close))
+					assert.Equal("", cmpStrAndDecimal(in.VolumeBaseStr, iu.Intervals[i].VolumeBase))
+					assert.Equal("", cmpStrAndDecimal(in.VolumeQuoteStr, iu.Intervals[i].VolumeQuote))
 				}
 				updates <- "IntervalsUpdate"
 
 			case md.SummaryUpdate != nil:
 				su := md.SummaryUpdate
-				assert.Equal(testSummaryUpdate.LastStr, su.Last)
-				assert.Equal(testSummaryUpdate.HighStr, su.High)
-				assert.Equal(testSummaryUpdate.LowStr, su.Low)
-				assert.Equal(testSummaryUpdate.VolumeBaseStr, su.VolumeBase)
-				assert.Equal(testSummaryUpdate.VolumeQuoteStr, su.VolumeQuote)
-				assert.Equal(testSummaryUpdate.ChangeAbsoluteStr, su.ChangeAbsolute)
-				assert.Equal(testSummaryUpdate.ChangePercentStr, su.ChangePercent)
+				assert.Equal("", cmpStrAndDecimal(testSummaryUpdate.LastStr, su.Last))
+				assert.Equal("", cmpStrAndDecimal(testSummaryUpdate.HighStr, su.High))
+				assert.Equal("", cmpStrAndDecimal(testSummaryUpdate.LowStr, su.Low))
+				assert.Equal("", cmpStrAndDecimal(testSummaryUpdate.VolumeBaseStr, su.VolumeBase))
+				assert.Equal("", cmpStrAndDecimal(testSummaryUpdate.VolumeQuoteStr, su.VolumeQuote))
+				assert.Equal("", cmpStrAndDecimal(testSummaryUpdate.ChangeAbsoluteStr, su.ChangeAbsolute))
+				assert.Equal("", cmpStrAndDecimal(testSummaryUpdate.ChangePercentStr, su.ChangePercent))
 				assert.Equal(testSummaryUpdate.NumTrades, su.NumTrades)
 				updates <- "SummaryUpdate"
 
 			case md.SparklineUpdate != nil:
 				su := md.SparklineUpdate
 				assert.Equal(testSparklineUpdate.Time, su.Timestamp.Unix())
-				assert.Equal(testSparklineUpdate.PriceStr, su.Price)
+				assert.Equal("", cmpStrAndDecimal(testSparklineUpdate.PriceStr, su.Price))
 				updates <- "SparklineUpdate"
 			}
 
 		})
 
+		var vwapCount int
 		client.OnPairUpdate(func(p common.Pair, pd common.PairUpdate) {
 			assert.Equal(p.ID, common.PairID("1"))
 			switch {
 			case pd.VWAPUpdate != nil:
+				testVWAPUpdate := testVWAPUpdates[vwapCount]
+				fmt.Println(testVWAPUpdate, testVWAPUpdates)
 				vu := pd.VWAPUpdate
-				assert.Equal(float64ToString(testVWAPUpdate.Vwap), vu.VWAP)
-				assert.Equal(testVWAPUpdate.Timestamp, vu.Timestamp.Unix())
-				updates <- "VWAPUpdate"
+
+				switch vwapCount {
+				case 0:
+					assert.Equal(decimal.NewFromFloat(testVWAPUpdate.Vwap), vu.VWAP)
+					assert.Equal(testVWAPUpdate.Timestamp, vu.Timestamp.Unix())
+					updates <- "VWAPUpdate"
+				case 1:
+					assert.Equal(decimal.NewFromFloat(testVWAPUpdate.Vwap), vu.VWAP)
+					assert.Equal(testVWAPUpdate.TimestampNano, vu.Timestamp.UnixNano())
+					updates <- "VWAPUpdateNano"
+				}
+
+				vwapCount++
 
 			case pd.PerformanceUpdate != nil:
 				pu := pd.PerformanceUpdate
 				assert.Equal(common.PerformanceWindow(testPerformanceUpdate.Window), pu.Window)
-				assert.Equal(float64ToString(testPerformanceUpdate.Performance), pu.Performance)
+				assert.Equal(decimal.NewFromFloat(testPerformanceUpdate.Performance), pu.Performance)
 				updates <- "PerformanceUpdate"
 
 			case pd.TrendlineUpdate != nil:
 				tu := pd.TrendlineUpdate
 				assert.Equal(common.PerformanceWindow(testTrendlineUpdate.Window), tu.Window)
-				assert.Equal(testTrendlineUpdate.Price, tu.Price)
-				assert.Equal(testTrendlineUpdate.Volume, tu.Volume)
+				assert.Equal(decimal.RequireFromString(testTrendlineUpdate.Price), tu.Price)
+				assert.Equal(decimal.RequireFromString(testTrendlineUpdate.Volume), tu.Volume)
 				updates <- "TrendlineUpdate"
+			}
+		})
+
+		client.OnError(func(err error, disconnecting bool) {
+			v := receivedError{
+				err:           err.Error(),
+				disconnecting: disconnecting,
+			}
+
+			select {
+			case errorsCh <- v:
+			case <-time.After(1 * time.Second):
+				panic(fmt.Sprintf("not able to send to errorsCh: %+v", v))
 			}
 		})
 
@@ -240,6 +307,30 @@ func TestStreamClient(t *testing.T) {
 			}
 		}
 
+		expectNoErrors()
+
+		// Try sending an orderbook update with a malformed price string;
+		// expect OnError to be called.
+		{
+			testOrderBookUpdateWithError := *testOrderBookUpdate
+			testOrderBookUpdateWithError.Bids[0].PriceStr = "some_erroneous_price"
+
+			orderBookUpdate := &pbm.MarketUpdateMessage{
+				Market: testMarket,
+				Update: &pbm.MarketUpdateMessage_OrderBookUpdate{
+					OrderBookUpdate: &testOrderBookUpdateWithError,
+				},
+			}
+			if err := sendMarketUpdate(t, tp, orderBookUpdate); err != nil {
+				return errors.Trace(err)
+			}
+
+			expectError(receivedError{
+				err:           "parsing order price: can't convert some_erroneous_price to decimal: exponent is not numeric",
+				disconnecting: false,
+			})
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -260,21 +351,21 @@ var testOrderBookUpdate = &pbm.OrderBookUpdate{
 	Bids: []*pbm.Order{
 		&pbm.Order{
 			PriceStr:  "1.0",
-			AmountStr: "1.0",
+			AmountStr: "100.0",
 		},
 		&pbm.Order{
 			PriceStr:  "2.0",
-			AmountStr: "2.0",
+			AmountStr: "200.0",
 		},
 	},
 	Asks: []*pbm.Order{
 		&pbm.Order{
 			PriceStr:  "1.5",
-			AmountStr: "1.5",
+			AmountStr: "100.5",
 		},
 		&pbm.Order{
 			PriceStr:  "2.1",
-			AmountStr: "2.1",
+			AmountStr: "200.1",
 		},
 	},
 }
@@ -285,19 +376,19 @@ var testOrderBookDeltaUpdate = &pbm.OrderBookDeltaUpdate{
 		Set: []*pbm.Order{
 			&pbm.Order{
 				PriceStr:  "1.0",
-				AmountStr: "1.0",
+				AmountStr: "100.0",
 			},
 		},
-		RemoveStr: []string{"1.0"},
+		RemoveStr: []string{"30.0"},
 	},
 	Asks: &pbm.OrderBookDeltaUpdate_OrderDeltas{
 		Set: []*pbm.Order{
 			&pbm.Order{
-				PriceStr:  "1.0",
-				AmountStr: "1.0",
+				PriceStr:  "4.0",
+				AmountStr: "5.0",
 			},
 		},
-		RemoveStr: []string{"1.0"},
+		RemoveStr: []string{"31.0"},
 	},
 }
 
@@ -305,11 +396,11 @@ var testOrderBookSpreadUpdate = &pbm.OrderBookSpreadUpdate{
 	Timestamp: 1542223639,
 	Bid: &pbm.Order{
 		PriceStr:  "1.0",
-		AmountStr: "1.0",
+		AmountStr: "2.0",
 	},
 	Ask: &pbm.Order{
-		PriceStr:  "1.0",
-		AmountStr: "1.0",
+		PriceStr:  "3.0",
+		AmountStr: "4.0",
 	},
 }
 
@@ -318,20 +409,20 @@ var testTradesUpdate = &pbm.TradesUpdate{
 		&pbm.Trade{
 			ExternalId: "1",
 			Timestamp:  1542218059,
-			PriceStr:   "1.0",
-			AmountStr:  "1.0",
+			PriceStr:   "5.0",
+			AmountStr:  "6.0",
 		},
 		&pbm.Trade{
 			ExternalId:      "1",
 			TimestampMillis: 1542218059000,
-			PriceStr:        "1.0",
-			AmountStr:       "1.0",
+			PriceStr:        "7.0",
+			AmountStr:       "8.0",
 		},
 		&pbm.Trade{
 			ExternalId:    "1",
 			TimestampNano: 1542218059000000000,
-			PriceStr:      "1.0",
-			AmountStr:     "1.0",
+			PriceStr:      "9.0",
+			AmountStr:     "10.0",
 		},
 	},
 }
@@ -342,38 +433,43 @@ var testIntervalsUpdate = &pbm.IntervalsUpdate{
 			Closetime: 1542219084,
 			Period:    1,
 			Ohlc: &pbm.Interval_OHLC{
-				OpenStr:  "1.0",
-				HighStr:  "1.0",
-				LowStr:   "1.0",
-				CloseStr: "1.0",
+				OpenStr:  "11.0",
+				HighStr:  "12.0",
+				LowStr:   "13.0",
+				CloseStr: "14.0",
 			},
-			VolumeBaseStr:  "1.0",
-			VolumeQuoteStr: "1.0",
+			VolumeBaseStr:  "15.0",
+			VolumeQuoteStr: "16.0",
 		},
 	},
 }
 
 var testSummaryUpdate = &pbm.SummaryUpdate{
-	LastStr:           "1.0",
-	HighStr:           "1.0",
-	LowStr:            "1.0",
-	VolumeBaseStr:     "1.0",
-	VolumeQuoteStr:    "1.0",
-	ChangeAbsoluteStr: "1.0",
-	ChangePercentStr:  "1.0",
-	NumTrades:         1,
+	LastStr:           "17.0",
+	HighStr:           "18.0",
+	LowStr:            "19.0",
+	VolumeBaseStr:     "20.0",
+	VolumeQuoteStr:    "21.0",
+	ChangeAbsoluteStr: "22.0",
+	ChangePercentStr:  "23.0",
+	NumTrades:         1234,
 }
 
 var testSparklineUpdate = &pbm.SparklineUpdate{
 	Time:     1542205889,
-	PriceStr: "1.0",
+	PriceStr: "25.0",
 }
 
 var testPair uint64 = 1
 
-var testVWAPUpdate = &pbm.PairVwapUpdate{
-	Vwap:      1.9,
-	Timestamp: 1136239445,
+var testVWAPUpdates = []*pbm.PairVwapUpdate{
+	{
+		Vwap:      1.9,
+		Timestamp: 1136239445,
+	}, {
+		Vwap:          2.1,
+		TimestampNano: 1136239445000555999,
+	},
 }
 
 var testPerformanceUpdate = &pbm.PairPerformanceUpdate{
@@ -459,14 +555,16 @@ func sendStreamUpdates(t *testing.T, tp *testServerParams) error {
 		return errors.Trace(err)
 	}
 
-	vwapUpdate := &pbm.PairUpdateMessage{
-		Pair: testPair,
-		Update: &pbm.PairUpdateMessage_VwapUpdate{
-			VwapUpdate: testVWAPUpdate,
-		},
-	}
-	if err := sendPairUpdate(t, tp, vwapUpdate); err != nil {
-		return errors.Trace(err)
+	for _, testVWAPUpdate := range testVWAPUpdates {
+		vwapUpdate := &pbm.PairUpdateMessage{
+			Pair: testPair,
+			Update: &pbm.PairUpdateMessage_VwapUpdate{
+				VwapUpdate: testVWAPUpdate,
+			},
+		}
+		if err := sendPairUpdate(t, tp, vwapUpdate); err != nil {
+			return errors.Trace(err)
+		}
 	}
 
 	performanceUpdate := &pbm.PairUpdateMessage{
@@ -528,4 +626,20 @@ func sendPairUpdate(t *testing.T, tp *testServerParams, update *pbm.PairUpdateMe
 	}
 
 	return nil
+}
+
+// cmpStrAndDecimal tries to interpret str as a decimal, and compares it with
+// dec. If parsing str succeeded and numbers are equal, returns an empty
+// string; otherwise returns an error message.
+func cmpStrAndDecimal(str string, dec decimal.Decimal) string {
+	decFromStr, err := decimal.NewFromString(str)
+	if err != nil {
+		return fmt.Sprintf("failed to parse decimal from %q: %s", str, err)
+	}
+
+	if !dec.Equal(decFromStr) {
+		return fmt.Sprintf("%q does not equal %q", str, dec.String())
+	}
+
+	return ""
 }

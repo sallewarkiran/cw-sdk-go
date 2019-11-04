@@ -48,17 +48,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := cfg.Validate(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err)
-		fmt.Fprintf(
-			os.Stderr,
-			"Make sure your config file %s contains credentials, like this:\n%s\n",
-			configFile,
-			(&config.CW{}).Example().String(),
-		)
-		os.Exit(1)
-	}
-
 	statesTracker := NewConnStateTracker()
 
 	markets, marketDescrByID := getMarketDescrs(marketStrings)
@@ -142,7 +131,7 @@ func getComponentConnectivityStatusMessage(s ConnComponentState) string {
 }
 
 func getMarketDescrs(marketStrings []string) (markets []MarketDescr, marketDescrByID map[common.MarketID]MarketDescr) {
-	rest := rest.NewCWRESTClient(nil)
+	rest := rest.NewRESTClient(nil)
 
 	marketDescrByID = map[common.MarketID]MarketDescr{}
 
@@ -166,7 +155,7 @@ func getMarketDescrs(marketStrings []string) (markets []MarketDescr, marketDescr
 			fmt.Printf("Got %s/%s/%s\n", exchange, base, quote)
 
 			mchan <- MarketDescr{
-				ID:       common.MarketID(fmt.Sprintf("%d", md.ID)),
+				ID:       common.MarketID(md.ID),
 				Exchange: md.Exchange,
 				Base:     strings.ToUpper(base),
 				Quote:    strings.ToUpper(quote),
@@ -186,7 +175,7 @@ func getMarketDescrs(marketStrings []string) (markets []MarketDescr, marketDescr
 }
 
 func setupStreamClient(
-	cfg *config.CW,
+	cfg *config.CWConfig,
 	markets []MarketDescr,
 	mainView *MainView,
 	statesTracker *ConnStateTracker,
@@ -194,7 +183,7 @@ func setupStreamClient(
 	streamSubs := make([]*websocket.StreamSubscription, 0, len(markets))
 	for _, m := range markets {
 		streamSubs = append(streamSubs, &websocket.StreamSubscription{
-			Resource: fmt.Sprintf("markets:%s:book:spread", m.ID),
+			Resource: fmt.Sprintf("markets:%d:book:spread", m.ID),
 		})
 	}
 
@@ -212,12 +201,12 @@ func setupStreamClient(
 	}
 
 	sc.OnMarketUpdate(
-		func(market common.Market, data common.MarketUpdate) {
+		func(marketID common.MarketID, data common.MarketUpdate) {
 			switch {
 			case data.OrderBookSpreadUpdate != nil:
 				spread := data.OrderBookSpreadUpdate
 				mainView.SetMarketSpread(
-					market.ID,
+					marketID,
 					spread.Bid,
 					spread.Ask,
 				)
@@ -253,16 +242,18 @@ func setupStreamClient(
 }
 
 func setupTradeClient(
-	cfg *config.CW,
+	cfg *config.CWConfig,
 	markets []MarketDescr,
 	marketDescrByID map[common.MarketID]MarketDescr,
 	mainView *MainView,
 	statesTracker *ConnStateTracker,
 ) (*websocket.TradeClient, error) {
-	tradeSubs := make([]*websocket.TradeSubscription, 0, len(markets))
+	tradeSubs := make([]*websocket.TradeSessionParams, 0, len(markets))
 	for _, m := range markets {
-		tradeSubs = append(tradeSubs, &websocket.TradeSubscription{
-			MarketID: common.MarketID(fmt.Sprintf("%s", m.ID)),
+		tradeSubs = append(tradeSubs, &websocket.TradeSessionParams{
+			MarketParams: websocket.MarketParams{
+				ID: common.MarketID(m.ID),
+			},
 		})
 	}
 
@@ -273,7 +264,7 @@ func setupTradeClient(
 			SecretKey: cfg.SecretKey,
 		},
 
-		Subscriptions: tradeSubs,
+		TradeSessions: tradeSubs,
 	})
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -289,9 +280,9 @@ func setupTradeClient(
 	})
 
 	// Balances grep flag: Ki49fK
-	tc.OnBalancesUpdate(func(marketID common.MarketID, balances common.Balances) {
-		mainView.SetMarketBalances(marketID, balances)
-	})
+	// tc.OnBalancesUpdate(func(marketID common.MarketID, balances common.Balances) {
+	// 	mainView.SetMarketBalances(marketID, balances)
+	// })
 
 	tc.OnTradesUpdate(func(marketID common.MarketID, trades []common.PrivateTrade) {
 		// If this is the first trades update after we've connected, reset the
@@ -338,7 +329,7 @@ func setupTradeClient(
 
 	// Link UI requests to place/cancel orders with the trade client {{{
 	mainView.SetOnPlaceOrderRequestCallback(
-		func(orderOpt common.PlaceOrderOpt) {
+		func(orderOpt common.PlaceOrderParams) {
 			// It's called from the UI eventloop, so we can mess with UI right here.
 			msgv := NewMessageView(mainView, &MessageViewParams{
 				MessageID: "placing_order",
@@ -364,7 +355,7 @@ func setupTradeClient(
 	)
 
 	mainView.SetOnCancelOrderRequestCallback(
-		func(orderOpts common.CancelOrderOpt) {
+		func(orderOpts common.CancelOrderParams) {
 			// It's called from the UI eventloop, so we can mess with UI right here.
 			msgv := NewMessageView(mainView, &MessageViewParams{
 				MessageID: "canceling_order",

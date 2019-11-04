@@ -20,7 +20,7 @@ func TestDeserializingClientMessage(t *testing.T) {
 		},
 	}
 	msgData, _ := proto.Marshal(msg)
-	_, err := DeserializeClientMessage(msgData)
+	_, err := DeserializeClientMessage(msgData, ProtobufSerialization)
 	assert.Nil(t, err, "There was an error deserializing the ClientMessage: %s", err)
 }
 
@@ -33,6 +33,6 @@ func TestDeserializingClientIdentificationMessage(t *testing.T) {
 		Revision:  "1",
 	}
 	msgData, _ := proto.Marshal(msg)
-	_, err := DeserializeClientMessage(msgData)
+	_, err := DeserializeClientMessage(msgData, ProtobufSerialization)
 	assert.Nil(t, err, "There was an error deserializing the ClientIdentificationMessage as a ClientMessage: %s", err)
 }

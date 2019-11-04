@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 // OrderSide represents the order side; e.g. "buy" or "sell".
@@ -99,10 +101,10 @@ const (
 // TODO document different PriceParam uses
 type PriceParams []*PriceParam
 
-// PlaceOrderOpt contains the necessary options for creating a new order with
+// PlaceOrderParams contains the necessary options for creating a new order with
 // the trade client.
 // See TradeClient.PlaceOrder.
-type PlaceOrderOpt struct {
+type PlaceOrderParams struct {
 	MarketID    MarketID
 	PriceParams PriceParams
 	Amount      string
@@ -113,10 +115,10 @@ type PlaceOrderOpt struct {
 	ExpireTime  time.Time
 }
 
-// CancelOrderOpt contains the necessary options for canceling an existing order with
+// CancelOrderParams contains the necessary options for canceling an existing order with
 // the trade client.
 // See TradeClient.CancelOrder.
-type CancelOrderOpt struct {
+type CancelOrderParams struct {
 	MarketID MarketID
 	OrderID  string
 }
@@ -195,55 +197,88 @@ type PrivatePosition struct {
 	TradeIDs     []string
 }
 
-// Balances is a representation of your balances on an exchange.
-// It is represented as a map from the FundingType to the associated
-// balances.
-type Balances map[FundingType][]Balance
-
-// Balance is the amount you have for a particular currency on an exchange.
+// Balance is the amount you have of a particular asset.
 type Balance struct {
-	Currency string
-	Amount   string
-
-	// AllBalances grep flag: Ai33fA
-	// Asset     string
-	// Symbol    string
-	// Total     string
-	// Available string
+	FundingType FundingType
+	Asset       Asset
+	Amount      decimal.Decimal
 }
 
-// AllBalances grep flag: Ai33fA
-// ExchangeBalances holds information about balances across all active exchanges.
-// type ExchangeBalances map[string]ExchangeBalance
+type Balances map[Exchange][]Balance
 
-// AllBalances grep flag: Ai33fA
-// func (xb ExchangeBalances) Copy() ExchangeBalances {
-// 	result := make(ExchangeBalances, len(xb))
+// All returns a slice of all balances combined based on funding type + asset
+func (b Balances) All() []Balance {
+	ret := []Balance{}
 
-// 	for name, bal := range xb {
-// 		balCopy := ExchangeBalance{
-// 			Name:     bal.Name,
-// 			Error:    bal.Error,
-// 			Balances: make(Balances, len(bal.Balances)),
-// 		}
+	type cacheIndex struct {
+		asset Asset
+		ftype FundingType
+	}
 
-// 		for ft, bs := range bal.Balances {
-// 			bsCopy := make([]Balance, len(bs))
-// 			copy(bsCopy, bs)
+	cache := map[cacheIndex]Balance{}
+	for _, balances := range b {
+		for _, balance := range balances {
+			ci := cacheIndex{
+				asset: balance.Asset,
+				ftype: balance.FundingType,
+			}
+			if _, ok := cache[ci]; ok {
+				cache[ci].Amount.Add(balance.Amount)
+				continue
+			}
+			cache[ci] = Balance{
+				FundingType: balance.FundingType,
+				Asset:       balance.Asset,
+				Amount:      balance.Amount,
+			}
+		}
+	}
 
-// 			balCopy.Balances[ft] = bsCopy
-// 		}
+	for _, bal := range cache {
+		ret = append(ret, bal)
+	}
 
-// 		result[name] = balCopy
-// 	}
+	return ret
+}
 
-// 	return result
-// }
+type PrivateOrders []PrivateOrder
 
-// AllBalances grep flag: Ai33fA
-// ExchangeBalance holds information about balances on an exchange.
-// type ExchangeBalance struct {
-// 	Name     string
-// 	Error    string
-// 	Balances Balances
-// }
+func (os PrivateOrders) Len() int {
+	return len(os)
+}
+
+func (os PrivateOrders) Less(i, j int) bool {
+	return os[j].Timestamp.After(os[i].Timestamp)
+}
+
+func (os PrivateOrders) Swap(i, j int) {
+	os[i], os[j] = os[j], os[i]
+}
+
+type PrivateTrades []PrivateTrade
+
+func (ts PrivateTrades) Len() int {
+	return len(ts)
+}
+
+func (ts PrivateTrades) Less(i, j int) bool {
+	return ts[j].Timestamp.After(ts[i].Timestamp)
+}
+
+func (ts PrivateTrades) Swap(i, j int) {
+	ts[i], ts[j] = ts[j], ts[i]
+}
+
+type PrivatePositions []PrivatePosition
+
+func (ps PrivatePositions) Len() int {
+	return len(ps)
+}
+
+func (ps PrivatePositions) Less(i, j int) bool {
+	return ps[j].Timestamp.After(ps[i].Timestamp)
+}
+
+func (ps PrivatePositions) Swap(i, j int) {
+	ps[i], ps[j] = ps[j], ps[i]
+}

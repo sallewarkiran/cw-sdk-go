@@ -13,15 +13,11 @@ import (
 	pbs "code.cryptowat.ch/cw-sdk-go/proto/stream"
 )
 
-const (
-	DefaultStreamURL = "wss://stream.cryptowat.ch"
-)
-
 // MarketUpdateCB defines a callback function for OnMarketUpdate.
-type MarketUpdateCB func(common.Market, common.MarketUpdate)
+type MarketUpdateCB func(common.MarketID, common.MarketUpdate)
 
 type callMarketUpdateListenersReq struct {
-	market    common.Market
+	marketID  common.MarketID
 	update    common.MarketUpdate
 	listeners []MarketUpdateCB
 }
@@ -101,28 +97,29 @@ type StreamClientParams struct {
 // Although it starts listening for data immediately, you will still have to
 // register listeners to handle that data, and then call Connect() explicitly.
 func NewStreamClient(params *StreamClientParams) (*StreamClient, error) {
-	// Make a copy of params struct because we might alter it below
+	// It's possible to pass nil here, get everything from the credentials file,
+	// and then Subscribe() later on.
+	if params == nil {
+		params = &StreamClientParams{}
+	}
+
 	paramsCopy := *params
 	params = &paramsCopy
 
 	if params.WSParams == nil {
 		params.WSParams = &WSParams{}
+	}
 
-		// Fall back on config in ~/.cw/credentials.yml
-		var cfg *config.CW
-		defaultConfig, cfgErr := config.DefaultFilepath()
-		if cfgErr == nil {
-			cfg, cfgErr = config.New(defaultConfig)
-		}
-		if cfgErr == nil && cfg != nil {
-			params.WSParams.APIKey = cfg.APIKey
-			params.WSParams.SecretKey = cfg.SecretKey
-			params.WSParams.URL = cfg.StreamURL
-		}
+	// Fall back on config in ~/.cw/credentials.yml
+	cfg := config.Get()
+
+	if params.WSParams.APIKey == "" && params.WSParams.SecretKey == "" {
+		params.WSParams.APIKey = cfg.APIKey
+		params.WSParams.SecretKey = cfg.SecretKey
 	}
 
 	if params.WSParams.URL == "" {
-		params.WSParams.URL = DefaultStreamURL
+		params.WSParams.URL = cfg.StreamURL
 	}
 
 	wsConn, err := newWsConn(
@@ -192,7 +189,7 @@ func (sc *StreamClient) listen() {
 		select {
 		case req := <-sc.callMarketUpdateListeners:
 			for _, l := range req.listeners {
-				l(req.market, req.update)
+				l(req.marketID, req.update)
 			}
 
 		case req := <-sc.callPairUpdateListeners:
@@ -305,28 +302,38 @@ func (sc *StreamClient) OnError(cb OnErrorCB) {
 
 // Dispatches incoming market update to registered listeners
 func (sc *StreamClient) marketUpdateHandler(update *pbm.MarketUpdateMessage) {
-	market := marketFromProto(update.Market)
-
 	sc.mtx.Lock()
 	marketListeners := make([]MarketUpdateCB, len(sc.marketUpdateListeners))
 	copy(marketListeners, sc.marketUpdateListeners)
 	sc.mtx.Unlock()
 
+	marketID := common.MarketID(update.Market.MarketId)
+
 	switch update.Update.(type) {
 	case *pbm.MarketUpdateMessage_OrderBookUpdate:
-		update := orderBookSnapshotUpdateFromProto(update.GetOrderBookUpdate())
+		obs, err := orderBookSnapshotUpdateFromProto(update.GetOrderBookUpdate())
+		if err != nil {
+			sc.wsConn.callOnErrorCBs(errors.Trace(err), false)
+			break
+		}
+
 		sc.callMarketUpdateListeners <- callMarketUpdateListenersReq{
-			market: market,
+			marketID: marketID,
 			update: common.MarketUpdate{
-				OrderBookSnapshot: &update,
+				OrderBookSnapshot: &obs,
 			},
 			listeners: marketListeners,
 		}
 
 	case *pbm.MarketUpdateMessage_OrderBookDeltaUpdate:
-		update := orderBookDeltaUpdateFromProto(update.GetOrderBookDeltaUpdate())
+		update, err := orderBookDeltaUpdateFromProto(update.GetOrderBookDeltaUpdate())
+		if err != nil {
+			sc.wsConn.callOnErrorCBs(errors.Trace(err), false)
+			break
+		}
+
 		sc.callMarketUpdateListeners <- callMarketUpdateListenersReq{
-			market: market,
+			marketID: marketID,
 			update: common.MarketUpdate{
 				OrderBookDelta: &update,
 			},
@@ -334,9 +341,14 @@ func (sc *StreamClient) marketUpdateHandler(update *pbm.MarketUpdateMessage) {
 		}
 
 	case *pbm.MarketUpdateMessage_OrderBookSpreadUpdate:
-		update := orderBookSpreadUpdateFromProto(update.GetOrderBookSpreadUpdate())
+		update, err := orderBookSpreadUpdateFromProto(update.GetOrderBookSpreadUpdate())
+		if err != nil {
+			sc.wsConn.callOnErrorCBs(errors.Trace(err), false)
+			break
+		}
+
 		sc.callMarketUpdateListeners <- callMarketUpdateListenersReq{
-			market: market,
+			marketID: marketID,
 			update: common.MarketUpdate{
 				OrderBookSpreadUpdate: &update,
 			},
@@ -344,9 +356,14 @@ func (sc *StreamClient) marketUpdateHandler(update *pbm.MarketUpdateMessage) {
 		}
 
 	case *pbm.MarketUpdateMessage_TradesUpdate:
-		update := tradesUpdateFromProto(update.GetTradesUpdate())
+		update, err := tradesUpdateFromProto(update.GetTradesUpdate())
+		if err != nil {
+			sc.wsConn.callOnErrorCBs(errors.Trace(err), false)
+			break
+		}
+
 		sc.callMarketUpdateListeners <- callMarketUpdateListenersReq{
-			market: market,
+			marketID: marketID,
 			update: common.MarketUpdate{
 				TradesUpdate: &update,
 			},
@@ -354,9 +371,14 @@ func (sc *StreamClient) marketUpdateHandler(update *pbm.MarketUpdateMessage) {
 		}
 
 	case *pbm.MarketUpdateMessage_IntervalsUpdate:
-		update := intervalsUpdateFromProto(update.GetIntervalsUpdate())
+		update, err := intervalsUpdateFromProto(update.GetIntervalsUpdate())
+		if err != nil {
+			sc.wsConn.callOnErrorCBs(errors.Trace(err), false)
+			break
+		}
+
 		sc.callMarketUpdateListeners <- callMarketUpdateListenersReq{
-			market: market,
+			marketID: marketID,
 			update: common.MarketUpdate{
 				IntervalsUpdate: &update,
 			},
@@ -364,9 +386,14 @@ func (sc *StreamClient) marketUpdateHandler(update *pbm.MarketUpdateMessage) {
 		}
 
 	case *pbm.MarketUpdateMessage_SummaryUpdate:
-		update := summaryUpdateFromProto(update.GetSummaryUpdate())
+		update, err := summaryUpdateFromProto(update.GetSummaryUpdate())
+		if err != nil {
+			sc.wsConn.callOnErrorCBs(errors.Trace(err), false)
+			break
+		}
+
 		sc.callMarketUpdateListeners <- callMarketUpdateListenersReq{
-			market: market,
+			marketID: marketID,
 			update: common.MarketUpdate{
 				SummaryUpdate: &update,
 			},
@@ -374,9 +401,14 @@ func (sc *StreamClient) marketUpdateHandler(update *pbm.MarketUpdateMessage) {
 		}
 
 	case *pbm.MarketUpdateMessage_SparklineUpdate:
-		update := sparklineUpdateFromProto(update.GetSparklineUpdate())
+		update, err := sparklineUpdateFromProto(update.GetSparklineUpdate())
+		if err != nil {
+			sc.wsConn.callOnErrorCBs(errors.Trace(err), false)
+			break
+		}
+
 		sc.callMarketUpdateListeners <- callMarketUpdateListenersReq{
-			market: market,
+			marketID: marketID,
 			update: common.MarketUpdate{
 				SparklineUpdate: &update,
 			},
@@ -418,7 +450,12 @@ func (sc *StreamClient) pairUpdateHandler(update *pbm.PairUpdateMessage) {
 		}
 
 	case *pbm.PairUpdateMessage_TrendlineUpdate:
-		update := trendlineUpdateFromProto(update.GetTrendlineUpdate())
+		update, err := trendlineUpdateFromProto(update.GetTrendlineUpdate())
+		if err != nil {
+			sc.wsConn.callOnErrorCBs(errors.Trace(err), false)
+			break
+		}
+
 		sc.callPairUpdateListeners <- callPairUpdateListenersReq{
 			pair: pair,
 			update: common.PairUpdate{
