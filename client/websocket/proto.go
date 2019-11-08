@@ -9,10 +9,10 @@ import (
 	"github.com/shopspring/decimal"
 
 	"code.cryptowat.ch/cw-sdk-go/common"
-	pbb "code.cryptowat.ch/cw-sdk-go/proto/broker"
-	pbc "code.cryptowat.ch/cw-sdk-go/proto/client"
-	pbm "code.cryptowat.ch/cw-sdk-go/proto/markets"
-	pbs "code.cryptowat.ch/cw-sdk-go/proto/stream"
+	pbb "code.cryptowat.ch/cw-sdk-go/proto/public/broker"
+	pbc "code.cryptowat.ch/cw-sdk-go/proto/public/client"
+	pbm "code.cryptowat.ch/cw-sdk-go/proto/public/markets"
+	pbs "code.cryptowat.ch/cw-sdk-go/proto/public/stream"
 )
 
 func publicOrderFromProto(po *pbm.Order) (common.PublicOrder, error) {

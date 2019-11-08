@@ -9,8 +9,8 @@ import (
 
 	"code.cryptowat.ch/cw-sdk-go/common"
 	"code.cryptowat.ch/cw-sdk-go/config"
-	pbm "code.cryptowat.ch/cw-sdk-go/proto/markets"
-	pbs "code.cryptowat.ch/cw-sdk-go/proto/stream"
+	pbm "code.cryptowat.ch/cw-sdk-go/proto/public/markets"
+	pbs "code.cryptowat.ch/cw-sdk-go/proto/public/stream"
 )
 
 // MarketUpdateCB defines a callback function for OnMarketUpdate.

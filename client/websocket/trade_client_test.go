@@ -19,8 +19,8 @@ import (
 	"code.cryptowat.ch/cw-sdk-go/client/rest"
 	"code.cryptowat.ch/cw-sdk-go/client/websocket/internal"
 	"code.cryptowat.ch/cw-sdk-go/common"
-	pbb "code.cryptowat.ch/cw-sdk-go/proto/broker"
-	pbs "code.cryptowat.ch/cw-sdk-go/proto/stream"
+	pbb "code.cryptowat.ch/cw-sdk-go/proto/public/broker"
+	pbs "code.cryptowat.ch/cw-sdk-go/proto/public/stream"
 )
 
 // Set up mock REST client with 1 market

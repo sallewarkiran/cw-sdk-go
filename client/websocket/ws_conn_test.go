@@ -21,10 +21,10 @@ import (
 	"github.com/juju/errors"
 
 	"code.cryptowat.ch/cw-sdk-go/client/websocket/internal"
-	pbb "code.cryptowat.ch/cw-sdk-go/proto/broker"
-	pbc "code.cryptowat.ch/cw-sdk-go/proto/client"
-	pbm "code.cryptowat.ch/cw-sdk-go/proto/markets"
-	pbs "code.cryptowat.ch/cw-sdk-go/proto/stream"
+	pbb "code.cryptowat.ch/cw-sdk-go/proto/public/broker"
+	pbc "code.cryptowat.ch/cw-sdk-go/proto/public/client"
+	pbm "code.cryptowat.ch/cw-sdk-go/proto/public/markets"
+	pbs "code.cryptowat.ch/cw-sdk-go/proto/public/stream"
 )
 
 type eventType int

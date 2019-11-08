@@ -14,8 +14,8 @@ import (
 
 	"code.cryptowat.ch/cw-sdk-go/client/websocket/internal"
 	"code.cryptowat.ch/cw-sdk-go/common"
-	pbm "code.cryptowat.ch/cw-sdk-go/proto/markets"
-	pbs "code.cryptowat.ch/cw-sdk-go/proto/stream"
+	pbm "code.cryptowat.ch/cw-sdk-go/proto/public/markets"
+	pbs "code.cryptowat.ch/cw-sdk-go/proto/public/stream"
 )
 
 var testStreamSubscriptions = []*StreamSubscription{

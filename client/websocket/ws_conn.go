@@ -16,8 +16,8 @@ import (
 	"honnef.co/go/tools/version"
 
 	"code.cryptowat.ch/cw-sdk-go/client/websocket/internal"
-	pbc "code.cryptowat.ch/cw-sdk-go/proto/client"
-	pbs "code.cryptowat.ch/cw-sdk-go/proto/stream"
+	pbc "code.cryptowat.ch/cw-sdk-go/proto/public/client"
+	pbs "code.cryptowat.ch/cw-sdk-go/proto/public/stream"
 )
 
 // The following errors are returned from wsConn, which applies to both
