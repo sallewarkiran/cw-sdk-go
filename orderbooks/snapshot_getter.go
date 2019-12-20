@@ -1,6 +1,8 @@
 package orderbooks
 
 import (
+	"errors"
+
 	"code.cryptowat.ch/cw-sdk-go/client/rest"
 	"code.cryptowat.ch/cw-sdk-go/common"
 )
@@ -22,23 +24,29 @@ var _ OrderBookSnapshotGetter = &OrderBookSnapshotGetterREST{}
 // OrderBookSnapshotGetterREST implements OrderBookSnapshotGetter; it
 // gets snapshot for the specified market from the REST API.
 type OrderBookSnapshotGetterREST struct {
-	client         *rest.RESTClient
-	exchangeSymbol string
-	pairSymbol     string
+	client *rest.RESTClient
+	market common.Market
 }
 
-// NewOrderBookSnapshotGetterRESTBySymbol creates a new snapshot getter which
+// NewOrderBookSnapshotGetterREST creates a new snapshot getter which
 // uses the REST API to get snapshots for the given market.
-func NewOrderBookSnapshotGetterRESTBySymbol(
-	exchangeSymbol string, pairSymbol string, restParams *rest.RESTClientParams,
-) *OrderBookSnapshotGetterREST {
-	return &OrderBookSnapshotGetterREST{
-		client:         rest.NewRESTClient(restParams),
-		exchangeSymbol: exchangeSymbol,
-		pairSymbol:     pairSymbol,
+func NewOrderBookSnapshotGetterREST(
+	market common.Market,
+	restClient *rest.RESTClient,
+) (*OrderBookSnapshotGetterREST, error) {
+	if restClient == nil {
+		return nil, errors.New("RESTClient is nil")
 	}
+	return &OrderBookSnapshotGetterREST{
+		client: restClient,
+		market: market,
+	}, nil
 }
 
 func (sg *OrderBookSnapshotGetterREST) GetOrderBookSnapshot() (common.OrderBookSnapshot, error) {
-	return sg.client.GetOrderBook(sg.exchangeSymbol, sg.pairSymbol)
+	// TODO Use v2 endpoint after it is available
+	return sg.client.GetOrderBook(
+		string(sg.market.Exchange.Symbol),
+		string(sg.market.Instrument.Base.Symbol)+string(sg.market.Instrument.Quote.Symbol),
+	)
 }

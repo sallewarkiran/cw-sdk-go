@@ -11,6 +11,10 @@ import (
 // OrderSide represents the order side; e.g. "buy" or "sell".
 type OrderSide int32
 
+func (os OrderSide) String() string {
+	return OrderSideNames[os]
+}
+
 const (
 	SellOrder OrderSide = iota
 	BuyOrder

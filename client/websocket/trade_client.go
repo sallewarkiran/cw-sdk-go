@@ -73,17 +73,12 @@ type OnTradeErrorCB func(marketID common.MarketID, err error, disconnecting bool
 // TradeSessionParams is the parameter type for starting a trade session. A trade client connection
 // can consist of multiple trade sessions, each of which can have separate exchange auth.
 type TradeSessionParams struct {
-	// MarketParams are parameters to get the market to trade on. You can provide a
+	// common.MarketParams are parameters to get the market to trade on. You can provide a
 	// string-based symbol (exchange+base+quote) or market ID.
-	MarketParams MarketParams
+	MarketParams common.MarketParams
 	// Auth is used as credentials for the exchange. It is optional. If left nil, exchange
 	// credentials on your Cryptowatch account will be used.
 	ExchangeAuth *ExchangeAuth
-}
-
-type MarketParams struct {
-	Symbol common.MarketSymbol
-	ID     common.MarketID
 }
 
 // Exchange auth is credentials to trade on a particular exchange. CustomerID is specific to

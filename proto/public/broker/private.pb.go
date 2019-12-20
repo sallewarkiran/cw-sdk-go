@@ -46,7 +46,7 @@ func (x FundingType) String() string {
 	return proto.EnumName(FundingType_name, int32(x))
 }
 func (FundingType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_private_ffa56c937df6f8a7, []int{0}
+	return fileDescriptor_private_4ba1aa8765c9a54b, []int{0}
 }
 
 type PrivateOrder_Type int32
@@ -102,7 +102,7 @@ func (x PrivateOrder_Type) String() string {
 	return proto.EnumName(PrivateOrder_Type_name, int32(x))
 }
 func (PrivateOrder_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_private_ffa56c937df6f8a7, []int{0, 0}
+	return fileDescriptor_private_4ba1aa8765c9a54b, []int{0, 0}
 }
 
 type PrivateOrder_PriceParamType int32
@@ -128,26 +128,19 @@ func (x PrivateOrder_PriceParamType) String() string {
 	return proto.EnumName(PrivateOrder_PriceParamType_name, int32(x))
 }
 func (PrivateOrder_PriceParamType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_private_ffa56c937df6f8a7, []int{0, 1}
+	return fileDescriptor_private_4ba1aa8765c9a54b, []int{0, 1}
 }
 
 type PrivateOrder struct {
-	Id                 string                     `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Time               int64                      `protobuf:"varint,2,opt,name=time,proto3" json:"time,omitempty"`
-	Price              float32                    `protobuf:"fixed32,3,opt,name=price,proto3" json:"price,omitempty"`
-	Amount             float32                    `protobuf:"fixed32,4,opt,name=amount,proto3" json:"amount,omitempty"`
-	Side               int32                      `protobuf:"varint,5,opt,name=side,proto3" json:"side,omitempty"`
-	Type               PrivateOrder_Type          `protobuf:"varint,6,opt,name=type,proto3,enum=ProtobufBroker.PrivateOrder_Type" json:"type,omitempty"`
-	FundingType        FundingType                `protobuf:"varint,7,opt,name=fundingType,proto3,enum=ProtobufBroker.FundingType" json:"fundingType,omitempty"`
-	PriceParams        []*PrivateOrder_PriceParam `protobuf:"bytes,8,rep,name=priceParams,proto3" json:"priceParams,omitempty"`
-	AmountParam        float32                    `protobuf:"fixed32,9,opt,name=amountParam,proto3" json:"amountParam,omitempty"`
-	AmountParamString  string                     `protobuf:"bytes,16,opt,name=amountParamString,proto3" json:"amountParamString,omitempty"`
-	AmountFilledString string                     `protobuf:"bytes,17,opt,name=amountFilledString,proto3" json:"amountFilledString,omitempty"`
-	Leverage           string                     `protobuf:"bytes,10,opt,name=leverage,proto3" json:"leverage,omitempty"`
-	// For trailing orders
-	// DEPRECATED; use strings instead
-	CurrentStop             float32                    `protobuf:"fixed32,11,opt,name=currentStop,proto3" json:"currentStop,omitempty"`
-	InitialStop             float32                    `protobuf:"fixed32,12,opt,name=initialStop,proto3" json:"initialStop,omitempty"`
+	Id                      string                     `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Time                    int64                      `protobuf:"varint,2,opt,name=time,proto3" json:"time,omitempty"`
+	Side                    int32                      `protobuf:"varint,5,opt,name=side,proto3" json:"side,omitempty"`
+	Type                    PrivateOrder_Type          `protobuf:"varint,6,opt,name=type,proto3,enum=ProtobufBroker.PrivateOrder_Type" json:"type,omitempty"`
+	FundingType             FundingType                `protobuf:"varint,7,opt,name=fundingType,proto3,enum=ProtobufBroker.FundingType" json:"fundingType,omitempty"`
+	PriceParams             []*PrivateOrder_PriceParam `protobuf:"bytes,8,rep,name=priceParams,proto3" json:"priceParams,omitempty"`
+	AmountParamString       string                     `protobuf:"bytes,16,opt,name=amountParamString,proto3" json:"amountParamString,omitempty"`
+	AmountFilledString      string                     `protobuf:"bytes,17,opt,name=amountFilledString,proto3" json:"amountFilledString,omitempty"`
+	Leverage                string                     `protobuf:"bytes,10,opt,name=leverage,proto3" json:"leverage,omitempty"`
 	CurrentStopString       string                     `protobuf:"bytes,18,opt,name=currentStopString,proto3" json:"currentStopString,omitempty"`
 	InitialStopString       string                     `protobuf:"bytes,19,opt,name=initialStopString,proto3" json:"initialStopString,omitempty"`
 	StartTime               int64                      `protobuf:"varint,13,opt,name=startTime,proto3" json:"startTime,omitempty"`
@@ -165,7 +158,7 @@ func (m *PrivateOrder) Reset()         { *m = PrivateOrder{} }
 func (m *PrivateOrder) String() string { return proto.CompactTextString(m) }
 func (*PrivateOrder) ProtoMessage()    {}
 func (*PrivateOrder) Descriptor() ([]byte, []int) {
-	return fileDescriptor_private_ffa56c937df6f8a7, []int{0}
+	return fileDescriptor_private_4ba1aa8765c9a54b, []int{0}
 }
 func (m *PrivateOrder) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -208,20 +201,6 @@ func (m *PrivateOrder) GetTime() int64 {
 	return 0
 }
 
-func (m *PrivateOrder) GetPrice() float32 {
-	if m != nil {
-		return m.Price
-	}
-	return 0
-}
-
-func (m *PrivateOrder) GetAmount() float32 {
-	if m != nil {
-		return m.Amount
-	}
-	return 0
-}
-
 func (m *PrivateOrder) GetSide() int32 {
 	if m != nil {
 		return m.Side
@@ -250,13 +229,6 @@ func (m *PrivateOrder) GetPriceParams() []*PrivateOrder_PriceParam {
 	return nil
 }
 
-func (m *PrivateOrder) GetAmountParam() float32 {
-	if m != nil {
-		return m.AmountParam
-	}
-	return 0
-}
-
 func (m *PrivateOrder) GetAmountParamString() string {
 	if m != nil {
 		return m.AmountParamString
@@ -276,20 +248,6 @@ func (m *PrivateOrder) GetLeverage() string {
 		return m.Leverage
 	}
 	return ""
-}
-
-func (m *PrivateOrder) GetCurrentStop() float32 {
-	if m != nil {
-		return m.CurrentStop
-	}
-	return 0
-}
-
-func (m *PrivateOrder) GetInitialStop() float32 {
-	if m != nil {
-		return m.InitialStop
-	}
-	return 0
 }
 
 func (m *PrivateOrder) GetCurrentStopString() string {
@@ -349,7 +307,6 @@ func (m *PrivateOrder) GetClosingOrderPriceParams() []*PrivateOrder_PriceParam {
 }
 
 type PrivateOrder_PriceParam struct {
-	Value                float32                     `protobuf:"fixed32,1,opt,name=value,proto3" json:"value,omitempty"`
 	ValueString          string                      `protobuf:"bytes,3,opt,name=valueString,proto3" json:"valueString,omitempty"`
 	Type                 PrivateOrder_PriceParamType `protobuf:"varint,2,opt,name=type,proto3,enum=ProtobufBroker.PrivateOrder_PriceParamType" json:"type,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                    `json:"-"`
@@ -361,7 +318,7 @@ func (m *PrivateOrder_PriceParam) Reset()         { *m = PrivateOrder_PriceParam
 func (m *PrivateOrder_PriceParam) String() string { return proto.CompactTextString(m) }
 func (*PrivateOrder_PriceParam) ProtoMessage()    {}
 func (*PrivateOrder_PriceParam) Descriptor() ([]byte, []int) {
-	return fileDescriptor_private_ffa56c937df6f8a7, []int{0, 0}
+	return fileDescriptor_private_4ba1aa8765c9a54b, []int{0, 0}
 }
 func (m *PrivateOrder_PriceParam) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -390,13 +347,6 @@ func (m *PrivateOrder_PriceParam) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PrivateOrder_PriceParam proto.InternalMessageInfo
 
-func (m *PrivateOrder_PriceParam) GetValue() float32 {
-	if m != nil {
-		return m.Value
-	}
-	return 0
-}
-
 func (m *PrivateOrder_PriceParam) GetValueString() string {
 	if m != nil {
 		return m.ValueString
@@ -412,15 +362,13 @@ func (m *PrivateOrder_PriceParam) GetType() PrivateOrder_PriceParamType {
 }
 
 type PrivateTrade struct {
-	ExternalId   string  `protobuf:"bytes,7,opt,name=externalId,proto3" json:"externalId,omitempty"`
-	OrderId      string  `protobuf:"bytes,8,opt,name=orderId,proto3" json:"orderId,omitempty"`
-	Time         int64   `protobuf:"varint,2,opt,name=time,proto3" json:"time,omitempty"`
-	TimeMillis   int64   `protobuf:"varint,6,opt,name=timeMillis,proto3" json:"timeMillis,omitempty"`
-	Price        float32 `protobuf:"fixed32,3,opt,name=price,proto3" json:"price,omitempty"`
-	PriceString  string  `protobuf:"bytes,9,opt,name=priceString,proto3" json:"priceString,omitempty"`
-	Amount       float32 `protobuf:"fixed32,4,opt,name=amount,proto3" json:"amount,omitempty"`
-	AmountString string  `protobuf:"bytes,10,opt,name=amountString,proto3" json:"amountString,omitempty"`
-	Side         int32   `protobuf:"varint,5,opt,name=side,proto3" json:"side,omitempty"`
+	ExternalId   string `protobuf:"bytes,7,opt,name=externalId,proto3" json:"externalId,omitempty"`
+	OrderId      string `protobuf:"bytes,8,opt,name=orderId,proto3" json:"orderId,omitempty"`
+	Time         int64  `protobuf:"varint,2,opt,name=time,proto3" json:"time,omitempty"`
+	TimeMillis   int64  `protobuf:"varint,6,opt,name=timeMillis,proto3" json:"timeMillis,omitempty"`
+	PriceString  string `protobuf:"bytes,9,opt,name=priceString,proto3" json:"priceString,omitempty"`
+	AmountString string `protobuf:"bytes,10,opt,name=amountString,proto3" json:"amountString,omitempty"`
+	Side         int32  `protobuf:"varint,5,opt,name=side,proto3" json:"side,omitempty"`
 	// Deprecated since we don't want to expose our SQL IDs
 	Id                   int64    `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -432,7 +380,7 @@ func (m *PrivateTrade) Reset()         { *m = PrivateTrade{} }
 func (m *PrivateTrade) String() string { return proto.CompactTextString(m) }
 func (*PrivateTrade) ProtoMessage()    {}
 func (*PrivateTrade) Descriptor() ([]byte, []int) {
-	return fileDescriptor_private_ffa56c937df6f8a7, []int{1}
+	return fileDescriptor_private_4ba1aa8765c9a54b, []int{1}
 }
 func (m *PrivateTrade) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -489,25 +437,11 @@ func (m *PrivateTrade) GetTimeMillis() int64 {
 	return 0
 }
 
-func (m *PrivateTrade) GetPrice() float32 {
-	if m != nil {
-		return m.Price
-	}
-	return 0
-}
-
 func (m *PrivateTrade) GetPriceString() string {
 	if m != nil {
 		return m.PriceString
 	}
 	return ""
-}
-
-func (m *PrivateTrade) GetAmount() float32 {
-	if m != nil {
-		return m.Amount
-	}
-	return 0
 }
 
 func (m *PrivateTrade) GetAmountString() string {
@@ -532,16 +466,13 @@ func (m *PrivateTrade) GetId() int64 {
 }
 
 type PrivatePosition struct {
-	Id             string  `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Time           int64   `protobuf:"varint,2,opt,name=time,proto3" json:"time,omitempty"`
-	Side           int32   `protobuf:"varint,3,opt,name=side,proto3" json:"side,omitempty"`
-	AvgPrice       float32 `protobuf:"fixed32,4,opt,name=avgPrice,proto3" json:"avgPrice,omitempty"`
-	AvgPriceString string  `protobuf:"bytes,9,opt,name=avgPriceString,proto3" json:"avgPriceString,omitempty"`
-	// DEPRECATED; use strings instead
-	AmountOpen         float32  `protobuf:"fixed32,5,opt,name=amountOpen,proto3" json:"amountOpen,omitempty"`
-	AmountClosed       float32  `protobuf:"fixed32,6,opt,name=amountClosed,proto3" json:"amountClosed,omitempty"`
+	Id                 string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Time               int64    `protobuf:"varint,2,opt,name=time,proto3" json:"time,omitempty"`
+	Side               int32    `protobuf:"varint,3,opt,name=side,proto3" json:"side,omitempty"`
+	AvgPriceString     string   `protobuf:"bytes,9,opt,name=avgPriceString,proto3" json:"avgPriceString,omitempty"`
 	AmountOpenString   string   `protobuf:"bytes,10,opt,name=amountOpenString,proto3" json:"amountOpenString,omitempty"`
 	AmountClosedString string   `protobuf:"bytes,11,opt,name=amountClosedString,proto3" json:"amountClosedString,omitempty"`
+	ProfitLoss         string   `protobuf:"bytes,12,opt,name=profitLoss,proto3" json:"profitLoss,omitempty"`
 	OrderIds           []string `protobuf:"bytes,7,rep,name=orderIds,proto3" json:"orderIds,omitempty"`
 	// NOTE:
 	// Trade ids are sent as strings here, while historically they
@@ -558,7 +489,7 @@ func (m *PrivatePosition) Reset()         { *m = PrivatePosition{} }
 func (m *PrivatePosition) String() string { return proto.CompactTextString(m) }
 func (*PrivatePosition) ProtoMessage()    {}
 func (*PrivatePosition) Descriptor() ([]byte, []int) {
-	return fileDescriptor_private_ffa56c937df6f8a7, []int{2}
+	return fileDescriptor_private_4ba1aa8765c9a54b, []int{2}
 }
 func (m *PrivatePosition) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -608,32 +539,11 @@ func (m *PrivatePosition) GetSide() int32 {
 	return 0
 }
 
-func (m *PrivatePosition) GetAvgPrice() float32 {
-	if m != nil {
-		return m.AvgPrice
-	}
-	return 0
-}
-
 func (m *PrivatePosition) GetAvgPriceString() string {
 	if m != nil {
 		return m.AvgPriceString
 	}
 	return ""
-}
-
-func (m *PrivatePosition) GetAmountOpen() float32 {
-	if m != nil {
-		return m.AmountOpen
-	}
-	return 0
-}
-
-func (m *PrivatePosition) GetAmountClosed() float32 {
-	if m != nil {
-		return m.AmountClosed
-	}
-	return 0
 }
 
 func (m *PrivatePosition) GetAmountOpenString() string {
@@ -646,6 +556,13 @@ func (m *PrivatePosition) GetAmountOpenString() string {
 func (m *PrivatePosition) GetAmountClosedString() string {
 	if m != nil {
 		return m.AmountClosedString
+	}
+	return ""
+}
+
+func (m *PrivatePosition) GetProfitLoss() string {
+	if m != nil {
+		return m.ProfitLoss
 	}
 	return ""
 }
@@ -666,7 +583,6 @@ func (m *PrivatePosition) GetTradeIds() []string {
 
 type Balance struct {
 	Currency             string   `protobuf:"bytes,1,opt,name=currency,proto3" json:"currency,omitempty"`
-	Amount               float32  `protobuf:"fixed32,2,opt,name=amount,proto3" json:"amount,omitempty"`
 	AmountString         string   `protobuf:"bytes,3,opt,name=amountString,proto3" json:"amountString,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -677,7 +593,7 @@ func (m *Balance) Reset()         { *m = Balance{} }
 func (m *Balance) String() string { return proto.CompactTextString(m) }
 func (*Balance) ProtoMessage()    {}
 func (*Balance) Descriptor() ([]byte, []int) {
-	return fileDescriptor_private_ffa56c937df6f8a7, []int{3}
+	return fileDescriptor_private_4ba1aa8765c9a54b, []int{3}
 }
 func (m *Balance) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -713,13 +629,6 @@ func (m *Balance) GetCurrency() string {
 	return ""
 }
 
-func (m *Balance) GetAmount() float32 {
-	if m != nil {
-		return m.Amount
-	}
-	return 0
-}
-
 func (m *Balance) GetAmountString() string {
 	if m != nil {
 		return m.AmountString
@@ -739,7 +648,7 @@ func (m *Balances) Reset()         { *m = Balances{} }
 func (m *Balances) String() string { return proto.CompactTextString(m) }
 func (*Balances) ProtoMessage()    {}
 func (*Balances) Descriptor() ([]byte, []int) {
-	return fileDescriptor_private_ffa56c937df6f8a7, []int{4}
+	return fileDescriptor_private_4ba1aa8765c9a54b, []int{4}
 }
 func (m *Balances) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -819,18 +728,6 @@ func (m *PrivateOrder) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintPrivate(dAtA, i, uint64(m.Time))
 	}
-	if m.Price != 0 {
-		dAtA[i] = 0x1d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Price))))
-		i += 4
-	}
-	if m.Amount != 0 {
-		dAtA[i] = 0x25
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Amount))))
-		i += 4
-	}
 	if m.Side != 0 {
 		dAtA[i] = 0x28
 		i++
@@ -858,29 +755,11 @@ func (m *PrivateOrder) MarshalTo(dAtA []byte) (int, error) {
 			i += n
 		}
 	}
-	if m.AmountParam != 0 {
-		dAtA[i] = 0x4d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.AmountParam))))
-		i += 4
-	}
 	if len(m.Leverage) > 0 {
 		dAtA[i] = 0x52
 		i++
 		i = encodeVarintPrivate(dAtA, i, uint64(len(m.Leverage)))
 		i += copy(dAtA[i:], m.Leverage)
-	}
-	if m.CurrentStop != 0 {
-		dAtA[i] = 0x5d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.CurrentStop))))
-		i += 4
-	}
-	if m.InitialStop != 0 {
-		dAtA[i] = 0x65
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.InitialStop))))
-		i += 4
 	}
 	if m.StartTime != 0 {
 		dAtA[i] = 0x68
@@ -984,12 +863,6 @@ func (m *PrivateOrder_PriceParam) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Value != 0 {
-		dAtA[i] = 0xd
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Value))))
-		i += 4
-	}
 	if m.Type != 0 {
 		dAtA[i] = 0x10
 		i++
@@ -1031,18 +904,6 @@ func (m *PrivateTrade) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x10
 		i++
 		i = encodeVarintPrivate(dAtA, i, uint64(m.Time))
-	}
-	if m.Price != 0 {
-		dAtA[i] = 0x1d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Price))))
-		i += 4
-	}
-	if m.Amount != 0 {
-		dAtA[i] = 0x25
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Amount))))
-		i += 4
 	}
 	if m.Side != 0 {
 		dAtA[i] = 0x28
@@ -1115,24 +976,6 @@ func (m *PrivatePosition) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintPrivate(dAtA, i, uint64(m.Side))
 	}
-	if m.AvgPrice != 0 {
-		dAtA[i] = 0x25
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.AvgPrice))))
-		i += 4
-	}
-	if m.AmountOpen != 0 {
-		dAtA[i] = 0x2d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.AmountOpen))))
-		i += 4
-	}
-	if m.AmountClosed != 0 {
-		dAtA[i] = 0x35
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.AmountClosed))))
-		i += 4
-	}
 	if len(m.OrderIds) > 0 {
 		for _, s := range m.OrderIds {
 			dAtA[i] = 0x3a
@@ -1181,6 +1024,12 @@ func (m *PrivatePosition) MarshalTo(dAtA []byte) (int, error) {
 		i = encodeVarintPrivate(dAtA, i, uint64(len(m.AmountClosedString)))
 		i += copy(dAtA[i:], m.AmountClosedString)
 	}
+	if len(m.ProfitLoss) > 0 {
+		dAtA[i] = 0x62
+		i++
+		i = encodeVarintPrivate(dAtA, i, uint64(len(m.ProfitLoss)))
+		i += copy(dAtA[i:], m.ProfitLoss)
+	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -1207,12 +1056,6 @@ func (m *Balance) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintPrivate(dAtA, i, uint64(len(m.Currency)))
 		i += copy(dAtA[i:], m.Currency)
-	}
-	if m.Amount != 0 {
-		dAtA[i] = 0x15
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Amount))))
-		i += 4
 	}
 	if len(m.AmountString) > 0 {
 		dAtA[i] = 0x1a
@@ -1286,12 +1129,6 @@ func (m *PrivateOrder) Size() (n int) {
 	if m.Time != 0 {
 		n += 1 + sovPrivate(uint64(m.Time))
 	}
-	if m.Price != 0 {
-		n += 5
-	}
-	if m.Amount != 0 {
-		n += 5
-	}
 	if m.Side != 0 {
 		n += 1 + sovPrivate(uint64(m.Side))
 	}
@@ -1307,18 +1144,9 @@ func (m *PrivateOrder) Size() (n int) {
 			n += 1 + l + sovPrivate(uint64(l))
 		}
 	}
-	if m.AmountParam != 0 {
-		n += 5
-	}
 	l = len(m.Leverage)
 	if l > 0 {
 		n += 1 + l + sovPrivate(uint64(l))
-	}
-	if m.CurrentStop != 0 {
-		n += 5
-	}
-	if m.InitialStop != 0 {
-		n += 5
 	}
 	if m.StartTime != 0 {
 		n += 1 + sovPrivate(uint64(m.StartTime))
@@ -1369,9 +1197,6 @@ func (m *PrivateOrder_PriceParam) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Value != 0 {
-		n += 5
-	}
 	if m.Type != 0 {
 		n += 1 + sovPrivate(uint64(m.Type))
 	}
@@ -1396,12 +1221,6 @@ func (m *PrivateTrade) Size() (n int) {
 	}
 	if m.Time != 0 {
 		n += 1 + sovPrivate(uint64(m.Time))
-	}
-	if m.Price != 0 {
-		n += 5
-	}
-	if m.Amount != 0 {
-		n += 5
 	}
 	if m.Side != 0 {
 		n += 1 + sovPrivate(uint64(m.Side))
@@ -1447,15 +1266,6 @@ func (m *PrivatePosition) Size() (n int) {
 	if m.Side != 0 {
 		n += 1 + sovPrivate(uint64(m.Side))
 	}
-	if m.AvgPrice != 0 {
-		n += 5
-	}
-	if m.AmountOpen != 0 {
-		n += 5
-	}
-	if m.AmountClosed != 0 {
-		n += 5
-	}
 	if len(m.OrderIds) > 0 {
 		for _, s := range m.OrderIds {
 			l = len(s)
@@ -1480,6 +1290,10 @@ func (m *PrivatePosition) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovPrivate(uint64(l))
 	}
+	l = len(m.ProfitLoss)
+	if l > 0 {
+		n += 1 + l + sovPrivate(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -1495,9 +1309,6 @@ func (m *Balance) Size() (n int) {
 	l = len(m.Currency)
 	if l > 0 {
 		n += 1 + l + sovPrivate(uint64(l))
-	}
-	if m.Amount != 0 {
-		n += 5
 	}
 	l = len(m.AmountString)
 	if l > 0 {
@@ -1620,28 +1431,6 @@ func (m *PrivateOrder) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 3:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Price", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Price = float32(math.Float32frombits(v))
-		case 4:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Amount", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Amount = float32(math.Float32frombits(v))
 		case 5:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Side", wireType)
@@ -1730,17 +1519,6 @@ func (m *PrivateOrder) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 9:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AmountParam", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.AmountParam = float32(math.Float32frombits(v))
 		case 10:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Leverage", wireType)
@@ -1770,28 +1548,6 @@ func (m *PrivateOrder) Unmarshal(dAtA []byte) error {
 			}
 			m.Leverage = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 11:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CurrentStop", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.CurrentStop = float32(math.Float32frombits(v))
-		case 12:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field InitialStop", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.InitialStop = float32(math.Float32frombits(v))
 		case 13:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field StartTime", wireType)
@@ -2078,17 +1834,6 @@ func (m *PrivateOrder_PriceParam) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: PriceParam: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Value = float32(math.Float32frombits(v))
 		case 2:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
@@ -2226,28 +1971,6 @@ func (m *PrivateTrade) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 3:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Price", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Price = float32(math.Float32frombits(v))
-		case 4:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Amount", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Amount = float32(math.Float32frombits(v))
 		case 5:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Side", wireType)
@@ -2520,39 +2243,6 @@ func (m *PrivatePosition) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 4:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AvgPrice", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.AvgPrice = float32(math.Float32frombits(v))
-		case 5:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AmountOpen", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.AmountOpen = float32(math.Float32frombits(v))
-		case 6:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AmountClosed", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.AmountClosed = float32(math.Float32frombits(v))
 		case 7:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field OrderIds", wireType)
@@ -2698,6 +2388,35 @@ func (m *PrivatePosition) Unmarshal(dAtA []byte) error {
 			}
 			m.AmountClosedString = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ProfitLoss", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowPrivate
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthPrivate
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ProfitLoss = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipPrivate(dAtA[iNdEx:])
@@ -2778,17 +2497,6 @@ func (m *Balance) Unmarshal(dAtA []byte) error {
 			}
 			m.Currency = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 2:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Amount", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Amount = float32(math.Float32frombits(v))
 		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field AmountString", wireType)
@@ -3047,69 +2755,68 @@ var (
 )
 
 func init() {
-	proto.RegisterFile("public/broker/private.proto", fileDescriptor_private_ffa56c937df6f8a7)
+	proto.RegisterFile("public/broker/private.proto", fileDescriptor_private_4ba1aa8765c9a54b)
 }
 
-var fileDescriptor_private_ffa56c937df6f8a7 = []byte{
-	// 946 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0x4f, 0x6f, 0xe3, 0x44,
-	0x14, 0xaf, 0xff, 0x24, 0x71, 0x9e, 0xb3, 0x89, 0xfb, 0xb6, 0xdb, 0x9a, 0x16, 0x45, 0x26, 0x48,
-	0x10, 0x2d, 0x28, 0x2b, 0xed, 0x8a, 0x23, 0x42, 0x5b, 0xa4, 0x95, 0xba, 0x6c, 0x95, 0xc8, 0x8d,
-	0xb8, 0x4f, 0xe2, 0x49, 0x18, 0xd5, 0xb5, 0xad, 0xf1, 0xa4, 0xa2, 0x67, 0xc4, 0x85, 0x33, 0x07,
-	0x3e, 0x12, 0x47, 0x3e, 0x02, 0x2a, 0xe2, 0x6b, 0x20, 0x34, 0x33, 0x76, 0x32, 0x49, 0x16, 0xd4,
-	0x1e, 0xf6, 0x14, 0xbf, 0xdf, 0xfb, 0xbd, 0x37, 0xef, 0xdf, 0xbc, 0x09, 0x9c, 0x15, 0xab, 0x59,
-	0xca, 0xe6, 0x2f, 0x66, 0x3c, 0xbf, 0xa6, 0xfc, 0x45, 0xc1, 0xd9, 0x2d, 0x11, 0x74, 0x54, 0xf0,
-	0x5c, 0xe4, 0xd8, 0x9d, 0xc8, 0x9f, 0xd9, 0x6a, 0x71, 0xae, 0xb4, 0x83, 0x7f, 0x00, 0x3a, 0x13,
-	0xcd, 0x18, 0xf3, 0x84, 0x72, 0xec, 0x82, 0xcd, 0x92, 0xd0, 0x8a, 0xac, 0x61, 0x3b, 0xb6, 0x59,
-	0x82, 0x08, 0xae, 0x60, 0x37, 0x34, 0xb4, 0x23, 0x6b, 0xe8, 0xc4, 0xea, 0x1b, 0x8f, 0xa0, 0x51,
-	0x70, 0x36, 0xa7, 0xa1, 0x13, 0x59, 0x43, 0x3b, 0xd6, 0x02, 0x1e, 0x43, 0x93, 0xdc, 0xe4, 0xab,
-	0x4c, 0x84, 0xae, 0x82, 0x2b, 0x49, 0x7a, 0x28, 0x59, 0x42, 0xc3, 0x46, 0x64, 0x0d, 0x1b, 0xb1,
-	0xfa, 0xc6, 0xaf, 0xc0, 0x15, 0x77, 0x05, 0x0d, 0x9b, 0x91, 0x35, 0xec, 0xbe, 0xfc, 0x64, 0xb4,
-	0x1d, 0xd5, 0xc8, 0x8c, 0x68, 0x34, 0xbd, 0x2b, 0x68, 0xac, 0xe8, 0xf8, 0x35, 0xf8, 0x8b, 0x55,
-	0x96, 0xb0, 0x6c, 0x29, 0xc1, 0xb0, 0xa5, 0xac, 0xcf, 0x76, 0xad, 0xdf, 0x6c, 0x28, 0xb1, 0xc9,
-	0xc7, 0x0b, 0xf0, 0x55, 0xa8, 0x13, 0xc2, 0xc9, 0x4d, 0x19, 0x7a, 0x91, 0x33, 0xf4, 0x5f, 0x7e,
-	0xfe, 0xbf, 0x87, 0x4f, 0xd6, 0xfc, 0xd8, 0xb4, 0xc5, 0x08, 0x7c, 0x9d, 0x9e, 0x92, 0xc3, 0xb6,
-	0xca, 0xd8, 0x84, 0xf0, 0x14, 0xbc, 0x94, 0xde, 0x52, 0x4e, 0x96, 0x34, 0x04, 0x55, 0xce, 0xb5,
-	0x2c, 0xad, 0xe7, 0x2b, 0xce, 0x69, 0x26, 0xae, 0x44, 0x5e, 0x84, 0xbe, 0xb6, 0x36, 0x20, 0xc9,
-	0x60, 0x19, 0x13, 0x8c, 0xa4, 0x8a, 0xd1, 0xd1, 0x0c, 0x03, 0xc2, 0x8f, 0xa1, 0x5d, 0x0a, 0xc2,
-	0xc5, 0x54, 0x76, 0xe7, 0x89, 0xea, 0xce, 0x06, 0xc0, 0x3e, 0x00, 0xfd, 0xb1, 0x60, 0x9c, 0x2a,
-	0x75, 0x57, 0xa9, 0x0d, 0x44, 0x36, 0x85, 0x13, 0x41, 0xc3, 0x9e, 0x72, 0xac, 0xbe, 0xf1, 0x4b,
-	0x38, 0x34, 0x12, 0xb8, 0x12, 0x9c, 0x65, 0xcb, 0x30, 0x50, 0xa1, 0xef, 0x2b, 0x70, 0x04, 0xa8,
-	0xc1, 0x37, 0x2c, 0x4d, 0x69, 0x52, 0xd1, 0x0f, 0x15, 0xfd, 0x3d, 0x1a, 0xe9, 0xdd, 0x48, 0xb0,
-	0xa2, 0xa3, 0xf6, 0xbe, 0xa7, 0x90, 0x6c, 0x23, 0xd9, 0x8a, 0xfd, 0x54, 0xb3, 0xf7, 0x14, 0x38,
-	0x84, 0xde, 0x0f, 0xa4, 0xfc, 0x36, 0xcd, 0x4b, 0x96, 0x2d, 0x55, 0xe3, 0xc2, 0xa3, 0xc8, 0x1a,
-	0x7a, 0xf1, 0x2e, 0x8c, 0x97, 0x10, 0xcc, 0x0d, 0x59, 0x8d, 0xd1, 0xb3, 0x87, 0x0e, 0xe1, 0x9e,
-	0x29, 0x12, 0x38, 0x31, 0xb1, 0x89, 0x31, 0x5d, 0xc7, 0x8f, 0x9b, 0xae, 0xff, 0xf2, 0x73, 0xfa,
-	0xb3, 0x05, 0xb0, 0x91, 0xe5, 0xdd, 0xbb, 0x25, 0xe9, 0x8a, 0xaa, 0x2b, 0x6a, 0xc7, 0x5a, 0xc0,
-	0x6f, 0xaa, 0xfb, 0x64, 0xab, 0x54, 0xbe, 0x78, 0xe0, 0xa1, 0xc6, 0xcd, 0x8a, 0xc0, 0x57, 0x9e,
-	0xaa, 0x4a, 0x3b, 0xaa, 0xd2, 0x26, 0x34, 0xf8, 0xc9, 0x06, 0x57, 0xe5, 0x0c, 0xd0, 0xbc, 0x24,
-	0xfc, 0x9a, 0x8a, 0xe0, 0x00, 0xdb, 0xd0, 0x78, 0xc7, 0x6e, 0x98, 0x08, 0x2c, 0xec, 0x80, 0x27,
-	0x3b, 0xf2, 0x2e, 0x2f, 0xcb, 0xc0, 0xc6, 0x43, 0x78, 0x52, 0x4b, 0x9a, 0xe0, 0x60, 0x17, 0x60,
-	0x4a, 0xae, 0xe9, 0x84, 0xe7, 0x0b, 0x26, 0x02, 0x17, 0x9f, 0x42, 0x6f, 0x23, 0x6b, 0x52, 0x03,
-	0x8f, 0x01, 0x6b, 0x3b, 0x83, 0xdc, 0xc4, 0x33, 0x38, 0xd9, 0xc7, 0xb5, 0x51, 0x0b, 0x8f, 0x20,
-	0x98, 0x72, 0xc2, 0x52, 0x96, 0x2d, 0xd7, 0x21, 0x78, 0xf8, 0x11, 0x3c, 0xdb, 0x45, 0xb5, 0x41,
-	0x5b, 0x1a, 0xd4, 0xd0, 0xeb, 0x2c, 0xd1, 0x28, 0xc8, 0x00, 0xe5, 0xc4, 0x8e, 0xf9, 0x77, 0x2c,
-	0x4d, 0x03, 0x1f, 0x11, 0xba, 0x57, 0x54, 0x88, 0x94, 0x4e, 0xf2, 0x92, 0x09, 0x96, 0x67, 0x41,
-	0x67, 0x30, 0x86, 0xee, 0x76, 0xfd, 0x64, 0xa6, 0xaf, 0x67, 0x65, 0x9e, 0xae, 0x04, 0xfd, 0x5e,
-	0x96, 0x2b, 0x38, 0xc0, 0x1e, 0xf8, 0xe3, 0xc5, 0xa2, 0xa4, 0x42, 0x03, 0x96, 0x0c, 0x65, 0xc2,
-	0xe9, 0x9c, 0x66, 0x82, 0x2c, 0xa9, 0xa9, 0xb2, 0x07, 0xbf, 0xda, 0xeb, 0x05, 0x3c, 0xe5, 0x24,
-	0xa1, 0xc6, 0x02, 0x76, 0x3e, 0xe0, 0x02, 0xee, 0x03, 0x48, 0x4f, 0x97, 0x2c, 0x4d, 0x59, 0xa9,
-	0xd6, 0xb0, 0x13, 0x1b, 0x88, 0xde, 0x1f, 0x82, 0xf2, 0x8c, 0xa4, 0x17, 0x89, 0x5a, 0xb4, 0xed,
-	0xd8, 0x40, 0x30, 0x84, 0x56, 0x2e, 0xa7, 0xe9, 0x22, 0x09, 0x3d, 0xa5, 0xac, 0x45, 0x39, 0x49,
-	0x2a, 0x9c, 0x6a, 0x92, 0xda, 0x7a, 0x92, 0x0c, 0x08, 0x07, 0xd0, 0xd1, 0x91, 0x55, 0x14, 0xbd,
-	0x1d, 0xb7, 0xb0, 0xc1, 0xdf, 0x36, 0xf4, 0xaa, 0xb2, 0xd4, 0xd5, 0x7f, 0xd0, 0xd3, 0x54, 0xe7,
-	0xea, 0x18, 0xb9, 0x9e, 0x82, 0x47, 0x6e, 0x97, 0xaa, 0x6d, 0x55, 0x65, 0xd6, 0xb2, 0xcc, 0x53,
-	0x9f, 0x3b, 0x2e, 0x68, 0xa6, 0x2a, 0x64, 0xc7, 0x06, 0xb2, 0x89, 0x55, 0x6e, 0x11, 0x9a, 0xa8,
-	0x4a, 0xd9, 0xf1, 0x16, 0x26, 0xfd, 0x57, 0xc9, 0x97, 0x61, 0x2b, 0x72, 0xe4, 0xa6, 0xaf, 0x65,
-	0xa9, 0x13, 0xb2, 0xad, 0x52, 0xe7, 0x69, 0x5d, 0x2d, 0xe3, 0x67, 0xd0, 0xad, 0xe3, 0xd8, 0x2a,
-	0xd6, 0x0e, 0x8a, 0xcf, 0x21, 0xd8, 0x44, 0xb4, 0x55, 0xb3, 0x3d, 0x7c, 0xb3, 0x95, 0x75, 0x6c,
-	0x15, 0xdb, 0x37, 0xb7, 0xb2, 0xa9, 0x19, 0x10, 0x68, 0x9d, 0x93, 0x94, 0x64, 0x73, 0x55, 0x26,
-	0xbd, 0x87, 0xe7, 0x77, 0x55, 0x91, 0xd7, 0xb2, 0x31, 0x5a, 0xf6, 0xd6, 0x68, 0xed, 0xb6, 0xd2,
-	0x79, 0x4f, 0x2b, 0x7f, 0xb1, 0xc0, 0xab, 0xce, 0x28, 0x77, 0x5f, 0x70, 0xeb, 0x91, 0x2f, 0xf8,
-	0x2b, 0xf0, 0x66, 0x95, 0xab, 0xd0, 0x56, 0x0b, 0xf6, 0x64, 0xd7, 0xb6, 0x3a, 0x2a, 0x5e, 0x13,
-	0xdf, 0xba, 0x9e, 0x13, 0xb8, 0x6f, 0x5d, 0xcf, 0x0d, 0x1a, 0xcf, 0x3f, 0x05, 0xdf, 0x70, 0x8e,
-	0x1e, 0xb8, 0x57, 0x45, 0x2e, 0x37, 0x99, 0xde, 0x6a, 0x4b, 0x96, 0x05, 0xd6, 0x79, 0xf0, 0xfb,
-	0x7d, 0xdf, 0xfa, 0xe3, 0xbe, 0x6f, 0xfd, 0x79, 0xdf, 0xb7, 0x7e, 0xfb, 0xab, 0x7f, 0x30, 0x6b,
-	0xaa, 0x7f, 0x4f, 0xaf, 0xfe, 0x0d, 0x00, 0x00, 0xff, 0xff, 0xae, 0x9b, 0x14, 0x03, 0x5c, 0x09,
-	0x00, 0x00,
+var fileDescriptor_private_4ba1aa8765c9a54b = []byte{
+	// 941 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x56, 0xcb, 0x6e, 0x23, 0x45,
+	0x14, 0x4d, 0x3f, 0x6c, 0x97, 0x6f, 0x3b, 0x76, 0xa5, 0xe6, 0x91, 0x26, 0x41, 0x96, 0x31, 0x12,
+	0x58, 0x03, 0xf2, 0x48, 0x33, 0x62, 0x89, 0xd0, 0x04, 0x69, 0xa4, 0x98, 0x89, 0x6c, 0x55, 0x2c,
+	0x58, 0x97, 0xdd, 0x65, 0x53, 0x4a, 0xa7, 0xbb, 0x55, 0x5d, 0x8e, 0x88, 0xc4, 0x06, 0xb1, 0xe3,
+	0x0b, 0xf8, 0x10, 0x3e, 0x82, 0x25, 0x7b, 0x36, 0x28, 0xfc, 0x08, 0xaa, 0xaa, 0xb6, 0x5d, 0xb1,
+	0x87, 0x51, 0xb2, 0x72, 0xdf, 0x73, 0xcf, 0xad, 0xc7, 0xb9, 0xb7, 0x4f, 0x1b, 0x4e, 0x8b, 0xd5,
+	0x2c, 0x15, 0xf3, 0x97, 0x33, 0x99, 0x5f, 0x71, 0xf9, 0xb2, 0x90, 0xe2, 0x86, 0x29, 0x3e, 0x2c,
+	0x64, 0xae, 0x72, 0xd2, 0x9e, 0xe8, 0x9f, 0xd9, 0x6a, 0x71, 0x66, 0xb2, 0xfd, 0x3f, 0x00, 0x5a,
+	0x13, 0xcb, 0x18, 0xcb, 0x84, 0x4b, 0xd2, 0x06, 0x5f, 0x24, 0xb1, 0xd7, 0xf3, 0x06, 0x4d, 0xea,
+	0x8b, 0x84, 0x10, 0x08, 0x95, 0xb8, 0xe6, 0xb1, 0xdf, 0xf3, 0x06, 0x01, 0x35, 0xcf, 0x1a, 0x2b,
+	0x45, 0xc2, 0xe3, 0x5a, 0xcf, 0x1b, 0xd4, 0xa8, 0x79, 0x26, 0x5f, 0x41, 0xa8, 0x6e, 0x0b, 0x1e,
+	0xd7, 0x7b, 0xde, 0xa0, 0xfd, 0xea, 0x93, 0xe1, 0xfd, 0x7d, 0x86, 0xee, 0x1e, 0xc3, 0xe9, 0x6d,
+	0xc1, 0xa9, 0xa1, 0x93, 0xaf, 0x21, 0x5a, 0xac, 0xb2, 0x44, 0x64, 0x4b, 0x0d, 0xc6, 0x0d, 0x53,
+	0x7d, 0xba, 0x5b, 0xfd, 0x76, 0x4b, 0xa1, 0x2e, 0x9f, 0x9c, 0x43, 0x54, 0x48, 0x31, 0xe7, 0x13,
+	0x26, 0xd9, 0x75, 0x19, 0xa3, 0x5e, 0x30, 0x88, 0x5e, 0x7d, 0xfe, 0xc1, 0xcd, 0x27, 0x1b, 0x3e,
+	0x75, 0x6b, 0xc9, 0x09, 0xa0, 0x94, 0xdf, 0x70, 0xc9, 0x96, 0x3c, 0x06, 0x73, 0xfd, 0x4d, 0x4c,
+	0x3e, 0x86, 0x66, 0xa9, 0x98, 0x54, 0x53, 0xad, 0xc4, 0xa1, 0x51, 0x62, 0x0b, 0x90, 0x2e, 0x00,
+	0xff, 0xa9, 0x10, 0x92, 0x9b, 0x74, 0xdb, 0xa4, 0x1d, 0x44, 0xcb, 0x25, 0x99, 0xe2, 0x71, 0xa7,
+	0xe7, 0x0d, 0x7c, 0x6a, 0x9e, 0xc9, 0x97, 0x70, 0xc4, 0xae, 0xf3, 0x55, 0xa6, 0xcc, 0xee, 0x97,
+	0x4a, 0x8a, 0x6c, 0x19, 0x63, 0xb3, 0xed, 0x7e, 0x82, 0x0c, 0x81, 0x58, 0xf0, 0xad, 0x48, 0x53,
+	0x9e, 0x54, 0xf4, 0x23, 0x43, 0x7f, 0x4f, 0x46, 0xaf, 0x3e, 0x5f, 0x49, 0xc9, 0x33, 0x75, 0xa9,
+	0xf2, 0xa2, 0xa2, 0x13, 0xbb, 0xfa, 0x5e, 0x42, 0xb3, 0x45, 0x26, 0x94, 0x60, 0xa9, 0xc3, 0x7e,
+	0x62, 0xd9, 0x7b, 0x09, 0x32, 0x80, 0xce, 0x8f, 0xac, 0xfc, 0x36, 0xcd, 0x4b, 0x91, 0x2d, 0x8d,
+	0xa4, 0xf1, 0xd3, 0x9e, 0x37, 0x40, 0x74, 0x17, 0x26, 0x17, 0x80, 0xe7, 0x4e, 0x6c, 0x1a, 0xfc,
+	0xec, 0xa1, 0xe3, 0xb1, 0x57, 0x4a, 0x18, 0x1c, 0xbb, 0xd8, 0xc4, 0xe9, 0xfb, 0xf3, 0xc7, 0xf5,
+	0xfd, 0xff, 0xd6, 0x39, 0xf9, 0x19, 0x60, 0x1b, 0x92, 0x6f, 0xaa, 0x91, 0xf6, 0xcd, 0x99, 0xbf,
+	0x78, 0xe0, 0xea, 0xce, 0x70, 0xf7, 0x20, 0xba, 0x61, 0xe9, 0x8a, 0x57, 0x92, 0x06, 0x46, 0x52,
+	0x17, 0x1a, 0x85, 0xc8, 0xc3, 0x3e, 0xad, 0x19, 0xa8, 0xff, 0xab, 0x0f, 0xa1, 0xb9, 0x29, 0x40,
+	0xfd, 0x82, 0xc9, 0x2b, 0xae, 0xf0, 0x01, 0x69, 0x42, 0xed, 0x9d, 0xb8, 0x16, 0x0a, 0x7b, 0xa4,
+	0x05, 0x48, 0xf7, 0xe1, 0x5d, 0x5e, 0x96, 0xd8, 0x27, 0x47, 0x70, 0xb8, 0x8e, 0x2c, 0x21, 0x20,
+	0x6d, 0x80, 0x29, 0xbb, 0xe2, 0x13, 0x99, 0x2f, 0x84, 0xc2, 0x21, 0x79, 0x02, 0x9d, 0x6d, 0x6c,
+	0x49, 0x35, 0xf2, 0x1c, 0xc8, 0xba, 0xce, 0x21, 0xd7, 0xc9, 0x29, 0x1c, 0xef, 0xe3, 0xb6, 0xa8,
+	0x41, 0x9e, 0x02, 0x9e, 0x4a, 0x26, 0x52, 0x91, 0x2d, 0x37, 0x47, 0x40, 0xe4, 0x23, 0x78, 0xb6,
+	0x8b, 0xda, 0x82, 0xa6, 0x2e, 0x58, 0x43, 0x6f, 0xb2, 0xc4, 0xa2, 0xa0, 0x0f, 0xa8, 0xe7, 0x74,
+	0x2c, 0xbf, 0x13, 0x69, 0x8a, 0x23, 0x42, 0xa0, 0x7d, 0xc9, 0x95, 0x4a, 0xf9, 0x24, 0x2f, 0x85,
+	0x12, 0x79, 0x86, 0x5b, 0xfd, 0x31, 0xb4, 0xef, 0x8b, 0xa9, 0x6f, 0xfa, 0x66, 0x56, 0xe6, 0xe9,
+	0x4a, 0xf1, 0xef, 0xb5, 0x50, 0xf8, 0x80, 0x74, 0x20, 0x1a, 0x2f, 0x16, 0x25, 0x57, 0x16, 0xf0,
+	0xf4, 0x51, 0x26, 0x92, 0xcf, 0x79, 0xa6, 0xd8, 0x92, 0xbb, 0x29, 0x7f, 0x14, 0xa2, 0x00, 0x87,
+	0xa3, 0x10, 0x85, 0xb8, 0x36, 0x0a, 0x51, 0x13, 0xc3, 0x28, 0x44, 0x11, 0x6e, 0x8d, 0x42, 0xd4,
+	0xc2, 0x87, 0xb4, 0x66, 0x3c, 0x80, 0xd6, 0xed, 0x5b, 0x44, 0x23, 0xe7, 0xf5, 0xa0, 0x91, 0x33,
+	0xfd, 0x34, 0x72, 0x5e, 0xcb, 0xfe, 0x2f, 0xfe, 0xc6, 0x36, 0xa7, 0x92, 0x25, 0xdc, 0xb1, 0xcd,
+	0xe0, 0x51, 0xb6, 0xd9, 0x05, 0xd0, 0xb9, 0x0b, 0x91, 0xa6, 0xa2, 0x34, 0xe6, 0x19, 0x50, 0x07,
+	0xb1, 0xde, 0xa2, 0xb8, 0xcc, 0x58, 0x7a, 0x9e, 0x18, 0x7b, 0x6c, 0x52, 0x07, 0x21, 0x31, 0x34,
+	0x72, 0x3d, 0x80, 0xe7, 0x49, 0x8c, 0x4c, 0x72, 0x1d, 0xea, 0xe1, 0x33, 0x57, 0xab, 0x86, 0xaf,
+	0x69, 0x87, 0xcf, 0x81, 0x48, 0x1f, 0x5a, 0xf6, 0x4e, 0x15, 0xc5, 0xba, 0xde, 0x3d, 0xcc, 0x15,
+	0x6f, 0x47, 0xaa, 0xfe, 0xdf, 0x3e, 0x74, 0x2a, 0x0d, 0xd6, 0xed, 0x7b, 0xd4, 0xd7, 0x23, 0x70,
+	0x64, 0x38, 0x01, 0x54, 0x9d, 0xbb, 0x8c, 0x1b, 0xbd, 0x40, 0x9b, 0xef, 0x3a, 0xd6, 0x39, 0xa5,
+	0x35, 0xd6, 0x39, 0x64, 0x73, 0xeb, 0x98, 0x7c, 0x06, 0x6d, 0x76, 0xb3, 0x9c, 0xec, 0xdd, 0x73,
+	0x07, 0x25, 0x2f, 0x00, 0xdb, 0x53, 0x8f, 0x0b, 0x9e, 0xdd, 0xbb, 0xee, 0x1e, 0xbe, 0x35, 0x5b,
+	0x6d, 0x66, 0x1b, 0xb3, 0x8d, 0x5c, 0xb3, 0x75, 0x33, 0xba, 0x45, 0x85, 0x7d, 0x59, 0xf2, 0xb2,
+	0x8c, 0x5b, 0xb6, 0x45, 0x5b, 0x64, 0x33, 0x79, 0x35, 0x5c, 0x1f, 0x85, 0xa8, 0x8e, 0x1b, 0x14,
+	0xad, 0x4f, 0x47, 0x61, 0xbb, 0xfb, 0x5a, 0x78, 0xbb, 0x76, 0xff, 0x07, 0x68, 0x9c, 0xb1, 0x94,
+	0x65, 0x73, 0x23, 0x8e, 0x9d, 0xca, 0xf9, 0x6d, 0x25, 0xed, 0x26, 0xde, 0xeb, 0x61, 0xf0, 0xde,
+	0x1e, 0xfa, 0x38, 0xd8, 0xb4, 0xed, 0x37, 0x0f, 0x50, 0xb5, 0x72, 0xb9, 0xfb, 0xf9, 0xf5, 0x1e,
+	0xf9, 0xf9, 0x7d, 0x0d, 0x68, 0x56, 0x2d, 0x15, 0xfb, 0xc6, 0x83, 0x8f, 0x77, 0x6b, 0xab, 0xad,
+	0xe8, 0x86, 0xe8, 0x8e, 0xd4, 0x8b, 0x4f, 0x21, 0x72, 0x16, 0x27, 0x08, 0xc2, 0xcb, 0x22, 0xd7,
+	0xb6, 0x67, 0x2d, 0x70, 0x29, 0x32, 0xec, 0x9d, 0xe1, 0x3f, 0xef, 0xba, 0xde, 0x5f, 0x77, 0x5d,
+	0xef, 0x9f, 0xbb, 0xae, 0xf7, 0xfb, 0xbf, 0xdd, 0x83, 0x59, 0xdd, 0xfc, 0x99, 0x79, 0xfd, 0x5f,
+	0x00, 0x00, 0x00, 0xff, 0xff, 0x84, 0xdd, 0x05, 0x47, 0xeb, 0x08, 0x00, 0x00,
 }

@@ -11,7 +11,7 @@ import (
 type SerializationFormat int
 
 const (
-	ProtobufSerialization = iota
+	ProtobufSerialization SerializationFormat = iota
 	JSONSerialization
 )
 

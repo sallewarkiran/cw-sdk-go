@@ -135,7 +135,7 @@ func TestTradeConn(t *testing.T) {
 			},
 			TradeSessions: []*TradeSessionParams{
 				&TradeSessionParams{
-					MarketParams: MarketParams{
+					MarketParams: common.MarketParams{
 						ID: krakenBTCUSDMarketID,
 					},
 				},
@@ -341,7 +341,7 @@ func TestTrading(t *testing.T) {
 			},
 			TradeSessions: []*TradeSessionParams{
 				&TradeSessionParams{
-					MarketParams: MarketParams{
+					MarketParams: common.MarketParams{
 						ID: krakenBTCUSDMarketID,
 					},
 				},

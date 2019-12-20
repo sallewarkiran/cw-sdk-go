@@ -146,9 +146,6 @@ func TestStreamClient(t *testing.T) {
 					if t.Timestamp > 0 {
 						assert.Equal(t.Timestamp, tu.Trades[i].Timestamp.Unix())
 					}
-					if t.TimestampMillis > 0 {
-						assert.Equal(t.TimestampMillis, tu.Trades[i].Timestamp.Unix()*1000)
-					}
 					if t.TimestampNano > 0 {
 						assert.Equal(t.TimestampNano, tu.Trades[i].Timestamp.UnixNano())
 					}
@@ -164,7 +161,7 @@ func TestStreamClient(t *testing.T) {
 				iu := md.IntervalsUpdate
 				for i, in := range testIntervalsUpdate.Intervals {
 					assert.Equal(in.Closetime, iu.Intervals[i].CloseTime.Unix())
-					assert.Equal(in.Period, int32(iu.Intervals[i].Period))
+					assert.Equal(in.PeriodName, string(iu.Intervals[i].Period))
 					assert.Equal("", cmpStrAndDecimal(in.Ohlc.OpenStr, iu.Intervals[i].OHLC.Open))
 					assert.Equal("", cmpStrAndDecimal(in.Ohlc.HighStr, iu.Intervals[i].OHLC.High))
 					assert.Equal("", cmpStrAndDecimal(in.Ohlc.LowStr, iu.Intervals[i].OHLC.Low))
@@ -413,10 +410,10 @@ var testTradesUpdate = &pbm.TradesUpdate{
 			AmountStr:  "6.0",
 		},
 		&pbm.Trade{
-			ExternalId:      "1",
-			TimestampMillis: 1542218059000,
-			PriceStr:        "7.0",
-			AmountStr:       "8.0",
+			ExternalId:    "1",
+			TimestampNano: 1542218059000000000,
+			PriceStr:      "7.0",
+			AmountStr:     "8.0",
 		},
 		&pbm.Trade{
 			ExternalId:    "1",
@@ -430,8 +427,8 @@ var testTradesUpdate = &pbm.TradesUpdate{
 var testIntervalsUpdate = &pbm.IntervalsUpdate{
 	Intervals: []*pbm.Interval{
 		&pbm.Interval{
-			Closetime: 1542219084,
-			Period:    1,
+			Closetime:  1542219084,
+			PeriodName: "60",
 			Ohlc: &pbm.Interval_OHLC{
 				OpenStr:  "11.0",
 				HighStr:  "12.0",

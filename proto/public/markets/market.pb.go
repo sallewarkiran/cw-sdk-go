@@ -16,8 +16,6 @@ import (
 
 	math "math"
 
-	encoding_binary "encoding/binary"
-
 	io "io"
 )
 
@@ -31,6 +29,29 @@ var _ = math.Inf
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+
+type Trade_Side int32
+
+const (
+	Trade_BUY  Trade_Side = 0
+	Trade_SELL Trade_Side = 1
+)
+
+var Trade_Side_name = map[int32]string{
+	0: "BUY",
+	1: "SELL",
+}
+var Trade_Side_value = map[string]int32{
+	"BUY":  0,
+	"SELL": 1,
+}
+
+func (x Trade_Side) String() string {
+	return proto.EnumName(Trade_Side_name, int32(x))
+}
+func (Trade_Side) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_market_8f96784a31c6abc4, []int{2, 0}
+}
 
 // Market represents a currency pair on a particular exchange.
 type Market struct {
@@ -51,7 +72,7 @@ func (m *Market) Reset()         { *m = Market{} }
 func (m *Market) String() string { return proto.CompactTextString(m) }
 func (*Market) ProtoMessage()    {}
 func (*Market) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{0}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{0}
 }
 func (m *Market) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -117,11 +138,8 @@ func (m *Market) GetCurrencyPair() string {
 
 // Order represents an ask or a bid.
 type Order struct {
-	PriceStr  string `protobuf:"bytes,3,opt,name=priceStr,proto3" json:"priceStr,omitempty"`
-	AmountStr string `protobuf:"bytes,4,opt,name=amountStr,proto3" json:"amountStr,omitempty"`
-	// Deprecated
-	Price                float32  `protobuf:"fixed32,1,opt,name=price,proto3" json:"price,omitempty"`
-	Amount               float32  `protobuf:"fixed32,2,opt,name=amount,proto3" json:"amount,omitempty"`
+	PriceStr             string   `protobuf:"bytes,3,opt,name=priceStr,proto3" json:"priceStr,omitempty"`
+	AmountStr            string   `protobuf:"bytes,4,opt,name=amountStr,proto3" json:"amountStr,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -131,7 +149,7 @@ func (m *Order) Reset()         { *m = Order{} }
 func (m *Order) String() string { return proto.CompactTextString(m) }
 func (*Order) ProtoMessage()    {}
 func (*Order) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{1}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{1}
 }
 func (m *Order) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -174,45 +192,25 @@ func (m *Order) GetAmountStr() string {
 	return ""
 }
 
-func (m *Order) GetPrice() float32 {
-	if m != nil {
-		return m.Price
-	}
-	return 0
-}
-
-func (m *Order) GetAmount() float32 {
-	if m != nil {
-		return m.Amount
-	}
-	return 0
-}
-
 // Trade is a single trade in TradesUpdate
 type Trade struct {
 	// Exchange-specific ID
-	ExternalId      string `protobuf:"bytes,11,opt,name=externalId,proto3" json:"externalId,omitempty"`
-	Timestamp       int64  `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	TimestampMillis int64  `protobuf:"varint,5,opt,name=timestampMillis,proto3" json:"timestampMillis,omitempty"`
-	TimestampNano   int64  `protobuf:"varint,10,opt,name=timestampNano,proto3" json:"timestampNano,omitempty"`
-	PriceStr        string `protobuf:"bytes,8,opt,name=priceStr,proto3" json:"priceStr,omitempty"`
-	AmountStr       string `protobuf:"bytes,9,opt,name=amountStr,proto3" json:"amountStr,omitempty"`
-	// Deprecated
-	Price                float32  `protobuf:"fixed32,3,opt,name=price,proto3" json:"price,omitempty"`
-	Amount               float32  `protobuf:"fixed32,4,opt,name=amount,proto3" json:"amount,omitempty"`
-	PriceDouble          float64  `protobuf:"fixed64,6,opt,name=priceDouble,proto3" json:"priceDouble,omitempty"`
-	AmountDouble         float64  `protobuf:"fixed64,7,opt,name=amountDouble,proto3" json:"amountDouble,omitempty"`
-	Id                   int64    `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	ExternalId           string     `protobuf:"bytes,11,opt,name=externalId,proto3" json:"externalId,omitempty"`
+	Timestamp            int64      `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	TimestampNano        int64      `protobuf:"varint,10,opt,name=timestampNano,proto3" json:"timestampNano,omitempty"`
+	PriceStr             string     `protobuf:"bytes,8,opt,name=priceStr,proto3" json:"priceStr,omitempty"`
+	AmountStr            string     `protobuf:"bytes,9,opt,name=amountStr,proto3" json:"amountStr,omitempty"`
+	Side                 Trade_Side `protobuf:"varint,12,opt,name=side,proto3,enum=ProtobufMarkets.Trade_Side" json:"side,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
+	XXX_unrecognized     []byte     `json:"-"`
+	XXX_sizecache        int32      `json:"-"`
 }
 
 func (m *Trade) Reset()         { *m = Trade{} }
 func (m *Trade) String() string { return proto.CompactTextString(m) }
 func (*Trade) ProtoMessage()    {}
 func (*Trade) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{2}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{2}
 }
 func (m *Trade) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -255,13 +253,6 @@ func (m *Trade) GetTimestamp() int64 {
 	return 0
 }
 
-func (m *Trade) GetTimestampMillis() int64 {
-	if m != nil {
-		return m.TimestampMillis
-	}
-	return 0
-}
-
 func (m *Trade) GetTimestampNano() int64 {
 	if m != nil {
 		return m.TimestampNano
@@ -283,39 +274,11 @@ func (m *Trade) GetAmountStr() string {
 	return ""
 }
 
-func (m *Trade) GetPrice() float32 {
+func (m *Trade) GetSide() Trade_Side {
 	if m != nil {
-		return m.Price
+		return m.Side
 	}
-	return 0
-}
-
-func (m *Trade) GetAmount() float32 {
-	if m != nil {
-		return m.Amount
-	}
-	return 0
-}
-
-func (m *Trade) GetPriceDouble() float64 {
-	if m != nil {
-		return m.PriceDouble
-	}
-	return 0
-}
-
-func (m *Trade) GetAmountDouble() float64 {
-	if m != nil {
-		return m.AmountDouble
-	}
-	return 0
-}
-
-func (m *Trade) GetId() int64 {
-	if m != nil {
-		return m.Id
-	}
-	return 0
+	return Trade_BUY
 }
 
 // MarketUpdateMessage is the primary message for market updates; it wraps all
@@ -341,7 +304,7 @@ func (m *MarketUpdateMessage) Reset()         { *m = MarketUpdateMessage{} }
 func (m *MarketUpdateMessage) String() string { return proto.CompactTextString(m) }
 func (*MarketUpdateMessage) ProtoMessage()    {}
 func (*MarketUpdateMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{3}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{3}
 }
 func (m *MarketUpdateMessage) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -678,18 +641,16 @@ type OrderBookUpdate struct {
 	SeqNum                int32    `protobuf:"varint,5,opt,name=seqNum,proto3" json:"seqNum,omitempty"`
 	Bids                  []*Order `protobuf:"bytes,1,rep,name=bids,proto3" json:"bids,omitempty"`
 	Asks                  []*Order `protobuf:"bytes,2,rep,name=asks,proto3" json:"asks,omitempty"`
-	// Deprecated
-	AggregationModulus   float32  `protobuf:"fixed32,3,opt,name=aggregationModulus,proto3" json:"aggregationModulus,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	XXX_NoUnkeyedLiteral  struct{} `json:"-"`
+	XXX_unrecognized      []byte   `json:"-"`
+	XXX_sizecache         int32    `json:"-"`
 }
 
 func (m *OrderBookUpdate) Reset()         { *m = OrderBookUpdate{} }
 func (m *OrderBookUpdate) String() string { return proto.CompactTextString(m) }
 func (*OrderBookUpdate) ProtoMessage()    {}
 func (*OrderBookUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{4}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{4}
 }
 func (m *OrderBookUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -746,22 +707,14 @@ func (m *OrderBookUpdate) GetAsks() []*Order {
 	return nil
 }
 
-func (m *OrderBookUpdate) GetAggregationModulus() float32 {
-	if m != nil {
-		return m.AggregationModulus
-	}
-	return 0
-}
-
 // OrderBookDeltaUpdate represents a delta which needs to be applied to the
 // local order book.
 type OrderBookDeltaUpdate struct {
 	// Aggregation modulus is a value which all bids and asks in this particular
 	// OrderBookUpdate are divisible by. E.g. could be 1 (no aggregation), 5, 10,
 	// 50, 100, etc. Exact possible values are set for each market individually.
-	AggregationModulus    float32 `protobuf:"fixed32,3,opt,name=aggregationModulus,proto3" json:"aggregationModulus,omitempty"`
-	AggregationModulusStr string  `protobuf:"bytes,4,opt,name=aggregationModulusStr,proto3" json:"aggregationModulusStr,omitempty"`
-	SeqNum                int32   `protobuf:"varint,5,opt,name=seqNum,proto3" json:"seqNum,omitempty"`
+	AggregationModulusStr string `protobuf:"bytes,4,opt,name=aggregationModulusStr,proto3" json:"aggregationModulusStr,omitempty"`
+	SeqNum                int32  `protobuf:"varint,5,opt,name=seqNum,proto3" json:"seqNum,omitempty"`
 	// Deltas for bids
 	Bids *OrderBookDeltaUpdate_OrderDeltas `protobuf:"bytes,1,opt,name=bids,proto3" json:"bids,omitempty"`
 	// Deltas for asks
@@ -775,7 +728,7 @@ func (m *OrderBookDeltaUpdate) Reset()         { *m = OrderBookDeltaUpdate{} }
 func (m *OrderBookDeltaUpdate) String() string { return proto.CompactTextString(m) }
 func (*OrderBookDeltaUpdate) ProtoMessage()    {}
 func (*OrderBookDeltaUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{5}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{5}
 }
 func (m *OrderBookDeltaUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -803,13 +756,6 @@ func (m *OrderBookDeltaUpdate) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_OrderBookDeltaUpdate proto.InternalMessageInfo
-
-func (m *OrderBookDeltaUpdate) GetAggregationModulus() float32 {
-	if m != nil {
-		return m.AggregationModulus
-	}
-	return 0
-}
 
 func (m *OrderBookDeltaUpdate) GetAggregationModulusStr() string {
 	if m != nil {
@@ -846,18 +792,17 @@ type OrderBookDeltaUpdate_OrderDeltas struct {
 	// TODO: I see we don't really use deltas, and just use set?
 	Delta []*Order `protobuf:"bytes,2,rep,name=delta,proto3" json:"delta,omitempty"`
 	// Remove order at a particular price
-	Remove               []float32 `protobuf:"fixed32,3,rep,name=remove,proto3" json:"remove,omitempty"`
-	RemoveStr            []string  `protobuf:"bytes,4,rep,name=removeStr,proto3" json:"removeStr,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
-	XXX_unrecognized     []byte    `json:"-"`
-	XXX_sizecache        int32     `json:"-"`
+	RemoveStr            []string `protobuf:"bytes,4,rep,name=removeStr,proto3" json:"removeStr,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *OrderBookDeltaUpdate_OrderDeltas) Reset()         { *m = OrderBookDeltaUpdate_OrderDeltas{} }
 func (m *OrderBookDeltaUpdate_OrderDeltas) String() string { return proto.CompactTextString(m) }
 func (*OrderBookDeltaUpdate_OrderDeltas) ProtoMessage()    {}
 func (*OrderBookDeltaUpdate_OrderDeltas) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{5, 0}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{5, 0}
 }
 func (m *OrderBookDeltaUpdate_OrderDeltas) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -900,13 +845,6 @@ func (m *OrderBookDeltaUpdate_OrderDeltas) GetDelta() []*Order {
 	return nil
 }
 
-func (m *OrderBookDeltaUpdate_OrderDeltas) GetRemove() []float32 {
-	if m != nil {
-		return m.Remove
-	}
-	return nil
-}
-
 func (m *OrderBookDeltaUpdate_OrderDeltas) GetRemoveStr() []string {
 	if m != nil {
 		return m.RemoveStr
@@ -928,7 +866,7 @@ func (m *OrderBookSpreadUpdate) Reset()         { *m = OrderBookSpreadUpdate{} }
 func (m *OrderBookSpreadUpdate) String() string { return proto.CompactTextString(m) }
 func (*OrderBookSpreadUpdate) ProtoMessage()    {}
 func (*OrderBookSpreadUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{6}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{6}
 }
 func (m *OrderBookSpreadUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -992,7 +930,7 @@ func (m *OrderBookLiquidityUpdate) Reset()         { *m = OrderBookLiquidityUpda
 func (m *OrderBookLiquidityUpdate) String() string { return proto.CompactTextString(m) }
 func (*OrderBookLiquidityUpdate) ProtoMessage()    {}
 func (*OrderBookLiquidityUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{7}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{7}
 }
 func (m *OrderBookLiquidityUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1058,7 +996,7 @@ func (m *OrderBookLiquidityUpdate_OrderBookLiquiditySums) String() string {
 }
 func (*OrderBookLiquidityUpdate_OrderBookLiquiditySums) ProtoMessage() {}
 func (*OrderBookLiquidityUpdate_OrderBookLiquiditySums) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{7, 0}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{7, 0}
 }
 func (m *OrderBookLiquidityUpdate_OrderBookLiquiditySums) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1125,7 +1063,7 @@ func (m *OrderBookLiquidityUpdate_OrderBookLiquidityUpdateSide) String() string 
 }
 func (*OrderBookLiquidityUpdate_OrderBookLiquidityUpdateSide) ProtoMessage() {}
 func (*OrderBookLiquidityUpdate_OrderBookLiquidityUpdateSide) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{7, 1}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{7, 1}
 }
 func (m *OrderBookLiquidityUpdate_OrderBookLiquidityUpdateSide) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1236,7 +1174,7 @@ func (m *TradesUpdate) Reset()         { *m = TradesUpdate{} }
 func (m *TradesUpdate) String() string { return proto.CompactTextString(m) }
 func (*TradesUpdate) ProtoMessage()    {}
 func (*TradesUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{8}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{8}
 }
 func (m *TradesUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1274,24 +1212,22 @@ func (m *TradesUpdate) GetTrades() []*Trade {
 
 // Interval represents a single OHLC candle.
 type Interval struct {
-	Closetime      int64          `protobuf:"varint,1,opt,name=closetime,proto3" json:"closetime,omitempty"`
-	Period         int32          `protobuf:"varint,4,opt,name=period,proto3" json:"period,omitempty"`
-	Ohlc           *Interval_OHLC `protobuf:"bytes,2,opt,name=ohlc,proto3" json:"ohlc,omitempty"`
-	VolumeBaseStr  string         `protobuf:"bytes,6,opt,name=volumeBaseStr,proto3" json:"volumeBaseStr,omitempty"`
-	VolumeQuoteStr string         `protobuf:"bytes,7,opt,name=volumeQuoteStr,proto3" json:"volumeQuoteStr,omitempty"`
-	// Deprecated
-	VolumeBase           float32  `protobuf:"fixed32,3,opt,name=volumeBase,proto3" json:"volumeBase,omitempty"`
-	VolumeQuote          float32  `protobuf:"fixed32,5,opt,name=volumeQuote,proto3" json:"volumeQuote,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	Closetime            int64          `protobuf:"varint,1,opt,name=closetime,proto3" json:"closetime,omitempty"`
+	Ohlc                 *Interval_OHLC `protobuf:"bytes,2,opt,name=ohlc,proto3" json:"ohlc,omitempty"`
+	VolumeBaseStr        string         `protobuf:"bytes,6,opt,name=volumeBaseStr,proto3" json:"volumeBaseStr,omitempty"`
+	VolumeQuoteStr       string         `protobuf:"bytes,7,opt,name=volumeQuoteStr,proto3" json:"volumeQuoteStr,omitempty"`
+	PeriodName           string         `protobuf:"bytes,9,opt,name=periodName,proto3" json:"periodName,omitempty"`
+	Period               int32          `protobuf:"varint,4,opt,name=period,proto3" json:"period,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
 }
 
 func (m *Interval) Reset()         { *m = Interval{} }
 func (m *Interval) String() string { return proto.CompactTextString(m) }
 func (*Interval) ProtoMessage()    {}
 func (*Interval) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{9}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{9}
 }
 func (m *Interval) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1327,13 +1263,6 @@ func (m *Interval) GetClosetime() int64 {
 	return 0
 }
 
-func (m *Interval) GetPeriod() int32 {
-	if m != nil {
-		return m.Period
-	}
-	return 0
-}
-
 func (m *Interval) GetOhlc() *Interval_OHLC {
 	if m != nil {
 		return m.Ohlc
@@ -1355,30 +1284,25 @@ func (m *Interval) GetVolumeQuoteStr() string {
 	return ""
 }
 
-func (m *Interval) GetVolumeBase() float32 {
+func (m *Interval) GetPeriodName() string {
 	if m != nil {
-		return m.VolumeBase
+		return m.PeriodName
 	}
-	return 0
+	return ""
 }
 
-func (m *Interval) GetVolumeQuote() float32 {
+func (m *Interval) GetPeriod() int32 {
 	if m != nil {
-		return m.VolumeQuote
+		return m.Period
 	}
 	return 0
 }
 
 type Interval_OHLC struct {
-	OpenStr  string `protobuf:"bytes,5,opt,name=openStr,proto3" json:"openStr,omitempty"`
-	HighStr  string `protobuf:"bytes,6,opt,name=highStr,proto3" json:"highStr,omitempty"`
-	LowStr   string `protobuf:"bytes,7,opt,name=lowStr,proto3" json:"lowStr,omitempty"`
-	CloseStr string `protobuf:"bytes,8,opt,name=closeStr,proto3" json:"closeStr,omitempty"`
-	// Deprecated
-	Open                 float32  `protobuf:"fixed32,1,opt,name=open,proto3" json:"open,omitempty"`
-	High                 float32  `protobuf:"fixed32,2,opt,name=high,proto3" json:"high,omitempty"`
-	Low                  float32  `protobuf:"fixed32,3,opt,name=low,proto3" json:"low,omitempty"`
-	Close                float32  `protobuf:"fixed32,4,opt,name=close,proto3" json:"close,omitempty"`
+	OpenStr              string   `protobuf:"bytes,5,opt,name=openStr,proto3" json:"openStr,omitempty"`
+	HighStr              string   `protobuf:"bytes,6,opt,name=highStr,proto3" json:"highStr,omitempty"`
+	LowStr               string   `protobuf:"bytes,7,opt,name=lowStr,proto3" json:"lowStr,omitempty"`
+	CloseStr             string   `protobuf:"bytes,8,opt,name=closeStr,proto3" json:"closeStr,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1388,7 +1312,7 @@ func (m *Interval_OHLC) Reset()         { *m = Interval_OHLC{} }
 func (m *Interval_OHLC) String() string { return proto.CompactTextString(m) }
 func (*Interval_OHLC) ProtoMessage()    {}
 func (*Interval_OHLC) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{9, 0}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{9, 0}
 }
 func (m *Interval_OHLC) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1445,34 +1369,6 @@ func (m *Interval_OHLC) GetCloseStr() string {
 	return ""
 }
 
-func (m *Interval_OHLC) GetOpen() float32 {
-	if m != nil {
-		return m.Open
-	}
-	return 0
-}
-
-func (m *Interval_OHLC) GetHigh() float32 {
-	if m != nil {
-		return m.High
-	}
-	return 0
-}
-
-func (m *Interval_OHLC) GetLow() float32 {
-	if m != nil {
-		return m.Low
-	}
-	return 0
-}
-
-func (m *Interval_OHLC) GetClose() float32 {
-	if m != nil {
-		return m.Close
-	}
-	return 0
-}
-
 // IntervalsUpdate represents a set of new Intervals (OHLC candles)
 type IntervalsUpdate struct {
 	Intervals            []*Interval `protobuf:"bytes,1,rep,name=intervals,proto3" json:"intervals,omitempty"`
@@ -1485,7 +1381,7 @@ func (m *IntervalsUpdate) Reset()         { *m = IntervalsUpdate{} }
 func (m *IntervalsUpdate) String() string { return proto.CompactTextString(m) }
 func (*IntervalsUpdate) ProtoMessage()    {}
 func (*IntervalsUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{10}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{10}
 }
 func (m *IntervalsUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1523,22 +1419,14 @@ func (m *IntervalsUpdate) GetIntervals() []*Interval {
 
 // SummaryUpdate is a market summary update
 type SummaryUpdate struct {
-	LastStr           string `protobuf:"bytes,10,opt,name=lastStr,proto3" json:"lastStr,omitempty"`
-	HighStr           string `protobuf:"bytes,11,opt,name=highStr,proto3" json:"highStr,omitempty"`
-	LowStr            string `protobuf:"bytes,12,opt,name=lowStr,proto3" json:"lowStr,omitempty"`
-	VolumeBaseStr     string `protobuf:"bytes,13,opt,name=volumeBaseStr,proto3" json:"volumeBaseStr,omitempty"`
-	VolumeQuoteStr    string `protobuf:"bytes,14,opt,name=volumeQuoteStr,proto3" json:"volumeQuoteStr,omitempty"`
-	ChangeAbsoluteStr string `protobuf:"bytes,15,opt,name=changeAbsoluteStr,proto3" json:"changeAbsoluteStr,omitempty"`
-	ChangePercentStr  string `protobuf:"bytes,16,opt,name=changePercentStr,proto3" json:"changePercentStr,omitempty"`
-	NumTrades         int32  `protobuf:"varint,8,opt,name=numTrades,proto3" json:"numTrades,omitempty"`
-	// Deprecated
-	Last                 float32  `protobuf:"fixed32,2,opt,name=last,proto3" json:"last,omitempty"`
-	High                 float32  `protobuf:"fixed32,3,opt,name=high,proto3" json:"high,omitempty"`
-	Low                  float32  `protobuf:"fixed32,4,opt,name=low,proto3" json:"low,omitempty"`
-	VolumeBase           float32  `protobuf:"fixed32,5,opt,name=volumeBase,proto3" json:"volumeBase,omitempty"`
-	VolumeQuote          float32  `protobuf:"fixed32,9,opt,name=volumeQuote,proto3" json:"volumeQuote,omitempty"`
-	ChangeAbsolute       float32  `protobuf:"fixed32,6,opt,name=changeAbsolute,proto3" json:"changeAbsolute,omitempty"`
-	ChangePercent        float32  `protobuf:"fixed32,7,opt,name=changePercent,proto3" json:"changePercent,omitempty"`
+	LastStr              string   `protobuf:"bytes,10,opt,name=lastStr,proto3" json:"lastStr,omitempty"`
+	HighStr              string   `protobuf:"bytes,11,opt,name=highStr,proto3" json:"highStr,omitempty"`
+	LowStr               string   `protobuf:"bytes,12,opt,name=lowStr,proto3" json:"lowStr,omitempty"`
+	VolumeBaseStr        string   `protobuf:"bytes,13,opt,name=volumeBaseStr,proto3" json:"volumeBaseStr,omitempty"`
+	VolumeQuoteStr       string   `protobuf:"bytes,14,opt,name=volumeQuoteStr,proto3" json:"volumeQuoteStr,omitempty"`
+	ChangeAbsoluteStr    string   `protobuf:"bytes,15,opt,name=changeAbsoluteStr,proto3" json:"changeAbsoluteStr,omitempty"`
+	ChangePercentStr     string   `protobuf:"bytes,16,opt,name=changePercentStr,proto3" json:"changePercentStr,omitempty"`
+	NumTrades            int32    `protobuf:"varint,8,opt,name=numTrades,proto3" json:"numTrades,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1548,7 +1436,7 @@ func (m *SummaryUpdate) Reset()         { *m = SummaryUpdate{} }
 func (m *SummaryUpdate) String() string { return proto.CompactTextString(m) }
 func (*SummaryUpdate) ProtoMessage()    {}
 func (*SummaryUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{11}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{11}
 }
 func (m *SummaryUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1633,58 +1521,8 @@ func (m *SummaryUpdate) GetNumTrades() int32 {
 	return 0
 }
 
-func (m *SummaryUpdate) GetLast() float32 {
-	if m != nil {
-		return m.Last
-	}
-	return 0
-}
-
-func (m *SummaryUpdate) GetHigh() float32 {
-	if m != nil {
-		return m.High
-	}
-	return 0
-}
-
-func (m *SummaryUpdate) GetLow() float32 {
-	if m != nil {
-		return m.Low
-	}
-	return 0
-}
-
-func (m *SummaryUpdate) GetVolumeBase() float32 {
-	if m != nil {
-		return m.VolumeBase
-	}
-	return 0
-}
-
-func (m *SummaryUpdate) GetVolumeQuote() float32 {
-	if m != nil {
-		return m.VolumeQuote
-	}
-	return 0
-}
-
-func (m *SummaryUpdate) GetChangeAbsolute() float32 {
-	if m != nil {
-		return m.ChangeAbsolute
-	}
-	return 0
-}
-
-func (m *SummaryUpdate) GetChangePercent() float32 {
-	if m != nil {
-		return m.ChangePercent
-	}
-	return 0
-}
-
 type SparklineUpdate struct {
 	Time                 int64    `protobuf:"varint,2,opt,name=time,proto3" json:"time,omitempty"`
-	Price                float32  `protobuf:"fixed32,3,opt,name=price,proto3" json:"price,omitempty"`
 	PriceStr             string   `protobuf:"bytes,4,opt,name=priceStr,proto3" json:"priceStr,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -1695,7 +1533,7 @@ func (m *SparklineUpdate) Reset()         { *m = SparklineUpdate{} }
 func (m *SparklineUpdate) String() string { return proto.CompactTextString(m) }
 func (*SparklineUpdate) ProtoMessage()    {}
 func (*SparklineUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_1b9e46e017a5572b, []int{12}
+	return fileDescriptor_market_8f96784a31c6abc4, []int{12}
 }
 func (m *SparklineUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1731,13 +1569,6 @@ func (m *SparklineUpdate) GetTime() int64 {
 	return 0
 }
 
-func (m *SparklineUpdate) GetPrice() float32 {
-	if m != nil {
-		return m.Price
-	}
-	return 0
-}
-
 func (m *SparklineUpdate) GetPriceStr() string {
 	if m != nil {
 		return m.PriceStr
@@ -1763,6 +1594,7 @@ func init() {
 	proto.RegisterType((*IntervalsUpdate)(nil), "ProtobufMarkets.IntervalsUpdate")
 	proto.RegisterType((*SummaryUpdate)(nil), "ProtobufMarkets.SummaryUpdate")
 	proto.RegisterType((*SparklineUpdate)(nil), "ProtobufMarkets.SparklineUpdate")
+	proto.RegisterEnum("ProtobufMarkets.Trade_Side", Trade_Side_name, Trade_Side_value)
 }
 func (m *Market) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
@@ -1827,18 +1659,6 @@ func (m *Order) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Price != 0 {
-		dAtA[i] = 0xd
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Price))))
-		i += 4
-	}
-	if m.Amount != 0 {
-		dAtA[i] = 0x15
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Amount))))
-		i += 4
-	}
 	if len(m.PriceStr) > 0 {
 		dAtA[i] = 0x1a
 		i++
@@ -1872,44 +1692,10 @@ func (m *Trade) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Id != 0 {
-		dAtA[i] = 0x8
-		i++
-		i = encodeVarintMarket(dAtA, i, uint64(m.Id))
-	}
 	if m.Timestamp != 0 {
 		dAtA[i] = 0x10
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Timestamp))
-	}
-	if m.Price != 0 {
-		dAtA[i] = 0x1d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Price))))
-		i += 4
-	}
-	if m.Amount != 0 {
-		dAtA[i] = 0x25
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Amount))))
-		i += 4
-	}
-	if m.TimestampMillis != 0 {
-		dAtA[i] = 0x28
-		i++
-		i = encodeVarintMarket(dAtA, i, uint64(m.TimestampMillis))
-	}
-	if m.PriceDouble != 0 {
-		dAtA[i] = 0x31
-		i++
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.PriceDouble))))
-		i += 8
-	}
-	if m.AmountDouble != 0 {
-		dAtA[i] = 0x39
-		i++
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.AmountDouble))))
-		i += 8
 	}
 	if len(m.PriceStr) > 0 {
 		dAtA[i] = 0x42
@@ -1933,6 +1719,11 @@ func (m *Trade) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(len(m.ExternalId)))
 		i += copy(dAtA[i:], m.ExternalId)
+	}
+	if m.Side != 0 {
+		dAtA[i] = 0x60
+		i++
+		i = encodeVarintMarket(dAtA, i, uint64(m.Side))
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -2129,12 +1920,6 @@ func (m *OrderBookUpdate) MarshalTo(dAtA []byte) (int, error) {
 			i += n
 		}
 	}
-	if m.AggregationModulus != 0 {
-		dAtA[i] = 0x1d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.AggregationModulus))))
-		i += 4
-	}
 	if len(m.AggregationModulusStr) > 0 {
 		dAtA[i] = 0x22
 		i++
@@ -2186,12 +1971,6 @@ func (m *OrderBookDeltaUpdate) MarshalTo(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i += n12
-	}
-	if m.AggregationModulus != 0 {
-		dAtA[i] = 0x1d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.AggregationModulus))))
-		i += 4
 	}
 	if len(m.AggregationModulusStr) > 0 {
 		dAtA[i] = 0x22
@@ -2249,15 +2028,6 @@ func (m *OrderBookDeltaUpdate_OrderDeltas) MarshalTo(dAtA []byte) (int, error) {
 			i += n
 		}
 	}
-	if len(m.Remove) > 0 {
-		for _, num := range m.Remove {
-			dAtA[i] = 0x1d
-			i++
-			f13 := math.Float32bits(float32(num))
-			encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(f13))
-			i += 4
-		}
-	}
 	if len(m.RemoveStr) > 0 {
 		for _, s := range m.RemoveStr {
 			dAtA[i] = 0x22
@@ -2303,21 +2073,21 @@ func (m *OrderBookSpreadUpdate) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bid.Size()))
-		n14, err := m.Bid.MarshalTo(dAtA[i:])
+		n13, err := m.Bid.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n14
+		i += n13
 	}
 	if m.Ask != nil {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Ask.Size()))
-		n15, err := m.Ask.MarshalTo(dAtA[i:])
+		n14, err := m.Ask.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n15
+		i += n14
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -2349,21 +2119,21 @@ func (m *OrderBookLiquidityUpdate) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bid.Size()))
-		n16, err := m.Bid.MarshalTo(dAtA[i:])
+		n15, err := m.Bid.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n16
+		i += n15
 	}
 	if m.Ask != nil {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Ask.Size()))
-		n17, err := m.Ask.MarshalTo(dAtA[i:])
+		n16, err := m.Ask.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n17
+		i += n16
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -2423,101 +2193,101 @@ func (m *OrderBookLiquidityUpdate_OrderBookLiquidityUpdateSide) MarshalTo(dAtA [
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bip25.Size()))
-		n18, err := m.Bip25.MarshalTo(dAtA[i:])
+		n17, err := m.Bip25.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n18
+		i += n17
 	}
 	if m.Bip50 != nil {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bip50.Size()))
-		n19, err := m.Bip50.MarshalTo(dAtA[i:])
+		n18, err := m.Bip50.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n19
+		i += n18
 	}
 	if m.Bip75 != nil {
 		dAtA[i] = 0x1a
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bip75.Size()))
-		n20, err := m.Bip75.MarshalTo(dAtA[i:])
+		n19, err := m.Bip75.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n20
+		i += n19
 	}
 	if m.Bip100 != nil {
 		dAtA[i] = 0x22
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bip100.Size()))
-		n21, err := m.Bip100.MarshalTo(dAtA[i:])
+		n20, err := m.Bip100.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n21
+		i += n20
 	}
 	if m.Bip150 != nil {
 		dAtA[i] = 0x2a
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bip150.Size()))
-		n22, err := m.Bip150.MarshalTo(dAtA[i:])
+		n21, err := m.Bip150.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n22
+		i += n21
 	}
 	if m.Bip200 != nil {
 		dAtA[i] = 0x32
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bip200.Size()))
-		n23, err := m.Bip200.MarshalTo(dAtA[i:])
+		n22, err := m.Bip200.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n23
+		i += n22
 	}
 	if m.Bip250 != nil {
 		dAtA[i] = 0x3a
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bip250.Size()))
-		n24, err := m.Bip250.MarshalTo(dAtA[i:])
+		n23, err := m.Bip250.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n24
+		i += n23
 	}
 	if m.Bip300 != nil {
 		dAtA[i] = 0x42
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bip300.Size()))
-		n25, err := m.Bip300.MarshalTo(dAtA[i:])
+		n24, err := m.Bip300.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n25
+		i += n24
 	}
 	if m.Bip400 != nil {
 		dAtA[i] = 0x4a
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bip400.Size()))
-		n26, err := m.Bip400.MarshalTo(dAtA[i:])
+		n25, err := m.Bip400.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n26
+		i += n25
 	}
 	if m.Bip500 != nil {
 		dAtA[i] = 0x52
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Bip500.Size()))
-		n27, err := m.Bip500.MarshalTo(dAtA[i:])
+		n26, err := m.Bip500.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n27
+		i += n26
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -2582,28 +2352,16 @@ func (m *Interval) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Ohlc.Size()))
-		n28, err := m.Ohlc.MarshalTo(dAtA[i:])
+		n27, err := m.Ohlc.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n28
-	}
-	if m.VolumeBase != 0 {
-		dAtA[i] = 0x1d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.VolumeBase))))
-		i += 4
+		i += n27
 	}
 	if m.Period != 0 {
 		dAtA[i] = 0x20
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Period))
-	}
-	if m.VolumeQuote != 0 {
-		dAtA[i] = 0x2d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.VolumeQuote))))
-		i += 4
 	}
 	if len(m.VolumeBaseStr) > 0 {
 		dAtA[i] = 0x32
@@ -2616,6 +2374,12 @@ func (m *Interval) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(len(m.VolumeQuoteStr)))
 		i += copy(dAtA[i:], m.VolumeQuoteStr)
+	}
+	if len(m.PeriodName) > 0 {
+		dAtA[i] = 0x4a
+		i++
+		i = encodeVarintMarket(dAtA, i, uint64(len(m.PeriodName)))
+		i += copy(dAtA[i:], m.PeriodName)
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -2638,30 +2402,6 @@ func (m *Interval_OHLC) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Open != 0 {
-		dAtA[i] = 0xd
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Open))))
-		i += 4
-	}
-	if m.High != 0 {
-		dAtA[i] = 0x15
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.High))))
-		i += 4
-	}
-	if m.Low != 0 {
-		dAtA[i] = 0x1d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Low))))
-		i += 4
-	}
-	if m.Close != 0 {
-		dAtA[i] = 0x25
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Close))))
-		i += 4
-	}
 	if len(m.OpenStr) > 0 {
 		dAtA[i] = 0x2a
 		i++
@@ -2740,52 +2480,10 @@ func (m *SummaryUpdate) MarshalTo(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Last != 0 {
-		dAtA[i] = 0x15
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Last))))
-		i += 4
-	}
-	if m.High != 0 {
-		dAtA[i] = 0x1d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.High))))
-		i += 4
-	}
-	if m.Low != 0 {
-		dAtA[i] = 0x25
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Low))))
-		i += 4
-	}
-	if m.VolumeBase != 0 {
-		dAtA[i] = 0x2d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.VolumeBase))))
-		i += 4
-	}
-	if m.ChangeAbsolute != 0 {
-		dAtA[i] = 0x35
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.ChangeAbsolute))))
-		i += 4
-	}
-	if m.ChangePercent != 0 {
-		dAtA[i] = 0x3d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.ChangePercent))))
-		i += 4
-	}
 	if m.NumTrades != 0 {
 		dAtA[i] = 0x40
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.NumTrades))
-	}
-	if m.VolumeQuote != 0 {
-		dAtA[i] = 0x4d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.VolumeQuote))))
-		i += 4
 	}
 	if len(m.LastStr) > 0 {
 		dAtA[i] = 0x52
@@ -2857,12 +2555,6 @@ func (m *SparklineUpdate) MarshalTo(dAtA []byte) (int, error) {
 		i++
 		i = encodeVarintMarket(dAtA, i, uint64(m.Time))
 	}
-	if m.Price != 0 {
-		dAtA[i] = 0x1d
-		i++
-		encoding_binary.LittleEndian.PutUint32(dAtA[i:], uint32(math.Float32bits(float32(m.Price))))
-		i += 4
-	}
 	if len(m.PriceStr) > 0 {
 		dAtA[i] = 0x22
 		i++
@@ -2919,12 +2611,6 @@ func (m *Order) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Price != 0 {
-		n += 5
-	}
-	if m.Amount != 0 {
-		n += 5
-	}
 	l = len(m.PriceStr)
 	if l > 0 {
 		n += 1 + l + sovMarket(uint64(l))
@@ -2945,26 +2631,8 @@ func (m *Trade) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Id != 0 {
-		n += 1 + sovMarket(uint64(m.Id))
-	}
 	if m.Timestamp != 0 {
 		n += 1 + sovMarket(uint64(m.Timestamp))
-	}
-	if m.Price != 0 {
-		n += 5
-	}
-	if m.Amount != 0 {
-		n += 5
-	}
-	if m.TimestampMillis != 0 {
-		n += 1 + sovMarket(uint64(m.TimestampMillis))
-	}
-	if m.PriceDouble != 0 {
-		n += 9
-	}
-	if m.AmountDouble != 0 {
-		n += 9
 	}
 	l = len(m.PriceStr)
 	if l > 0 {
@@ -2980,6 +2648,9 @@ func (m *Trade) Size() (n int) {
 	l = len(m.ExternalId)
 	if l > 0 {
 		n += 1 + l + sovMarket(uint64(l))
+	}
+	if m.Side != 0 {
+		n += 1 + sovMarket(uint64(m.Side))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -3120,9 +2791,6 @@ func (m *OrderBookUpdate) Size() (n int) {
 			n += 1 + l + sovMarket(uint64(l))
 		}
 	}
-	if m.AggregationModulus != 0 {
-		n += 5
-	}
 	l = len(m.AggregationModulusStr)
 	if l > 0 {
 		n += 1 + l + sovMarket(uint64(l))
@@ -3149,9 +2817,6 @@ func (m *OrderBookDeltaUpdate) Size() (n int) {
 	if m.Asks != nil {
 		l = m.Asks.Size()
 		n += 1 + l + sovMarket(uint64(l))
-	}
-	if m.AggregationModulus != 0 {
-		n += 5
 	}
 	l = len(m.AggregationModulusStr)
 	if l > 0 {
@@ -3183,9 +2848,6 @@ func (m *OrderBookDeltaUpdate_OrderDeltas) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovMarket(uint64(l))
 		}
-	}
-	if len(m.Remove) > 0 {
-		n += 5 * len(m.Remove)
 	}
 	if len(m.RemoveStr) > 0 {
 		for _, s := range m.RemoveStr {
@@ -3348,20 +3010,18 @@ func (m *Interval) Size() (n int) {
 		l = m.Ohlc.Size()
 		n += 1 + l + sovMarket(uint64(l))
 	}
-	if m.VolumeBase != 0 {
-		n += 5
-	}
 	if m.Period != 0 {
 		n += 1 + sovMarket(uint64(m.Period))
-	}
-	if m.VolumeQuote != 0 {
-		n += 5
 	}
 	l = len(m.VolumeBaseStr)
 	if l > 0 {
 		n += 1 + l + sovMarket(uint64(l))
 	}
 	l = len(m.VolumeQuoteStr)
+	if l > 0 {
+		n += 1 + l + sovMarket(uint64(l))
+	}
+	l = len(m.PeriodName)
 	if l > 0 {
 		n += 1 + l + sovMarket(uint64(l))
 	}
@@ -3377,18 +3037,6 @@ func (m *Interval_OHLC) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Open != 0 {
-		n += 5
-	}
-	if m.High != 0 {
-		n += 5
-	}
-	if m.Low != 0 {
-		n += 5
-	}
-	if m.Close != 0 {
-		n += 5
-	}
 	l = len(m.OpenStr)
 	if l > 0 {
 		n += 1 + l + sovMarket(uint64(l))
@@ -3435,29 +3083,8 @@ func (m *SummaryUpdate) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Last != 0 {
-		n += 5
-	}
-	if m.High != 0 {
-		n += 5
-	}
-	if m.Low != 0 {
-		n += 5
-	}
-	if m.VolumeBase != 0 {
-		n += 5
-	}
-	if m.ChangeAbsolute != 0 {
-		n += 5
-	}
-	if m.ChangePercent != 0 {
-		n += 5
-	}
 	if m.NumTrades != 0 {
 		n += 1 + sovMarket(uint64(m.NumTrades))
-	}
-	if m.VolumeQuote != 0 {
-		n += 5
 	}
 	l = len(m.LastStr)
 	if l > 0 {
@@ -3501,9 +3128,6 @@ func (m *SparklineUpdate) Size() (n int) {
 	_ = l
 	if m.Time != 0 {
 		n += 1 + sovMarket(uint64(m.Time))
-	}
-	if m.Price != 0 {
-		n += 5
 	}
 	l = len(m.PriceStr)
 	if l > 0 {
@@ -3723,28 +3347,6 @@ func (m *Order) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: Order: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Price", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Price = float32(math.Float32frombits(v))
-		case 2:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Amount", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Amount = float32(math.Float32frombits(v))
 		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PriceStr", wireType)
@@ -3854,25 +3456,6 @@ func (m *Trade) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: Trade: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
-			}
-			m.Id = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMarket
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Id |= (int64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
 		case 2:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
@@ -3892,69 +3475,6 @@ func (m *Trade) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 3:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Price", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Price = float32(math.Float32frombits(v))
-		case 4:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Amount", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Amount = float32(math.Float32frombits(v))
-		case 5:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TimestampMillis", wireType)
-			}
-			m.TimestampMillis = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowMarket
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.TimestampMillis |= (int64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 6:
-			if wireType != 1 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PriceDouble", wireType)
-			}
-			var v uint64
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-			iNdEx += 8
-			m.PriceDouble = float64(math.Float64frombits(v))
-		case 7:
-			if wireType != 1 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AmountDouble", wireType)
-			}
-			var v uint64
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-			iNdEx += 8
-			m.AmountDouble = float64(math.Float64frombits(v))
 		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PriceStr", wireType)
@@ -4061,6 +3581,25 @@ func (m *Trade) Unmarshal(dAtA []byte) error {
 			}
 			m.ExternalId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 12:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Side", wireType)
+			}
+			m.Side = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMarket
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Side |= (Trade_Side(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipMarket(dAtA[iNdEx:])
@@ -4514,17 +4053,6 @@ func (m *OrderBookUpdate) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 3:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AggregationModulus", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.AggregationModulus = float32(math.Float32frombits(v))
 		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field AggregationModulusStr", wireType)
@@ -4690,17 +4218,6 @@ func (m *OrderBookDeltaUpdate) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 3:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AggregationModulus", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.AggregationModulus = float32(math.Float32frombits(v))
 		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field AggregationModulusStr", wireType)
@@ -4862,57 +4379,6 @@ func (m *OrderBookDeltaUpdate_OrderDeltas) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 3:
-			if wireType == 5 {
-				var v uint32
-				if (iNdEx + 4) > l {
-					return io.ErrUnexpectedEOF
-				}
-				v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-				iNdEx += 4
-				v2 := float32(math.Float32frombits(v))
-				m.Remove = append(m.Remove, v2)
-			} else if wireType == 2 {
-				var packedLen int
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflowMarket
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					packedLen |= (int(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				if packedLen < 0 {
-					return ErrInvalidLengthMarket
-				}
-				postIndex := iNdEx + packedLen
-				if postIndex > l {
-					return io.ErrUnexpectedEOF
-				}
-				var elementCount int
-				elementCount = packedLen / 4
-				if elementCount != 0 && len(m.Remove) == 0 {
-					m.Remove = make([]float32, 0, elementCount)
-				}
-				for iNdEx < postIndex {
-					var v uint32
-					if (iNdEx + 4) > l {
-						return io.ErrUnexpectedEOF
-					}
-					v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-					iNdEx += 4
-					v2 := float32(math.Float32frombits(v))
-					m.Remove = append(m.Remove, v2)
-				}
-			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field Remove", wireType)
-			}
 		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field RemoveStr", wireType)
@@ -5889,17 +5355,6 @@ func (m *Interval) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 3:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field VolumeBase", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.VolumeBase = float32(math.Float32frombits(v))
 		case 4:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Period", wireType)
@@ -5919,17 +5374,6 @@ func (m *Interval) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 5:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field VolumeQuote", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.VolumeQuote = float32(math.Float32frombits(v))
 		case 6:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field VolumeBaseStr", wireType)
@@ -5988,6 +5432,35 @@ func (m *Interval) Unmarshal(dAtA []byte) error {
 			}
 			m.VolumeQuoteStr = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PeriodName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMarket
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthMarket
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PeriodName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipMarket(dAtA[iNdEx:])
@@ -6039,50 +5512,6 @@ func (m *Interval_OHLC) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: OHLC: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 1:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Open", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Open = float32(math.Float32frombits(v))
-		case 2:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field High", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.High = float32(math.Float32frombits(v))
-		case 3:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Low", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Low = float32(math.Float32frombits(v))
-		case 4:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Close", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Close = float32(math.Float32frombits(v))
 		case 5:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field OpenStr", wireType)
@@ -6332,72 +5761,6 @@ func (m *SummaryUpdate) Unmarshal(dAtA []byte) error {
 			return fmt.Errorf("proto: SummaryUpdate: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
-		case 2:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Last", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Last = float32(math.Float32frombits(v))
-		case 3:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field High", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.High = float32(math.Float32frombits(v))
-		case 4:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Low", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Low = float32(math.Float32frombits(v))
-		case 5:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field VolumeBase", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.VolumeBase = float32(math.Float32frombits(v))
-		case 6:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ChangeAbsolute", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.ChangeAbsolute = float32(math.Float32frombits(v))
-		case 7:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ChangePercent", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.ChangePercent = float32(math.Float32frombits(v))
 		case 8:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field NumTrades", wireType)
@@ -6417,17 +5780,6 @@ func (m *SummaryUpdate) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 9:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field VolumeQuote", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.VolumeQuote = float32(math.Float32frombits(v))
 		case 10:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field LastStr", wireType)
@@ -6701,17 +6053,6 @@ func (m *SparklineUpdate) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 3:
-			if wireType != 5 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Price", wireType)
-			}
-			var v uint32
-			if (iNdEx + 4) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint32(encoding_binary.LittleEndian.Uint32(dAtA[iNdEx:]))
-			iNdEx += 4
-			m.Price = float32(math.Float32frombits(v))
 		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PriceStr", wireType)
@@ -6868,95 +6209,94 @@ var (
 	ErrIntOverflowMarket   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("public/markets/market.proto", fileDescriptor_market_1b9e46e017a5572b) }
+func init() { proto.RegisterFile("public/markets/market.proto", fileDescriptor_market_8f96784a31c6abc4) }
 
-var fileDescriptor_market_1b9e46e017a5572b = []byte{
-	// 1389 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xc4, 0x58, 0xdd, 0x8e, 0xdb, 0xc4,
-	0x17, 0x8f, 0x63, 0x3b, 0x9b, 0x9c, 0xec, 0x36, 0xf9, 0xcf, 0xbf, 0x2d, 0x66, 0x29, 0xd1, 0xca,
-	0x82, 0x2a, 0x54, 0xd5, 0xd6, 0x4d, 0x1b, 0xf5, 0x0e, 0xc1, 0xf6, 0x43, 0xd9, 0xaa, 0xdb, 0x96,
-	0xd9, 0x52, 0x55, 0x42, 0x20, 0x4d, 0xe2, 0x21, 0x6b, 0xc5, 0x89, 0x53, 0x7f, 0xb4, 0xf4, 0x11,
-	0x78, 0x03, 0x2e, 0x90, 0x78, 0x01, 0x9e, 0x81, 0x2b, 0x90, 0xb8, 0x44, 0xe2, 0x05, 0x50, 0x7b,
-	0xc1, 0x35, 0xe2, 0x05, 0xd0, 0x99, 0x99, 0x38, 0xb6, 0x13, 0xb7, 0x2b, 0x1a, 0x89, 0x2b, 0xcf,
-	0xfc, 0xe6, 0x37, 0xbf, 0x39, 0x73, 0xe6, 0xcc, 0xc7, 0x31, 0xbc, 0x37, 0x4f, 0x86, 0xbe, 0x37,
-	0xba, 0x32, 0x65, 0xe1, 0x84, 0xc7, 0x91, 0xfa, 0xee, 0xcf, 0xc3, 0x20, 0x0e, 0x48, 0xeb, 0x21,
-	0x7e, 0x86, 0xc9, 0xd7, 0x47, 0xb2, 0xd5, 0xfe, 0x51, 0x83, 0x9a, 0x2c, 0x93, 0x5d, 0xa8, 0xf3,
-	0x6f, 0x46, 0x27, 0x6c, 0x36, 0xe6, 0x96, 0xb6, 0xa7, 0x75, 0x1b, 0x34, 0xad, 0x13, 0x1b, 0xb6,
-	0x47, 0x49, 0x18, 0xf2, 0xd9, 0xe8, 0xc5, 0x43, 0xe6, 0x85, 0x56, 0x55, 0xb4, 0xe7, 0x30, 0xd2,
-	0x01, 0x58, 0xf0, 0x0f, 0x5d, 0x4b, 0xdf, 0xd3, 0xba, 0x06, 0xcd, 0x20, 0xe4, 0x22, 0x9c, 0xc9,
-	0xf2, 0x0f, 0x5d, 0xcb, 0x10, 0x9c, 0x02, 0x8a, 0x76, 0x48, 0x9b, 0x0f, 0x5d, 0xcb, 0x14, 0x8c,
-	0xb4, 0x6e, 0x07, 0x60, 0x3e, 0x08, 0x5d, 0x1e, 0x92, 0xb3, 0x60, 0xce, 0x43, 0x6f, 0x24, 0x2d,
-	0xad, 0x52, 0x59, 0x21, 0xe7, 0xa1, 0xc6, 0xa6, 0x41, 0x32, 0x8b, 0x85, 0x81, 0x55, 0xaa, 0x6a,
-	0x28, 0x29, 0x08, 0xc7, 0x71, 0x28, 0x0c, 0x6b, 0xd0, 0xb4, 0x4e, 0x2e, 0x40, 0x43, 0xb2, 0xb0,
-	0xd1, 0x10, 0x8d, 0x4b, 0xc0, 0xfe, 0xbd, 0x0a, 0xe6, 0xa3, 0x90, 0xb9, 0x9c, 0x9c, 0x81, 0xaa,
-	0xe7, 0x8a, 0xe1, 0x74, 0x5a, 0xf5, 0x5c, 0xec, 0x17, 0x7b, 0x53, 0x1e, 0xc5, 0x6c, 0x3a, 0x17,
-	0xc3, 0xe9, 0x74, 0x09, 0x2c, 0xed, 0xd3, 0xd7, 0xdb, 0x67, 0xe4, 0xec, 0xeb, 0x42, 0x2b, 0xed,
-	0x7a, 0xe4, 0xf9, 0xbe, 0x17, 0x89, 0x99, 0xeb, 0xb4, 0x08, 0x93, 0x3d, 0x68, 0x0a, 0xa9, 0x5b,
-	0x41, 0x32, 0xf4, 0xb9, 0x55, 0xdb, 0xd3, 0xba, 0x1a, 0xcd, 0x42, 0xb8, 0x54, 0x52, 0x55, 0x51,
-	0xb6, 0x04, 0x25, 0x87, 0xe5, 0xfc, 0x51, 0x7f, 0x9d, 0x3f, 0x1a, 0x05, 0x7f, 0x90, 0x0f, 0x60,
-	0x27, 0x35, 0xe9, 0x3e, 0x9b, 0x05, 0x16, 0x08, 0x3b, 0xf3, 0xa0, 0x0c, 0x85, 0x98, 0x87, 0x33,
-	0xe6, 0x1f, 0xba, 0x56, 0x53, 0x88, 0x64, 0x10, 0xfb, 0x6f, 0x13, 0xfe, 0x2f, 0xa3, 0xee, 0xf3,
-	0xb9, 0xcb, 0x62, 0x7e, 0xc4, 0xa3, 0x88, 0x8d, 0x39, 0xb9, 0x07, 0xad, 0x00, 0x97, 0xf7, 0x20,
-	0x08, 0x26, 0xb2, 0x45, 0x78, 0xb6, 0xd9, 0xdb, 0xdb, 0x2f, 0x04, 0xee, 0xfe, 0x83, 0x3c, 0x6f,
-	0x50, 0xa1, 0xc5, 0xae, 0xe4, 0x0b, 0x38, 0x9b, 0x42, 0xb7, 0xb8, 0x1f, 0x33, 0x25, 0xa9, 0x0b,
-	0xc9, 0x0f, 0xcb, 0x25, 0x33, 0xe4, 0x41, 0x85, 0xae, 0x15, 0x21, 0x37, 0x61, 0x3b, 0xc6, 0xb8,
-	0x88, 0x94, 0xa8, 0x21, 0x44, 0xdf, 0x5f, 0x11, 0x7d, 0x94, 0x21, 0x0d, 0x2a, 0x34, 0xd7, 0x09,
-	0xe7, 0xeb, 0xcd, 0x62, 0x1e, 0x3e, 0x63, 0xfe, 0x42, 0xc7, 0x2c, 0x99, 0xef, 0x61, 0x9e, 0x87,
-	0xf3, 0x2d, 0x74, 0x25, 0x77, 0x60, 0x27, 0x4a, 0xa6, 0x53, 0x16, 0xbe, 0x50, 0x5a, 0x35, 0xa1,
-	0xd5, 0x59, 0xd1, 0x3a, 0xce, 0xb2, 0x06, 0x15, 0x9a, 0xef, 0x86, 0x56, 0x45, 0x73, 0x16, 0x4e,
-	0x7c, 0x6f, 0xc6, 0x95, 0xd2, 0x56, 0x89, 0x55, 0xc7, 0x79, 0x1e, 0x5a, 0x55, 0xe8, 0x4a, 0xae,
-	0x40, 0x4d, 0x6e, 0x5f, 0x11, 0x4c, 0xcd, 0xde, 0x3b, 0x2b, 0x22, 0xf2, 0x4b, 0x15, 0x8d, 0x7c,
-	0x05, 0xe7, 0x52, 0x8f, 0x1f, 0xcf, 0x43, 0xce, 0x5c, 0x65, 0x44, 0x53, 0xf4, 0xbf, 0x58, 0xbe,
-	0x6e, 0x59, 0xf6, 0xa0, 0x42, 0xd7, 0xcb, 0x90, 0x31, 0x58, 0x69, 0xc3, 0x3d, 0xef, 0x69, 0xe2,
-	0xb9, 0x5e, 0xbc, 0xf0, 0xd8, 0xb6, 0x18, 0xe2, 0xa3, 0xf2, 0x21, 0x0a, 0x1d, 0x06, 0x15, 0x5a,
-	0x2a, 0x76, 0x50, 0x87, 0x9a, 0x2c, 0xdd, 0x35, 0xea, 0xf5, 0x76, 0xc3, 0xfe, 0x53, 0x83, 0x56,
-	0x21, 0x6c, 0xc9, 0x25, 0x30, 0x86, 0x9e, 0x1b, 0x59, 0xda, 0x9e, 0xde, 0x6d, 0xf6, 0xce, 0xaf,
-	0x1f, 0x98, 0x0a, 0x0e, 0x72, 0x59, 0x34, 0x89, 0xac, 0xea, 0xeb, 0xb9, 0xc8, 0x21, 0xfb, 0x40,
-	0xd8, 0x78, 0x1c, 0xf2, 0x31, 0x8b, 0xbd, 0x60, 0x76, 0x14, 0xb8, 0x89, 0x9f, 0x44, 0xea, 0x30,
-	0x5a, 0xd3, 0x42, 0xae, 0xc3, 0xb9, 0x55, 0x74, 0x79, 0x22, 0xae, 0x6f, 0xc4, 0xf3, 0x2c, 0xe2,
-	0x4f, 0xef, 0x27, 0x53, 0x11, 0xb6, 0x26, 0x55, 0x35, 0xfb, 0x67, 0x1d, 0xce, 0xae, 0xdb, 0x4d,
-	0xe4, 0x76, 0x3a, 0x5d, 0xf4, 0xf3, 0xd5, 0x53, 0x6d, 0x41, 0x09, 0x0a, 0x20, 0x52, 0x9e, 0xb8,
-	0x9d, 0x7a, 0xe2, 0xdf, 0xca, 0xfc, 0xf7, 0x4e, 0xda, 0xfd, 0x41, 0x83, 0x66, 0xc6, 0x26, 0xd2,
-	0x05, 0x3d, 0xe2, 0xf1, 0x1b, 0x22, 0x01, 0x29, 0xe4, 0x32, 0x98, 0x2e, 0xf6, 0x79, 0x43, 0x24,
-	0x48, 0x12, 0xd9, 0x85, 0x5a, 0xc8, 0xa7, 0xc1, 0x33, 0x3c, 0xf8, 0xf4, 0x6e, 0xf5, 0xa0, 0xda,
-	0xae, 0x50, 0x85, 0xe0, 0x61, 0x2f, 0x4b, 0x72, 0x16, 0x3a, 0x1e, 0xf6, 0x29, 0x60, 0x7f, 0xab,
-	0xc1, 0xb9, 0xb5, 0x9b, 0x2b, 0x7f, 0xf9, 0x69, 0xc5, 0xcb, 0xaf, 0x0b, 0xfa, 0xd0, 0x73, 0xd5,
-	0xea, 0x94, 0xce, 0x64, 0xe8, 0xb9, 0xc8, 0x64, 0xd1, 0x44, 0x9d, 0xc8, 0xa5, 0x4c, 0x16, 0x4d,
-	0xec, 0x57, 0x0d, 0xb0, 0xca, 0x76, 0xe1, 0x1b, 0xcc, 0x79, 0x92, 0x35, 0xe7, 0xce, 0xa9, 0xf7,
-	0x76, 0x69, 0xc3, 0xb1, 0xe7, 0x72, 0x69, 0xfe, 0x93, 0xac, 0xf9, 0x1b, 0x53, 0x66, 0xd1, 0x64,
-	0xf7, 0x31, 0x9c, 0x5f, 0x25, 0x1d, 0x27, 0xd3, 0x48, 0xcc, 0x35, 0x88, 0x99, 0x7f, 0xc0, 0xa2,
-	0xc5, 0x3b, 0x6d, 0x09, 0xe0, 0xcd, 0x2b, 0x2a, 0x9f, 0x25, 0x81, 0xba, 0x3c, 0x1b, 0x34, 0x83,
-	0xec, 0x7e, 0xbf, 0x05, 0x17, 0x5e, 0x37, 0x3a, 0x79, 0x0c, 0xe6, 0xd0, 0x9b, 0xf7, 0xfa, 0x6a,
-	0x8b, 0x7e, 0xf2, 0x36, 0x93, 0x42, 0x7b, 0xa9, 0x94, 0x53, 0xba, 0x7d, 0x47, 0x2d, 0xc3, 0x66,
-	0x74, 0xfb, 0x8e, 0xd2, 0xbd, 0xd1, 0x57, 0x8b, 0xb0, 0x19, 0xdd, 0x1b, 0x7d, 0xf2, 0x04, 0x6a,
-	0x43, 0x6f, 0x7e, 0xd5, 0x71, 0xd4, 0xcd, 0xfe, 0xf6, 0xc2, 0x4a, 0x6f, 0xa1, 0xdc, 0x77, 0xd4,
-	0x5d, 0xbf, 0x21, 0xe5, 0xfe, 0x42, 0xb9, 0xe7, 0x38, 0xea, 0xe6, 0xdf, 0x8c, 0x72, 0x2f, 0xb5,
-	0xb9, 0xd7, 0x77, 0xd4, 0x4b, 0x60, 0x43, 0xca, 0xa9, 0xcd, 0xd7, 0x1c, 0x47, 0x3c, 0x44, 0x37,
-	0xa5, 0x7c, 0x2d, 0xb5, 0xf9, 0xba, 0xe3, 0xa8, 0x87, 0xc7, 0x66, 0x94, 0xaf, 0xa7, 0xca, 0x7d,
-	0xc7, 0x11, 0xaf, 0xdf, 0x4d, 0x29, 0xf7, 0x1d, 0xc7, 0xfe, 0x18, 0xb6, 0xb3, 0x0f, 0x46, 0xb2,
-	0x0f, 0x35, 0xf9, 0x60, 0x2c, 0xbd, 0x16, 0x04, 0x9d, 0x2a, 0x96, 0xfd, 0x8b, 0x0e, 0xf5, 0xc5,
-	0x4b, 0x11, 0x4f, 0x8a, 0x91, 0x1f, 0x44, 0x1c, 0x4f, 0xc2, 0xc5, 0xa9, 0x98, 0x02, 0xa4, 0x07,
-	0x46, 0x70, 0xe2, 0x8f, 0xd4, 0x7e, 0xec, 0x94, 0x3e, 0x38, 0xf7, 0x1f, 0x0c, 0xee, 0xdd, 0xa4,
-	0x82, 0x8b, 0xa7, 0xcb, 0xb3, 0xc0, 0x4f, 0xa6, 0x5c, 0x1c, 0x3e, 0xf2, 0xa2, 0xcc, 0x20, 0x78,
-	0xd5, 0xcd, 0x79, 0xe8, 0x05, 0x32, 0xb5, 0x33, 0xa9, 0xaa, 0x61, 0xd6, 0x22, 0x59, 0xf2, 0x58,
-	0x32, 0x45, 0xc7, 0x2c, 0x84, 0x79, 0xc5, 0x52, 0x07, 0x2f, 0xa3, 0x9a, 0x38, 0xba, 0xf2, 0x20,
-	0xa6, 0x90, 0x99, 0x4e, 0x48, 0xdb, 0x12, 0xb4, 0x02, 0xba, 0xfb, 0x93, 0x06, 0x06, 0x9a, 0x4d,
-	0x08, 0x18, 0xc1, 0x9c, 0xcf, 0x54, 0x96, 0x28, 0xca, 0x88, 0x9d, 0x78, 0xe3, 0x13, 0x95, 0x22,
-	0x8a, 0x32, 0x69, 0x83, 0xee, 0x07, 0xcf, 0xd5, 0x8c, 0xb0, 0x88, 0x09, 0x9c, 0xf0, 0x95, 0xca,
-	0xd4, 0x64, 0x85, 0x58, 0xb0, 0x85, 0x1a, 0x38, 0xb2, 0x29, 0x46, 0x5e, 0x54, 0xb1, 0x05, 0x95,
-	0x96, 0xa6, 0x2f, 0xaa, 0xe8, 0x14, 0x3f, 0x78, 0xbe, 0x34, 0x56, 0xd5, 0x30, 0x09, 0x13, 0xa2,
-	0x99, 0x24, 0x6c, 0x51, 0xb7, 0xef, 0x42, 0xab, 0xf0, 0xe0, 0x27, 0x37, 0xa0, 0x91, 0x3e, 0xf8,
-	0x55, 0x34, 0xbc, 0x5b, 0xba, 0x68, 0x74, 0xc9, 0xb5, 0xff, 0xd2, 0x61, 0x27, 0xf7, 0xe2, 0x47,
-	0x0f, 0xf8, 0x2c, 0x5a, 0x24, 0xc9, 0xa2, 0x9c, 0x7a, 0x45, 0x5f, 0xf5, 0x8a, 0xb1, 0xf4, 0x4a,
-	0x3e, 0x00, 0xcc, 0x95, 0x00, 0xc0, 0x1c, 0x5f, 0xe4, 0xfb, 0x9f, 0x0e, 0xa3, 0xc0, 0x4f, 0x54,
-	0x0e, 0x52, 0xa5, 0x05, 0x14, 0x97, 0x5b, 0x22, 0x0f, 0x79, 0x38, 0xe2, 0xb3, 0x58, 0xb8, 0xa6,
-	0x4a, 0xf3, 0x20, 0x06, 0xf0, 0x2c, 0x99, 0xca, 0x0d, 0x21, 0x5c, 0x64, 0xd2, 0x25, 0x50, 0x0c,
-	0xaa, 0xc6, 0x6a, 0x50, 0x59, 0xb0, 0x85, 0x73, 0x43, 0x07, 0x83, 0x5c, 0x13, 0x55, 0xcd, 0xae,
-	0x56, 0xb3, 0x6c, 0xb5, 0xb6, 0x73, 0xab, 0xb5, 0x12, 0xa0, 0x3b, 0xa7, 0x0b, 0xd0, 0x33, 0xeb,
-	0x02, 0x94, 0x5c, 0x86, 0xff, 0xe5, 0x3d, 0x82, 0xd4, 0x96, 0xa0, 0xae, 0x36, 0x90, 0x4b, 0xd0,
-	0xce, 0x39, 0x06, 0xc9, 0x6d, 0x41, 0x5e, 0xc1, 0xef, 0x1a, 0x75, 0xad, 0x5d, 0xb5, 0xbf, 0x84,
-	0x56, 0x21, 0x35, 0xc3, 0x05, 0x16, 0x07, 0x81, 0xfc, 0x55, 0x21, 0xca, 0x25, 0x7f, 0x29, 0xb2,
-	0x7f, 0x07, 0x8c, 0xfc, 0xdf, 0x01, 0x29, 0x7f, 0xd0, 0xfe, 0xf5, 0x65, 0x47, 0xfb, 0xed, 0x65,
-	0x47, 0xfb, 0xe3, 0x65, 0x47, 0xfb, 0xee, 0x55, 0xa7, 0x32, 0xac, 0x89, 0xff, 0x4b, 0xd7, 0xfe,
-	0x09, 0x00, 0x00, 0xff, 0xff, 0xcf, 0x75, 0x69, 0x88, 0x7e, 0x12, 0x00, 0x00,
+var fileDescriptor_market_8f96784a31c6abc4 = []byte{
+	// 1365 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x58, 0xdd, 0x8e, 0xdb, 0x44,
+	0x14, 0x8e, 0xd7, 0x3f, 0x71, 0x4e, 0xb2, 0x1b, 0x33, 0xb4, 0x25, 0xdd, 0x96, 0x68, 0x65, 0x41,
+	0xb5, 0x54, 0xd5, 0xd6, 0x4d, 0x1b, 0xf5, 0x0e, 0xc1, 0xf6, 0x47, 0xbb, 0xd1, 0x6e, 0x5b, 0x26,
+	0x6d, 0x55, 0x04, 0x42, 0x72, 0xe2, 0x21, 0x6b, 0xc5, 0x89, 0x53, 0x8f, 0xdd, 0xd2, 0x47, 0xe0,
+	0x92, 0x3b, 0x84, 0x10, 0xe2, 0x92, 0x0b, 0x1e, 0x84, 0x4b, 0x90, 0x78, 0x00, 0xd4, 0x3e, 0x02,
+	0x2f, 0x80, 0xe6, 0x27, 0x8e, 0xed, 0xc4, 0xdb, 0x15, 0xcd, 0x95, 0x7d, 0xce, 0x7c, 0xf3, 0xcd,
+	0xf9, 0xf1, 0xcc, 0x99, 0x63, 0xb8, 0x34, 0x4b, 0x06, 0x81, 0x3f, 0xbc, 0x3e, 0x71, 0xa3, 0x31,
+	0x89, 0xa9, 0x7c, 0xee, 0xcd, 0xa2, 0x30, 0x0e, 0x51, 0xf3, 0x11, 0x7b, 0x0c, 0x92, 0x6f, 0x8f,
+	0xc5, 0xa8, 0xfd, 0xbb, 0x02, 0x86, 0x78, 0x47, 0xdb, 0x60, 0x92, 0xef, 0x86, 0x27, 0xee, 0x74,
+	0x44, 0x5a, 0xca, 0x8e, 0xb2, 0x5b, 0xc3, 0xa9, 0x8c, 0x6c, 0x68, 0x0c, 0x93, 0x28, 0x22, 0xd3,
+	0xe1, 0xab, 0x47, 0xae, 0x1f, 0xb5, 0x36, 0xf8, 0x78, 0x4e, 0x87, 0xda, 0x00, 0x73, 0xfc, 0xa1,
+	0xd7, 0x52, 0x77, 0x94, 0x5d, 0x0d, 0x67, 0x34, 0xe8, 0x0a, 0x6c, 0x65, 0xf1, 0x87, 0x5e, 0x4b,
+	0xe3, 0x98, 0x82, 0x96, 0xd9, 0x21, 0x6c, 0x3e, 0xf4, 0x5a, 0x3a, 0x47, 0xa4, 0xb2, 0xfd, 0x35,
+	0xe8, 0x0f, 0x23, 0x8f, 0x44, 0x0c, 0x34, 0x8b, 0xfc, 0x21, 0xe9, 0xc7, 0x11, 0x5f, 0xaa, 0x86,
+	0x53, 0x19, 0x5d, 0x86, 0x9a, 0x3b, 0x09, 0x93, 0x69, 0xcc, 0x06, 0x35, 0x3e, 0xb8, 0x50, 0xf4,
+	0x34, 0x53, 0xb1, 0x36, 0x7a, 0x9a, 0xb9, 0x61, 0xa9, 0x58, 0xe7, 0x73, 0xb0, 0x21, 0x46, 0xed,
+	0xbf, 0x37, 0x40, 0x7f, 0x1c, 0xb9, 0x1e, 0x61, 0x14, 0xb1, 0x3f, 0x21, 0x34, 0x76, 0x27, 0x33,
+	0xee, 0xac, 0x8a, 0x17, 0x8a, 0xdc, 0xe2, 0xe6, 0x69, 0x8b, 0xd7, 0x0a, 0x8b, 0xa3, 0x8f, 0x60,
+	0x33, 0xa5, 0x79, 0xe0, 0x4e, 0xc3, 0x16, 0x70, 0xee, 0xbc, 0x52, 0x44, 0x32, 0x26, 0xd1, 0xd4,
+	0x0d, 0x0e, 0xbd, 0x56, 0x9d, 0x93, 0x64, 0x34, 0xe8, 0x3a, 0x68, 0xd4, 0xf7, 0x48, 0xab, 0xb1,
+	0xa3, 0xec, 0x6e, 0x75, 0x2e, 0xed, 0x15, 0x92, 0xba, 0xc7, 0x7d, 0xd8, 0xeb, 0xfb, 0x1e, 0xc1,
+	0x1c, 0x68, 0x5f, 0x04, 0x8d, 0x49, 0xa8, 0x0a, 0xea, 0xfe, 0x93, 0x2f, 0xad, 0x0a, 0x32, 0x41,
+	0xeb, 0xdf, 0x3b, 0x3a, 0xb2, 0x94, 0x34, 0x1c, 0xaa, 0xa5, 0xf5, 0x34, 0x53, 0xb3, 0xf4, 0x9e,
+	0x66, 0xea, 0x96, 0xd1, 0xd3, 0x4c, 0xc3, 0xaa, 0xf6, 0x34, 0xb3, 0x6a, 0x99, 0x85, 0x30, 0xe1,
+	0x66, 0x6a, 0xed, 0xb1, 0x1f, 0x04, 0x3e, 0xc5, 0x1b, 0xbe, 0x87, 0xeb, 0x1c, 0x73, 0x37, 0x4c,
+	0x06, 0x01, 0xc1, 0x0d, 0x81, 0x14, 0x92, 0xfd, 0xaf, 0x0e, 0xef, 0x0b, 0xd3, 0x9e, 0xcc, 0x3c,
+	0x37, 0x26, 0xc7, 0x84, 0x52, 0x77, 0x44, 0xd0, 0x11, 0x34, 0x43, 0x96, 0xcc, 0xfd, 0x30, 0x1c,
+	0x8b, 0x11, 0x1e, 0xea, 0x7a, 0x67, 0x67, 0xc9, 0xa3, 0x87, 0x79, 0xdc, 0x41, 0x05, 0x17, 0xa7,
+	0xa2, 0xaf, 0xe0, 0x5c, 0xaa, 0xba, 0x4b, 0x82, 0xd8, 0x95, 0x94, 0x2a, 0xa7, 0xfc, 0xb8, 0x9c,
+	0x32, 0x03, 0x3e, 0xa8, 0xe0, 0x95, 0x24, 0xe8, 0x0e, 0x34, 0x62, 0x16, 0x54, 0x2a, 0x49, 0x35,
+	0x4e, 0xfa, 0xe1, 0xea, 0xc8, 0xd3, 0x94, 0x2c, 0x37, 0x89, 0xf9, 0xeb, 0x4f, 0x63, 0x12, 0xbd,
+	0x70, 0x83, 0x39, 0x8f, 0x5e, 0xe2, 0xef, 0x61, 0x1e, 0xc7, 0xfc, 0x2d, 0x4c, 0x45, 0xf7, 0x61,
+	0x93, 0x26, 0x93, 0x89, 0x1b, 0xbd, 0x92, 0x5c, 0x06, 0xe7, 0x6a, 0x2f, 0x71, 0xf5, 0xb3, 0xa8,
+	0x83, 0x0a, 0xce, 0x4f, 0x63, 0x56, 0xd1, 0x99, 0x1b, 0x8d, 0x03, 0x7f, 0x4a, 0x24, 0x53, 0xb5,
+	0xc4, 0xaa, 0x7e, 0x1e, 0xc7, 0xac, 0x2a, 0x4c, 0x45, 0xd7, 0xc1, 0x10, 0x9b, 0x95, 0x7f, 0xfb,
+	0xf5, 0xce, 0x07, 0x4b, 0x24, 0xe2, 0x89, 0x25, 0x0c, 0x7d, 0x03, 0xe7, 0xd3, 0x88, 0xf7, 0x67,
+	0x11, 0x71, 0x3d, 0x69, 0x44, 0x9d, 0xcf, 0xbf, 0x52, 0x9e, 0xb7, 0x2c, 0xfa, 0xa0, 0x82, 0x57,
+	0xd3, 0xa0, 0x11, 0xb4, 0xd2, 0x81, 0x23, 0xff, 0x79, 0xe2, 0x7b, 0x7e, 0x3c, 0x8f, 0x58, 0x83,
+	0x2f, 0xf1, 0x49, 0xf9, 0x12, 0x85, 0x09, 0x07, 0x15, 0x5c, 0x4a, 0xb6, 0x6f, 0x82, 0x21, 0xde,
+	0x7a, 0x9a, 0x69, 0x5a, 0x35, 0xfb, 0x2f, 0x05, 0x9a, 0x85, 0xcf, 0x16, 0x5d, 0x05, 0x6d, 0xe0,
+	0x7b, 0xb4, 0xa5, 0xec, 0xa8, 0xbb, 0xf5, 0xce, 0x85, 0xd5, 0x0b, 0x63, 0x8e, 0x61, 0x58, 0x97,
+	0x8e, 0x69, 0x6b, 0xe3, 0x74, 0x2c, 0xc3, 0xa0, 0x5b, 0x70, 0xde, 0x1d, 0x8d, 0x22, 0x32, 0x72,
+	0x63, 0x3f, 0x9c, 0x1e, 0x87, 0x5e, 0x12, 0x24, 0x74, 0x71, 0xfa, 0xad, 0x1e, 0x44, 0x17, 0xc0,
+	0xa0, 0xe4, 0xf9, 0x83, 0x64, 0xc2, 0x3f, 0x43, 0x1d, 0x4b, 0x49, 0x1c, 0x06, 0x18, 0x2d, 0x4f,
+	0xb2, 0x7f, 0x55, 0xe1, 0xdc, 0xaa, 0x7d, 0x83, 0xee, 0xa5, 0x8e, 0xb1, 0x88, 0xde, 0x38, 0xd3,
+	0x66, 0x13, 0x4a, 0xae, 0xa0, 0xd2, 0xe7, 0x7b, 0xa9, 0xcf, 0xff, 0x97, 0x66, 0xfd, 0xe1, 0xd8,
+	0xfe, 0x41, 0x81, 0x7a, 0x66, 0x0d, 0xb4, 0x0b, 0x2a, 0x25, 0xf1, 0x5b, 0x72, 0xc8, 0x20, 0xe8,
+	0x1a, 0xe8, 0x1e, 0x9b, 0xf3, 0x96, 0x1c, 0x0a, 0x10, 0xab, 0x1c, 0x11, 0x99, 0x84, 0x2f, 0x88,
+	0xb0, 0x54, 0x65, 0x95, 0x23, 0x55, 0xc8, 0xa4, 0x18, 0x42, 0x71, 0x4a, 0x8a, 0xbe, 0x57, 0xe0,
+	0xfc, 0xca, 0x2d, 0x92, 0xaf, 0x69, 0x4a, 0xb1, 0xa6, 0xed, 0x82, 0x3a, 0xf0, 0x3d, 0x19, 0xf9,
+	0x52, 0xaf, 0x06, 0xbe, 0xc7, 0x90, 0x2e, 0x1d, 0xcb, 0x73, 0xb5, 0x14, 0xe9, 0xd2, 0xb1, 0xfd,
+	0xa6, 0x06, 0xad, 0xb2, 0xbd, 0xf4, 0x16, 0x73, 0x9e, 0x65, 0xcd, 0xb9, 0x7f, 0xe6, 0x1d, 0x5a,
+	0x3a, 0xc0, 0x8b, 0x21, 0x37, 0xff, 0x59, 0xd6, 0xfc, 0xb5, 0x31, 0xbb, 0x74, 0xbc, 0xfd, 0x14,
+	0x2e, 0x2c, 0x83, 0xfa, 0xc9, 0x84, 0x72, 0x5f, 0xc3, 0xd8, 0x0d, 0xf6, 0x5d, 0x3a, 0xbf, 0x5b,
+	0x2d, 0x14, 0xac, 0xdc, 0x73, 0xe1, 0x8b, 0x24, 0x94, 0x25, 0xb0, 0x86, 0x33, 0x9a, 0xed, 0x9f,
+	0xab, 0x70, 0xf9, 0xb4, 0xd5, 0xd1, 0x53, 0xd0, 0x07, 0xfe, 0xac, 0xd3, 0x95, 0xdb, 0xef, 0xb3,
+	0x77, 0x71, 0x8a, 0xd9, 0x8b, 0x05, 0x9d, 0xe4, 0xed, 0x3a, 0x32, 0x0d, 0xeb, 0xe1, 0xed, 0x3a,
+	0x92, 0xf7, 0x76, 0x57, 0x26, 0x61, 0x3d, 0xbc, 0xb7, 0xbb, 0xe8, 0x19, 0x18, 0x03, 0x7f, 0x76,
+	0xc3, 0x71, 0x64, 0x7d, 0x7e, 0x77, 0x62, 0xc9, 0x37, 0x67, 0xee, 0x3a, 0xb2, 0x62, 0xaf, 0x89,
+	0xb9, 0x3b, 0x67, 0xee, 0x38, 0x8e, 0xac, 0xdf, 0xeb, 0x61, 0xee, 0xa4, 0x36, 0x77, 0xba, 0x8e,
+	0xac, 0xe7, 0x6b, 0x62, 0x4e, 0x6d, 0xbe, 0xe9, 0x38, 0xfc, 0xf6, 0xbb, 0x2e, 0xe6, 0x9b, 0xa9,
+	0xcd, 0xb7, 0x1c, 0x47, 0x5e, 0x1f, 0xd6, 0xc3, 0x7c, 0x2b, 0x65, 0xee, 0x3a, 0x0e, 0xbf, 0x72,
+	0xaf, 0x8b, 0xb9, 0xeb, 0x38, 0xf6, 0xa7, 0xd0, 0xc8, 0x5e, 0xfb, 0xd0, 0x1e, 0x18, 0xe2, 0xda,
+	0x57, 0x5a, 0x22, 0x38, 0x1c, 0x4b, 0x94, 0xfd, 0x9b, 0x0a, 0xe6, 0xfc, 0xbe, 0xc7, 0x4e, 0x8a,
+	0x61, 0x10, 0x52, 0xc2, 0x4e, 0xc2, 0xf9, 0xa9, 0x98, 0x2a, 0x50, 0x07, 0xb4, 0xf0, 0x24, 0x18,
+	0xca, 0xfd, 0xd8, 0x2e, 0xbd, 0x36, 0xee, 0x3d, 0x3c, 0x38, 0xba, 0x83, 0x39, 0x96, 0x95, 0xb5,
+	0x19, 0x89, 0xfc, 0x50, 0xb4, 0x5b, 0x3a, 0x96, 0x12, 0x6b, 0x45, 0x5e, 0x84, 0x41, 0x32, 0x21,
+	0xec, 0x0c, 0x62, 0x25, 0xc7, 0xe0, 0x07, 0x4f, 0x5e, 0xc9, 0x9a, 0x36, 0xa1, 0xe0, 0x47, 0x11,
+	0x83, 0x55, 0x39, 0xac, 0xa0, 0x65, 0x67, 0x98, 0xe0, 0x7d, 0xe0, 0x4e, 0x88, 0xec, 0x7b, 0x32,
+	0x9a, 0xed, 0x5f, 0x14, 0xd0, 0x98, 0x51, 0xa8, 0x05, 0xd5, 0x70, 0x46, 0xa6, 0x8c, 0x49, 0xe7,
+	0xa8, 0xb9, 0xc8, 0x46, 0x4e, 0xfc, 0xd1, 0xc9, 0xc2, 0x94, 0xb9, 0xc8, 0x5c, 0x08, 0xc2, 0x97,
+	0x8b, 0xc5, 0xa5, 0xc4, 0xfa, 0x30, 0x1e, 0x9b, 0x4c, 0x1f, 0x36, 0x97, 0xb3, 0x6d, 0x5e, 0xb6,
+	0xbb, 0xc1, 0x1a, 0x5b, 0x0e, 0x6b, 0x8c, 0x1a, 0xab, 0x41, 0xf8, 0x12, 0xeb, 0x7c, 0x4a, 0x8a,
+	0xd1, 0x2d, 0x03, 0xc3, 0x22, 0x06, 0xb8, 0x9e, 0x71, 0xd4, 0xee, 0x41, 0xb3, 0x70, 0x33, 0x47,
+	0xb7, 0xa1, 0x96, 0xde, 0xcc, 0x65, 0xc2, 0x2f, 0x96, 0xe6, 0x05, 0x2f, 0xb0, 0xf6, 0x4f, 0x2a,
+	0x6c, 0xe6, 0xae, 0xe6, 0x2c, 0xf7, 0xd3, 0x64, 0x22, 0xbe, 0x25, 0xee, 0x8f, 0x8e, 0x17, 0x0a,
+	0x16, 0x9e, 0xc0, 0xa5, 0xbc, 0xad, 0x04, 0x11, 0x1e, 0x29, 0x66, 0x03, 0x57, 0x2f, 0x0b, 0x5c,
+	0x23, 0x17, 0xb8, 0xa5, 0xdc, 0x6f, 0x9e, 0x2d, 0xf7, 0x5b, 0x2b, 0x73, 0x7f, 0x0d, 0xde, 0x13,
+	0x4d, 0xfe, 0xe7, 0x03, 0x1a, 0x06, 0x89, 0x80, 0x36, 0x39, 0x74, 0x79, 0x00, 0x5d, 0x05, 0x4b,
+	0x28, 0x1f, 0x91, 0x68, 0x48, 0x44, 0x9f, 0x6c, 0x71, 0xf0, 0x92, 0xbe, 0x2c, 0x89, 0xcb, 0x2d,
+	0x6a, 0x4f, 0x33, 0x6b, 0x16, 0x60, 0x8d, 0x85, 0x24, 0x9b, 0xdc, 0xb2, 0x4c, 0xe2, 0xad, 0xbc,
+	0x61, 0x78, 0x33, 0xb7, 0xb6, 0xfd, 0x18, 0x9a, 0x85, 0x66, 0x07, 0x21, 0xd0, 0xf8, 0xa6, 0x14,
+	0x7f, 0x03, 0xf8, 0x7b, 0xee, 0x47, 0x80, 0x96, 0xff, 0x11, 0x90, 0x6d, 0xac, 0x65, 0x03, 0xbd,
+	0x6f, 0xfd, 0xf1, 0xba, 0xad, 0xfc, 0xf9, 0xba, 0xad, 0xfc, 0xf3, 0xba, 0xad, 0xfc, 0xf8, 0xa6,
+	0x5d, 0x19, 0x18, 0xfc, 0xb7, 0xcc, 0xcd, 0xff, 0x02, 0x00, 0x00, 0xff, 0xff, 0x5c, 0xf4, 0x7e,
+	0x15, 0xb5, 0x11, 0x00, 0x00,
 }

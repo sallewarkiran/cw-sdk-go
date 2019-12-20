@@ -112,7 +112,7 @@ func (tsm *tradeSessionManager) getSubscriptions() []*tradeSubscription {
 func (tsm *tradeSessionManager) reset() {
 	for _, session := range tsm.getSessions() {
 		err := tsm.newTradeSession(&TradeSessionParams{
-			MarketParams: MarketParams{
+			MarketParams: common.MarketParams{
 				ID: session.marketID,
 			},
 		})

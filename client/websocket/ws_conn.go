@@ -780,6 +780,16 @@ func removeOneOff(listeners []stateListener) []stateListener {
 
 // NOTE: subscribeInternal should only be called from eventLoop.
 func (c *wsConn) subscribeInternal(subs []Subscription) error {
+	for _, sub := range subs {
+		c.subs[sub.GetResource()] = sub
+	}
+
+	// Don't bother sending the protobuf message if not connected, the subscription
+	// is already queued to go out with the auth message.
+	if c.state != ConnStateAuthenticating && c.state != ConnStateEstablished {
+		return nil
+	}
+
 	cm := &pbc.ClientMessage{
 		Body: &pbc.ClientMessage_Subscribe{
 			Subscribe: &pbc.ClientSubscribeMessage{
@@ -792,15 +802,21 @@ func (c *wsConn) subscribeInternal(subs []Subscription) error {
 		return errors.Annotatef(err, "subscribe")
 	}
 
-	for _, sub := range subs {
-		c.subs[sub.GetResource()] = sub
-	}
-
 	return nil
 }
 
 // NOTE: unsubscribeInternal should only be called from eventLoop.
 func (c *wsConn) unsubscribeInternal(subs []Subscription) error {
+	for _, sub := range subs {
+		delete(c.subs, sub.GetResource())
+	}
+
+	// Don't bother sending the protobuf message if not connected, the client
+	// wont try to subscribe anymore.
+	if c.state != ConnStateAuthenticating && c.state != ConnStateEstablished {
+		return nil
+	}
+
 	cm := &pbc.ClientMessage{
 		Body: &pbc.ClientMessage_Unsubscribe{
 			Unsubscribe: &pbc.ClientUnsubscribeMessage{
@@ -811,10 +827,6 @@ func (c *wsConn) unsubscribeInternal(subs []Subscription) error {
 
 	if err := c.sendProto(context.Background(), cm); err != nil {
 		return errors.Annotatef(err, "unsubscribe")
-	}
-
-	for _, sub := range subs {
-		delete(c.subs, sub.GetResource())
 	}
 
 	return nil

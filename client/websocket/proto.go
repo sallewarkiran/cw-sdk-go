@@ -129,8 +129,6 @@ func tradesUpdateFromProto(tu *pbm.TradesUpdate) (common.TradesUpdate, error) {
 		// Eliminate timestamp redundancy
 		if t.TimestampNano > 0 {
 			timestamp = time.Unix(0, t.TimestampNano)
-		} else if t.TimestampMillis > 0 {
-			timestamp = unixMillisToTime(t.TimestampMillis)
 		} else {
 			timestamp = time.Unix(t.Timestamp, 0)
 		}
@@ -150,12 +148,20 @@ func tradesUpdateFromProto(tu *pbm.TradesUpdate) (common.TradesUpdate, error) {
 			Timestamp:  timestamp,
 			Price:      price,
 			Amount:     amount,
+			OrderSide:  orderSideFromPublicTradesProto(t.Side),
 		}
 	}
 
 	return common.TradesUpdate{
 		Trades: pt,
 	}, nil
+}
+
+func orderSideFromPublicTradesProto(ts pbm.Trade_Side) common.OrderSide {
+	if ts == pbm.Trade_BUY {
+		return common.BuyOrder
+	}
+	return common.SellOrder
 }
 
 func intervalsUpdateFromProto(iu *pbm.IntervalsUpdate) (common.IntervalsUpdate, error) {
@@ -207,7 +213,7 @@ func intervalFromProto(i *pbm.Interval) (common.Interval, error) {
 
 	return common.Interval{
 		CloseTime: time.Unix(i.Closetime, 0),
-		Period:    common.Period(i.Period),
+		Period:    common.Period(i.PeriodName),
 		OHLC: common.OHLC{
 			Open:  open,
 			High:  high,
@@ -446,11 +452,7 @@ func positionToProto(p common.PrivatePosition) *pbb.PrivatePosition {
 func tradeFromProto(trade *pbb.PrivateTrade) common.PrivateTrade {
 	// Eliminate timestamp redundancy
 	var t time.Time
-	if trade.TimeMillis > 0 {
-		t = unixMillisToTime(trade.TimeMillis)
-	} else {
-		t = time.Unix(trade.Time, 0)
-	}
+	t = time.Unix(trade.Time, 0)
 
 	return common.PrivateTrade{
 		ExternalID: trade.ExternalId,
@@ -467,7 +469,6 @@ func tradeToProto(t common.PrivateTrade) *pbb.PrivateTrade {
 		ExternalId:   t.ExternalID,
 		OrderId:      t.OrderID,
 		Time:         t.Timestamp.Unix(),
-		TimeMillis:   t.Timestamp.UnixNano() / int64(time.Millisecond),
 		PriceString:  t.Price,
 		AmountString: t.Amount,
 		Side:         int32(t.OrderSide),

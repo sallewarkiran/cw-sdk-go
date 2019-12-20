@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/juju/errors"
@@ -42,12 +41,7 @@ func (c *RESTClient) GetOHLC(
 
 	ret := make(map[common.Period][]common.Interval, len(srv.Result))
 	for srvPeriod, srvCandles := range srv.Result {
-		v64, err := strconv.ParseInt(srvPeriod, 10, 64)
-		if err != nil {
-			return nil, errors.Annotatef(err, "parsing period %q", srvPeriod)
-		}
-
-		period := common.Period(v64)
+		period := common.Period(srvPeriod)
 
 		candles := make([]common.Interval, 0, len(srvCandles))
 		for _, srvCandle := range srvCandles {

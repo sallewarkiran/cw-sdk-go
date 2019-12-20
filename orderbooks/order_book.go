@@ -6,7 +6,7 @@ import (
 	"code.cryptowat.ch/cw-sdk-go/common"
 )
 
-// OrderBook represents a "live" order book, which is able to receive snapshots
+// OrderBook represents a mutable order book, which is able to receive snapshots
 // and deltas.
 //
 // It is not thread-safe; so if you need to use it from more than one

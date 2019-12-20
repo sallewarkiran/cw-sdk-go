@@ -25,6 +25,19 @@ type OrderBookSnapshot struct {
 	Asks []PublicOrder
 }
 
+func (obs *OrderBookSnapshot) Copy() OrderBookSnapshot {
+	bids := make([]PublicOrder, len(obs.Bids))
+	asks := make([]PublicOrder, len(obs.Asks))
+	copy(bids, obs.Bids)
+	copy(asks, obs.Asks)
+
+	return OrderBookSnapshot{
+		SeqNum: obs.SeqNum,
+		Bids:   bids,
+		Asks:   asks,
+	}
+}
+
 func (s *OrderBookSnapshot) Empty() bool {
 	return len(s.Bids) == 0 && len(s.Asks) == 0
 }

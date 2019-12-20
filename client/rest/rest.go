@@ -34,6 +34,10 @@ func NewRESTClient(params *RESTClientParams) *RESTClient {
 
 	cfg := config.Get()
 
+	if params.APIKey == "" {
+		params.APIKey = cfg.APIKey
+	}
+
 	if params.URL == "" {
 		params.URL = cfg.RESTURL
 	}

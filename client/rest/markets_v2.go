@@ -15,6 +15,16 @@ type V2 interface {
 	GetAssetBySymbol(common.AssetSymbol) (common.Asset, error)
 }
 
+// GetMarket returns the Market based on an ID or symbol
+func (c *RESTClient) GetMarket(params common.MarketParams) (
+	common.Market, error,
+) {
+	if params.ID > 0 {
+		return c.GetMarketByID(params.ID)
+	}
+	return c.GetMarketBySymbol(params.Symbol)
+}
+
 // GetMarketBySymbol returns Market object based on exchange, base, and quote.
 func (c *RESTClient) GetMarketBySymbol(params common.MarketSymbol) (
 	common.Market, error,

@@ -353,8 +353,8 @@ func TestWsConn(t *testing.T) {
 							Trades: []*pbm.Trade{
 								&pbm.Trade{
 									ExternalId: "1234",
-									Price:      2,
-									Amount:     3,
+									PriceStr:   "2",
+									AmountStr:  "3",
 								},
 							},
 						},

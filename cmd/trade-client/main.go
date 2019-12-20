@@ -115,7 +115,7 @@ func NewTradeApp(args *cliArgs, cfg *config.CWConfig) (*TradeApp, error) {
 		},
 		TradeSessions: []*websocket.TradeSessionParams{
 			&websocket.TradeSessionParams{
-				MarketParams: websocket.MarketParams{
+				MarketParams: common.MarketParams{
 					ID: marketID,
 				},
 
