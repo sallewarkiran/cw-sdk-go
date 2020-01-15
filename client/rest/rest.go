@@ -5,12 +5,14 @@ package rest // import "code.cryptowat.ch/cw-sdk-go/client/rest"
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/juju/errors"
 
 	"code.cryptowat.ch/cw-sdk-go/config"
+	"code.cryptowat.ch/cw-sdk-go/version"
 )
 
 type RESTClient struct {
@@ -80,6 +82,8 @@ func (rc *RESTClient) do(req request) (json.RawMessage, error) {
 	if rc.apiKey != "" {
 		r.Header.Set("CW-API-Key", rc.apiKey)
 	}
+
+	r.Header.Set("User-Agent", fmt.Sprintf("cw-sdk-go@%s", version.Version))
 
 	client := &http.Client{}
 	resp, err := client.Do(r)

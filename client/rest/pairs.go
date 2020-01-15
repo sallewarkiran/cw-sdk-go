@@ -3,7 +3,6 @@ package rest
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/juju/errors"
 )
@@ -25,47 +24,30 @@ type PairSideDescr struct {
 	Route  string `json:"route"`
 }
 
-type pairsDescrServer struct {
-	Result []PairDescr `json:"result"`
-}
-
-type pairDescrServer struct {
-	Result PairDescr `json:"result"`
-	Error  string    `json:"error"`
-}
-
 func (c *RESTClient) GetPairsIndex() ([]PairDescr, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/pairs", c.baseURLStr))
+	result, err := c.do(request{
+		endpoint: "pairs",
+	})
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	defer resp.Body.Close()
+	res := []PairDescr{}
+	err = json.Unmarshal(result, &res)
 
-	res := pairsDescrServer{}
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&res); err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	return res.Result, nil
+	return res, err
 }
 
 func (c *RESTClient) GetPairDescr(symbol string) (PairDescr, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/pairs/%s", c.baseURLStr, symbol))
+	result, err := c.do(request{
+		endpoint: fmt.Sprintf("pairs/%s", symbol),
+	})
 	if err != nil {
 		return PairDescr{}, errors.Trace(err)
 	}
 
-	defer resp.Body.Close()
+	res := PairDescr{}
+	err = json.Unmarshal(result, &res)
 
-	res := pairDescrServer{}
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&res); err != nil {
-		return PairDescr{}, errors.Trace(err)
-	}
-
-	return res.Result, nil
+	return res, err
 }

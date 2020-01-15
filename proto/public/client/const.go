@@ -15,8 +15,19 @@ const (
 	JSONSerialization
 )
 
-// Shared jsonpb Marshaler to be used by other packages
+func (sf SerializationFormat) String() string {
+	if sf == ProtobufSerialization {
+		return "protobuf"
+	}
+	if sf == JSONSerialization {
+		return "json"
+	}
+	return "invalid"
+}
+
+// Shared jsonpb Marshaler/Unmarshaler to be used by other packages
 var JSONMarshaler = &jsonpb.Marshaler{}
+var JSONUnmarshaler = &jsonpb.Unmarshaler{}
 
 // Convenience function that takes care of the bytes.Buffer internally
 func MarshalJSON(msg proto.Message) ([]byte, error) {

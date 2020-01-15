@@ -41,10 +41,10 @@ func (c *RESTClient) GetMarketBySymbol(params common.MarketSymbol) (
 		return common.Market{}, errors.Trace(err)
 	}
 
-	market := common.Market{}
-	err = json.Unmarshal(result, &market)
+	marketResp := [1]common.Market{}
+	err = json.Unmarshal(result, &marketResp)
 
-	return market, errors.Trace(err)
+	return marketResp[0], errors.Trace(err)
 }
 
 // GetMarketByID returns a Market object based on the market's ID.

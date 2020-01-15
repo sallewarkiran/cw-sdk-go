@@ -172,6 +172,9 @@ func NewStreamClient(params *StreamClientParams) (*StreamClient, error) {
 		case *pbs.StreamMessage_MissedMessages:
 			sc.missedMessagesHandler(msg.GetMissedMessages())
 
+		case *pbs.StreamMessage_Heartbeat:
+			// no-op
+
 		default:
 			// not a supported type
 		}

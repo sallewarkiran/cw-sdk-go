@@ -1,6 +1,42 @@
 package rest
 
-import "testing"
+import (
+	"testing"
+
+	"code.cryptowat.ch/cw-sdk-go/common"
+)
+
+func TestGetExchangeBySymbol(t *testing.T) {
+	h := newTestHarnessREST(t, getCheckURL("/v2/exchanges"))
+
+	testCases := []testCaseREST{
+		testCaseREST{descr: "Just an example of exchanges index", // {{{
+			do: func(c *RESTClient) (interface{}, error) {
+				return c.GetExchangeBySymbol(common.ExchangeSymbol("kraken"))
+			},
+			resp: `
+{
+  "result": {
+    "id": 4,
+    "symbol": "kraken"
+  },
+  "allowance": {
+    "cost": 16717,
+    "remaining": 3999983283,
+    "remainingPaid": 0
+  }
+}`,
+			wantResult: common.Exchange{
+				ID:     4,
+				Symbol: "kraken",
+			},
+		},
+		// }}}
+	}
+
+	h.runTestCases(testCases)
+	h.close()
+}
 
 func TestGetExchangesIndex(t *testing.T) {
 	h := newTestHarnessREST(t, getCheckURL("/exchanges"))

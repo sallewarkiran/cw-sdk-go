@@ -3,7 +3,6 @@ package rest
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/juju/errors"
 )
@@ -16,69 +15,45 @@ type MarketDescr struct {
 	Route    string `json:"route"`
 }
 
-type marketsDescrServer struct {
-	Result []MarketDescr `json:"result"`
-}
-
-type marketDescrServer struct {
-	Result MarketDescr `json:"result"`
-	Error  string      `json:"error"`
-}
-
 func (c *RESTClient) GetMarketsIndex() ([]MarketDescr, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/markets", c.baseURLStr))
+	result, err := c.do(request{
+		endpoint: "markets",
+	})
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	defer resp.Body.Close()
+	market := []MarketDescr{}
+	err = json.Unmarshal(result, &market)
 
-	res := marketsDescrServer{}
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&res); err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	return res.Result, nil
+	return market, err
 }
 
 func (c *RESTClient) GetMarketDescr(exchangeSymbol, pairSymbol string) (MarketDescr, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/markets/%s/%s", c.baseURLStr, exchangeSymbol, pairSymbol))
+	result, err := c.do(request{
+		endpoint: fmt.Sprintf("markets/%s/%s", exchangeSymbol, pairSymbol),
+	})
 	if err != nil {
 		return MarketDescr{}, errors.Trace(err)
 	}
 
-	defer resp.Body.Close()
+	market := MarketDescr{}
+	err = json.Unmarshal(result, &market)
 
-	res := marketDescrServer{}
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&res); err != nil {
-		return MarketDescr{}, errors.Trace(err)
-	}
-
-	if res.Error != "" {
-		return MarketDescr{}, errors.New(res.Error)
-	}
-
-	return res.Result, nil
+	return market, err
 }
 
 func (c *RESTClient) GetExchangeMarketsDescr(exchangeSymbol string) ([]MarketDescr, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/markets/%s", c.baseURLStr, exchangeSymbol))
+	result, err := c.do(request{
+		endpoint: fmt.Sprintf("markets/%s", exchangeSymbol),
+	})
+
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	defer resp.Body.Close()
+	market := []MarketDescr{}
+	err = json.Unmarshal(result, &market)
 
-	res := marketsDescrServer{}
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&res); err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	return res.Result, nil
+	return market, err
 }

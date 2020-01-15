@@ -3,7 +3,6 @@ package rest
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/juju/errors"
 	"github.com/shopspring/decimal"
@@ -12,11 +11,9 @@ import (
 )
 
 type orderbookServer struct {
-	Result struct {
-		Asks   [][]decimal.Decimal `json:"asks"`
-		Bids   [][]decimal.Decimal `json:"bids"`
-		SeqNum common.SeqNum       `json:"seqNum"`
-	} `json:"result"`
+	Asks   [][]decimal.Decimal `json:"asks"`
+	Bids   [][]decimal.Decimal `json:"bids"`
+	SeqNum common.SeqNum       `json:"seqNum"`
 }
 
 func (c *RESTClient) GetOrderBook(
@@ -24,25 +21,24 @@ func (c *RESTClient) GetOrderBook(
 ) (common.OrderBookSnapshot, error) {
 	var ob common.OrderBookSnapshot
 
-	resp, err := http.Get(fmt.Sprintf("%s/markets/%s/%s/orderbook", c.baseURLStr, exchangeSymbol, pairSymbol))
+	result, err := c.do(request{
+		endpoint: fmt.Sprintf("markets/%s/%s/orderbook", exchangeSymbol, pairSymbol),
+	})
 	if err != nil {
 		return common.OrderBookSnapshot{}, errors.Trace(err)
 	}
 
-	defer resp.Body.Close()
-
 	res := orderbookServer{}
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&res); err != nil {
+	err = json.Unmarshal(result, &res)
+	if err != nil {
 		return common.OrderBookSnapshot{}, errors.Trace(err)
 	}
 
-	ob.SeqNum = res.Result.SeqNum
-	ob.Asks = make([]common.PublicOrder, 0, len(res.Result.Asks))
-	ob.Bids = make([]common.PublicOrder, 0, len(res.Result.Bids))
+	ob.SeqNum = res.SeqNum
+	ob.Asks = make([]common.PublicOrder, 0, len(res.Asks))
+	ob.Bids = make([]common.PublicOrder, 0, len(res.Bids))
 
-	for i, v := range res.Result.Asks {
+	for i, v := range res.Asks {
 		if len(v) != 2 {
 			return common.OrderBookSnapshot{}, errors.Errorf("ask #%d: expected tuple of 2 elements, got %v", i, v)
 		}
@@ -53,7 +49,7 @@ func (c *RESTClient) GetOrderBook(
 		})
 	}
 
-	for i, v := range res.Result.Bids {
+	for i, v := range res.Bids {
 		if len(v) != 2 {
 			return common.OrderBookSnapshot{}, errors.Errorf("bid #%d: expected tuple of 2 elements, got %v", i, v)
 		}

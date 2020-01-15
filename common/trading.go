@@ -16,14 +16,16 @@ func (os OrderSide) String() string {
 }
 
 const (
-	SellOrder OrderSide = iota
-	BuyOrder
+	OrderSideUnknown OrderSide = iota
+	OrderSideBuy
+	OrderSideSell
 )
 
 // OrderSideNames contains human-readable names for OrderSide.
 var OrderSideNames = map[OrderSide]string{
-	SellOrder: "sell",
-	BuyOrder:  "buy",
+	OrderSideSell:    "sell",
+	OrderSideBuy:     "buy",
+	OrderSideUnknown: "unknown",
 }
 
 // OrderType represents the type of order; e.g. "market" or "limit". There are

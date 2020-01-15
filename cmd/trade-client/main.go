@@ -24,12 +24,12 @@ var (
 )
 
 func main() {
-	var configFile string
+	var configPath string
 
 	// Define args struct for convenience.
 	args := &cliArgs{}
 
-	flag.StringVarP(&configFile, "config", "c", "", "Configuration file")
+	flag.StringVarP(&configPath, "config", "c", "", "Configuration file")
 	flag.BoolVarP(&args.Verbose, "verbose", "v", false, "Prints all debug messages to stdout")
 
 	flag.StringVar(&args.Mode, "mode", "list", "Can be 'place', 'cancel', 'list', 'balances'")
@@ -50,8 +50,8 @@ func main() {
 		cfgErr error
 	)
 
-	if configFile != "" {
-		cfg, cfgErr = config.New(configFile)
+	if configPath != "" {
+		cfg, cfgErr = config.NewFromPath(configPath)
 		if cfgErr != nil {
 			log.Print(cfgErr)
 			os.Exit(1)
@@ -265,7 +265,7 @@ func (app *TradeApp) place() error {
 		},
 		MarketID:  app.marketID,
 		Amount:    "0.01",
-		OrderSide: common.BuyOrder,
+		OrderSide: common.OrderSideBuy,
 		OrderType: common.LimitOrder,
 	})
 

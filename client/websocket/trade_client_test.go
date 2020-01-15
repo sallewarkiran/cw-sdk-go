@@ -61,7 +61,7 @@ var mockOrders = []common.PrivateOrder{
 			Value: "1.0",
 			Type:  common.AbsoluteValuePrice,
 		}},
-		OrderSide:   common.BuyOrder,
+		OrderSide:   common.OrderSideBuy,
 		OrderType:   common.LimitOrder,
 		FundingType: common.SpotFunding,
 		ExpireTime:  time.Now().Add(20 * time.Minute).Truncate(1 * time.Second),
@@ -71,7 +71,7 @@ var mockOrders = []common.PrivateOrder{
 		ID:           uuid.New().String(),
 		Amount:       "0.03",
 		AmountFilled: "0.5",
-		OrderSide:    common.SellOrder,
+		OrderSide:    common.OrderSideSell,
 		OrderType:    common.MarketOrder,
 		FundingType:  common.SpotFunding,
 		Timestamp:    time.Now().Add(-25 * time.Minute).Truncate(1 * time.Second),
@@ -85,7 +85,7 @@ var mockTrades = []common.PrivateTrade{
 		Timestamp:  time.Now().Add(-30 * time.Minute).Truncate(1 * time.Second),
 		Price:      "2.0",
 		Amount:     "1.5",
-		OrderSide:  common.BuyOrder,
+		OrderSide:  common.OrderSideBuy,
 	},
 	common.PrivateTrade{
 		ExternalID: uuid.New().String(),
@@ -93,7 +93,7 @@ var mockTrades = []common.PrivateTrade{
 		Timestamp:  time.Now().Add(-20 * time.Minute).Truncate(1 * time.Second),
 		Price:      "2.0",
 		Amount:     "1.5",
-		OrderSide:  common.BuyOrder,
+		OrderSide:  common.OrderSideBuy,
 	},
 }
 
@@ -111,7 +111,7 @@ var mockPositions = []common.PrivatePosition{
 	common.PrivatePosition{
 		ExternalID:   uuid.New().String(),
 		Timestamp:    time.Now().Add(-20 * time.Minute).Truncate(1 * time.Second),
-		OrderSide:    common.BuyOrder,
+		OrderSide:    common.OrderSideBuy,
 		AvgPrice:     "1.3243",
 		AmountOpen:   "1.0",
 		AmountClosed: "0.5",
@@ -318,7 +318,7 @@ func TestTrading(t *testing.T) {
 			}},
 			MarketID:    krakenBTCUSDMarketID,
 			Amount:      "0.01",
-			OrderSide:   common.BuyOrder,
+			OrderSide:   common.OrderSideBuy,
 			OrderType:   common.LimitOrder,
 			FundingType: common.SpotFunding,
 

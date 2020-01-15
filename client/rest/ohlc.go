@@ -3,7 +3,6 @@ package rest
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/juju/errors"
@@ -22,27 +21,23 @@ type ohlcServer struct {
 func (c *RESTClient) GetOHLC(
 	exchangeSymbol, pairSymbol string,
 ) (map[common.Period][]common.Interval, error) {
-	resp, err := http.Get(fmt.Sprintf(
-		"%s/markets/%s/%s/ohlc",
-		c.baseURLStr, exchangeSymbol, pairSymbol,
-	))
+	result, err := c.do(request{
+		endpoint: fmt.Sprintf("markets/%s/%s/ohlc", exchangeSymbol, pairSymbol),
+	})
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	defer resp.Body.Close()
+	srv := map[string][][]decimal.Decimal{}
+	err = json.Unmarshal(result, &srv)
 
-	srv := ohlcServer{}
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&srv); err != nil {
+	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	ret := make(map[common.Period][]common.Interval, len(srv.Result))
-	for srvPeriod, srvCandles := range srv.Result {
+	ret := make(map[common.Period][]common.Interval, len(srv))
+	for srvPeriod, srvCandles := range srv {
 		period := common.Period(srvPeriod)
-
 		candles := make([]common.Interval, 0, len(srvCandles))
 		for _, srvCandle := range srvCandles {
 			if len(srvCandle) < 7 {

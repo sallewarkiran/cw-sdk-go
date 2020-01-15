@@ -386,6 +386,7 @@ cloop:
 
 				switch msgType {
 				case websocket.TextMessage, websocket.BinaryMessage:
+					// TODO remove this once we stop sending 1 byte heartbeats from both broker/stream prod
 					if len(data) == 1 && data[0] == 0x01 {
 						// Heartbeat, ignore
 						continue recvLoop

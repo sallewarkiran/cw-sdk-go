@@ -3,7 +3,6 @@ package rest
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/juju/errors"
 	"github.com/shopspring/decimal"
@@ -36,24 +35,21 @@ type marketSummaryServer struct {
 func (c *RESTClient) GetSummary(
 	exchangeSymbol, pairSymbol string,
 ) (common.SummaryUpdate, error) {
-	resp, err := http.Get(fmt.Sprintf(
-		"%s/markets/%s/%s/summary",
-		c.baseURLStr, exchangeSymbol, pairSymbol,
-	))
+	result, err := c.do(request{
+		endpoint: fmt.Sprintf("markets/%s/%s/summary", exchangeSymbol, pairSymbol),
+	})
 	if err != nil {
 		return common.SummaryUpdate{}, errors.Trace(err)
 	}
 
-	defer resp.Body.Close()
+	srv := marketSummariesItemServer{}
 
-	srv := marketSummaryServer{}
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&srv); err != nil {
+	err = json.Unmarshal(result, &srv)
+	if err != nil {
 		return common.SummaryUpdate{}, errors.Trace(err)
 	}
 
-	ret := marketSummariesItemServerToSummaryUpdate(srv.Result)
+	ret := marketSummariesItemServerToSummaryUpdate(srv)
 
 	return ret, nil
 }
@@ -61,24 +57,22 @@ func (c *RESTClient) GetSummary(
 // GetMarketSummaries returns a map from market symbol like "<exchange>:<pair>"
 // to the corresponding summary.
 func (c *RESTClient) GetMarketSummaries() (map[string]common.SummaryUpdate, error) {
-	resp, err := http.Get(fmt.Sprintf(
-		"%s/markets/summaries", c.baseURLStr,
-	))
+	result, err := c.do(request{
+		endpoint: "markets/summaries",
+	})
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	defer resp.Body.Close()
+	srv := map[string]marketSummariesItemServer{}
 
-	srv := marketSummariesServer{}
-
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&srv); err != nil {
+	err = json.Unmarshal(result, &srv)
+	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	ret := make(map[string]common.SummaryUpdate, len(srv.Result))
-	for market, v := range srv.Result {
+	ret := make(map[string]common.SummaryUpdate, len(srv))
+	for market, v := range srv {
 		ret[market] = marketSummariesItemServerToSummaryUpdate(v)
 	}
 

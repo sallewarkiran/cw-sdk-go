@@ -49,34 +49,26 @@ func Get() *CWConfig {
 
 	defaultPath, dfErr := DefaultFilepath()
 	if dfErr == nil {
-		cfgFile, _ := New(defaultPath)
+		cfgFile, _ := NewFromPath(defaultPath)
 		if cfgFile != nil {
 			cfg = cfgFile
 		}
 	}
 
+	cfg.setDefaults()
+
 	return cfg
 }
 
-// New creates a new CW from a file by the given name.
-func New(name string) (*CWConfig, error) {
-	return NewFromFilename(name)
-}
-
-// NewFromFilename creates a new CW from a file by the given filename.
-func NewFromFilename(filename string) (*CWConfig, error) {
-	data, err := ioutil.ReadFile(filename)
+// NewFromPath creates a new CW from a file by the given path.
+func NewFromPath(path string) (*CWConfig, error) {
+	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	return NewFromRaw(data)
-}
-
-// NewFromRaw creates a new CW by unmarshaling the given raw data.
-func NewFromRaw(raw []byte) (*CWConfig, error) {
 	cfg := &CWConfig{}
-	if err := yaml.Unmarshal(raw, cfg); err != nil {
+	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, errors.Trace(err)
 	}
 

@@ -26,12 +26,12 @@ func main() {
 	}
 
 	var (
-		configFile string
+		configPath string
 		verbose    bool
 		subs       []string
 	)
 
-	flag.StringVarP(&configFile, "config", "c", defaultConfig, "Configuration file")
+	flag.StringVarP(&configPath, "config", "c", defaultConfig, "Configuration file")
 	flag.BoolVarP(&verbose, "verbose", "v", false, "Prints all debug messages to stdout")
 	flag.StringSliceVarP(&subs, "sub", "s", []string{}, "Subscription key. This flag can be given multiple times")
 
@@ -42,7 +42,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	cfg, err := config.New(configFile)
+	cfg, err := config.NewFromPath(configPath)
 	if err != nil {
 		log.Print(err)
 		os.Exit(1)

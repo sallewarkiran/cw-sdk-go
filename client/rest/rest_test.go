@@ -10,6 +10,8 @@ import (
 	"github.com/juju/errors"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+
+	"code.cryptowat.ch/cw-sdk-go/version"
 )
 
 type testCaseREST struct {
@@ -58,6 +60,9 @@ func newTestHarnessREST(t *testing.T, checkURL checkURLFunc) *testHarnessREST {
 	}
 
 	h.ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userAgent := fmt.Sprintf("cw-sdk-go@%s", version.Version)
+		assert.Equal(h.t, userAgent, r.UserAgent())
+
 		if err := h.checkURL(r.URL); err != nil {
 			assert.Fail(
 				h.t,

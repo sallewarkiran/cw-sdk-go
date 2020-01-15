@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/juju/errors"
+
+	"code.cryptowat.ch/cw-sdk-go/common"
 )
 
 type ExchangeDescr struct {
@@ -32,6 +34,26 @@ type exchangesDescrServer struct {
 
 type exchangeDescrServer struct {
 	Result ExchangeDescr `json:"result"`
+}
+
+// GetMarketBySymbol returns Market object based on exchange, base, and quote.
+func (c *RESTClient) GetExchangeBySymbol(xchSymbol common.ExchangeSymbol) (
+	common.Exchange, error,
+) {
+	result, err := c.do(request{
+		endpoint: "v2/exchanges",
+		params: map[string]string{
+			"symbol": string(xchSymbol),
+		},
+	})
+	if err != nil {
+		return common.Exchange{}, errors.Trace(err)
+	}
+
+	exchange := common.Exchange{}
+	err = json.Unmarshal(result, &exchange)
+
+	return exchange, errors.Trace(err)
 }
 
 func (c *RESTClient) GetExchangesIndex() ([]ExchangeDescrBrief, error) {

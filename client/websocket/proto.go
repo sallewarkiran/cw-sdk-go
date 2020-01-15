@@ -148,7 +148,7 @@ func tradesUpdateFromProto(tu *pbm.TradesUpdate) (common.TradesUpdate, error) {
 			Timestamp:  timestamp,
 			Price:      price,
 			Amount:     amount,
-			OrderSide:  orderSideFromPublicTradesProto(t.Side),
+			OrderSide:  orderSideFromPublicTradesProto(t.OrderSide),
 		}
 	}
 
@@ -157,11 +157,14 @@ func tradesUpdateFromProto(tu *pbm.TradesUpdate) (common.TradesUpdate, error) {
 	}, nil
 }
 
-func orderSideFromPublicTradesProto(ts pbm.Trade_Side) common.OrderSide {
-	if ts == pbm.Trade_BUY {
-		return common.BuyOrder
+func orderSideFromPublicTradesProto(ts pbm.Trade_OrderSide) common.OrderSide {
+	if ts == pbm.Trade_BUYSIDE {
+		return common.OrderSideBuy
 	}
-	return common.SellOrder
+	if ts == pbm.Trade_SELLSIDE {
+		return common.OrderSideSell
+	}
+	return common.OrderSideUnknown
 }
 
 func intervalsUpdateFromProto(iu *pbm.IntervalsUpdate) (common.IntervalsUpdate, error) {

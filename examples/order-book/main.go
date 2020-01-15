@@ -38,7 +38,7 @@ func main() {
 
 	orderbook.OnUpdate(func(update orderbooks.Update) {
 		if ob := update.OrderBookUpdate; ob != nil {
-			log.Println("Order book update")
+			log.Println("Order book update", ob)
 		} else if err := update.GetSnapshotError; err != nil {
 			log.Println("Error", err)
 		}
