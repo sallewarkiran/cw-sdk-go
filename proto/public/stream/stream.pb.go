@@ -63,7 +63,7 @@ func (x AuthenticationResult_Status) String() string {
 	return proto.EnumName(AuthenticationResult_Status_name, int32(x))
 }
 func (AuthenticationResult_Status) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_stream_91f2a917d162e701, []int{1, 0}
+	return fileDescriptor_stream_94b242f8c1455c65, []int{1, 0}
 }
 
 type StreamMessage struct {
@@ -88,7 +88,7 @@ func (m *StreamMessage) Reset()         { *m = StreamMessage{} }
 func (m *StreamMessage) String() string { return proto.CompactTextString(m) }
 func (*StreamMessage) ProtoMessage()    {}
 func (*StreamMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_91f2a917d162e701, []int{0}
+	return fileDescriptor_stream_94b242f8c1455c65, []int{0}
 }
 func (m *StreamMessage) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -479,7 +479,7 @@ func (m *AuthenticationResult) Reset()         { *m = AuthenticationResult{} }
 func (m *AuthenticationResult) String() string { return proto.CompactTextString(m) }
 func (*AuthenticationResult) ProtoMessage()    {}
 func (*AuthenticationResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_91f2a917d162e701, []int{1}
+	return fileDescriptor_stream_94b242f8c1455c65, []int{1}
 }
 func (m *AuthenticationResult) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -537,7 +537,7 @@ func (m *SubscriptionResult) Reset()         { *m = SubscriptionResult{} }
 func (m *SubscriptionResult) String() string { return proto.CompactTextString(m) }
 func (*SubscriptionResult) ProtoMessage()    {}
 func (*SubscriptionResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_91f2a917d162e701, []int{2}
+	return fileDescriptor_stream_94b242f8c1455c65, []int{2}
 }
 func (m *SubscriptionResult) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -615,7 +615,7 @@ func (m *UnsubscriptionResult) Reset()         { *m = UnsubscriptionResult{} }
 func (m *UnsubscriptionResult) String() string { return proto.CompactTextString(m) }
 func (*UnsubscriptionResult) ProtoMessage()    {}
 func (*UnsubscriptionResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_91f2a917d162e701, []int{3}
+	return fileDescriptor_stream_94b242f8c1455c65, []int{3}
 }
 func (m *UnsubscriptionResult) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -689,7 +689,7 @@ func (m *SubscribeError) Reset()         { *m = SubscribeError{} }
 func (m *SubscribeError) String() string { return proto.CompactTextString(m) }
 func (*SubscribeError) ProtoMessage()    {}
 func (*SubscribeError) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_91f2a917d162e701, []int{4}
+	return fileDescriptor_stream_94b242f8c1455c65, []int{4}
 }
 func (m *SubscribeError) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -756,7 +756,7 @@ func (m *UnsubscribeError) Reset()         { *m = UnsubscribeError{} }
 func (m *UnsubscribeError) String() string { return proto.CompactTextString(m) }
 func (*UnsubscribeError) ProtoMessage()    {}
 func (*UnsubscribeError) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_91f2a917d162e701, []int{5}
+	return fileDescriptor_stream_94b242f8c1455c65, []int{5}
 }
 func (m *UnsubscribeError) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -821,7 +821,7 @@ func (m *SubscriptionStatus) Reset()         { *m = SubscriptionStatus{} }
 func (m *SubscriptionStatus) String() string { return proto.CompactTextString(m) }
 func (*SubscriptionStatus) ProtoMessage()    {}
 func (*SubscriptionStatus) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_91f2a917d162e701, []int{6}
+	return fileDescriptor_stream_94b242f8c1455c65, []int{6}
 }
 func (m *SubscriptionStatus) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -879,7 +879,7 @@ func (m *MissedMessages) Reset()         { *m = MissedMessages{} }
 func (m *MissedMessages) String() string { return proto.CompactTextString(m) }
 func (*MissedMessages) ProtoMessage()    {}
 func (*MissedMessages) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_91f2a917d162e701, []int{7}
+	return fileDescriptor_stream_94b242f8c1455c65, []int{7}
 }
 func (m *MissedMessages) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -932,7 +932,7 @@ func (m *BandwidthUpdate) Reset()         { *m = BandwidthUpdate{} }
 func (m *BandwidthUpdate) String() string { return proto.CompactTextString(m) }
 func (*BandwidthUpdate) ProtoMessage()    {}
 func (*BandwidthUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_91f2a917d162e701, []int{8}
+	return fileDescriptor_stream_94b242f8c1455c65, []int{8}
 }
 func (m *BandwidthUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -982,6 +982,7 @@ func (m *BandwidthUpdate) GetBytesUsed() int64 {
 	return 0
 }
 
+// Not used yet
 type Heartbeat struct {
 	Time                 int64    `protobuf:"varint,1,opt,name=time,proto3" json:"time,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -993,7 +994,7 @@ func (m *Heartbeat) Reset()         { *m = Heartbeat{} }
 func (m *Heartbeat) String() string { return proto.CompactTextString(m) }
 func (*Heartbeat) ProtoMessage()    {}
 func (*Heartbeat) Descriptor() ([]byte, []int) {
-	return fileDescriptor_stream_91f2a917d162e701, []int{9}
+	return fileDescriptor_stream_94b242f8c1455c65, []int{9}
 }
 func (m *Heartbeat) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -3506,9 +3507,9 @@ var (
 	ErrIntOverflowStream   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("public/stream/stream.proto", fileDescriptor_stream_91f2a917d162e701) }
+func init() { proto.RegisterFile("public/stream/stream.proto", fileDescriptor_stream_94b242f8c1455c65) }
 
-var fileDescriptor_stream_91f2a917d162e701 = []byte{
+var fileDescriptor_stream_94b242f8c1455c65 = []byte{
 	// 812 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x56, 0xdf, 0xaf, 0xe2, 0x44,
 	0x14, 0x6e, 0x29, 0xb7, 0xbb, 0x9c, 0x0b, 0x6c, 0x77, 0x42, 0x4c, 0x17, 0x0d, 0x4b, 0xaa, 0xd9,

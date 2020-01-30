@@ -80,7 +80,7 @@ func (rc *RESTClient) do(req request) (json.RawMessage, error) {
 	}
 
 	if rc.apiKey != "" {
-		r.Header.Set("CW-API-Key", rc.apiKey)
+		r.Header.Set("X-CW-API-Key", rc.apiKey)
 	}
 
 	r.Header.Set("User-Agent", fmt.Sprintf("cw-sdk-go@%s", version.Version))

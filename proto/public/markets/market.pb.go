@@ -53,7 +53,7 @@ func (x Trade_OrderSide) String() string {
 	return proto.EnumName(Trade_OrderSide_name, int32(x))
 }
 func (Trade_OrderSide) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{2, 0}
+	return fileDescriptor_market_4eb507ded1b31144, []int{2, 0}
 }
 
 // Deprecated
@@ -80,7 +80,7 @@ func (x Trade_Side) String() string {
 	return proto.EnumName(Trade_Side_name, int32(x))
 }
 func (Trade_Side) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{2, 1}
+	return fileDescriptor_market_4eb507ded1b31144, []int{2, 1}
 }
 
 // Market represents a currency pair on a particular exchange.
@@ -102,7 +102,7 @@ func (m *Market) Reset()         { *m = Market{} }
 func (m *Market) String() string { return proto.CompactTextString(m) }
 func (*Market) ProtoMessage()    {}
 func (*Market) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{0}
+	return fileDescriptor_market_4eb507ded1b31144, []int{0}
 }
 func (m *Market) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -179,7 +179,7 @@ func (m *Order) Reset()         { *m = Order{} }
 func (m *Order) String() string { return proto.CompactTextString(m) }
 func (*Order) ProtoMessage()    {}
 func (*Order) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{1}
+	return fileDescriptor_market_4eb507ded1b31144, []int{1}
 }
 func (m *Order) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -240,7 +240,7 @@ func (m *Trade) Reset()         { *m = Trade{} }
 func (m *Trade) String() string { return proto.CompactTextString(m) }
 func (*Trade) ProtoMessage()    {}
 func (*Trade) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{2}
+	return fileDescriptor_market_4eb507ded1b31144, []int{2}
 }
 func (m *Trade) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -334,7 +334,7 @@ func (m *MarketUpdateMessage) Reset()         { *m = MarketUpdateMessage{} }
 func (m *MarketUpdateMessage) String() string { return proto.CompactTextString(m) }
 func (*MarketUpdateMessage) ProtoMessage()    {}
 func (*MarketUpdateMessage) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{3}
+	return fileDescriptor_market_4eb507ded1b31144, []int{3}
 }
 func (m *MarketUpdateMessage) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -680,7 +680,7 @@ func (m *OrderBookUpdate) Reset()         { *m = OrderBookUpdate{} }
 func (m *OrderBookUpdate) String() string { return proto.CompactTextString(m) }
 func (*OrderBookUpdate) ProtoMessage()    {}
 func (*OrderBookUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{4}
+	return fileDescriptor_market_4eb507ded1b31144, []int{4}
 }
 func (m *OrderBookUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -758,7 +758,7 @@ func (m *OrderBookDeltaUpdate) Reset()         { *m = OrderBookDeltaUpdate{} }
 func (m *OrderBookDeltaUpdate) String() string { return proto.CompactTextString(m) }
 func (*OrderBookDeltaUpdate) ProtoMessage()    {}
 func (*OrderBookDeltaUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{5}
+	return fileDescriptor_market_4eb507ded1b31144, []int{5}
 }
 func (m *OrderBookDeltaUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -832,7 +832,7 @@ func (m *OrderBookDeltaUpdate_OrderDeltas) Reset()         { *m = OrderBookDelta
 func (m *OrderBookDeltaUpdate_OrderDeltas) String() string { return proto.CompactTextString(m) }
 func (*OrderBookDeltaUpdate_OrderDeltas) ProtoMessage()    {}
 func (*OrderBookDeltaUpdate_OrderDeltas) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{5, 0}
+	return fileDescriptor_market_4eb507ded1b31144, []int{5, 0}
 }
 func (m *OrderBookDeltaUpdate_OrderDeltas) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -896,7 +896,7 @@ func (m *OrderBookSpreadUpdate) Reset()         { *m = OrderBookSpreadUpdate{} }
 func (m *OrderBookSpreadUpdate) String() string { return proto.CompactTextString(m) }
 func (*OrderBookSpreadUpdate) ProtoMessage()    {}
 func (*OrderBookSpreadUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{6}
+	return fileDescriptor_market_4eb507ded1b31144, []int{6}
 }
 func (m *OrderBookSpreadUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -960,7 +960,7 @@ func (m *OrderBookLiquidityUpdate) Reset()         { *m = OrderBookLiquidityUpda
 func (m *OrderBookLiquidityUpdate) String() string { return proto.CompactTextString(m) }
 func (*OrderBookLiquidityUpdate) ProtoMessage()    {}
 func (*OrderBookLiquidityUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{7}
+	return fileDescriptor_market_4eb507ded1b31144, []int{7}
 }
 func (m *OrderBookLiquidityUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1026,7 +1026,7 @@ func (m *OrderBookLiquidityUpdate_OrderBookLiquiditySums) String() string {
 }
 func (*OrderBookLiquidityUpdate_OrderBookLiquiditySums) ProtoMessage() {}
 func (*OrderBookLiquidityUpdate_OrderBookLiquiditySums) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{7, 0}
+	return fileDescriptor_market_4eb507ded1b31144, []int{7, 0}
 }
 func (m *OrderBookLiquidityUpdate_OrderBookLiquiditySums) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1093,7 +1093,7 @@ func (m *OrderBookLiquidityUpdate_OrderBookLiquidityUpdateSide) String() string 
 }
 func (*OrderBookLiquidityUpdate_OrderBookLiquidityUpdateSide) ProtoMessage() {}
 func (*OrderBookLiquidityUpdate_OrderBookLiquidityUpdateSide) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{7, 1}
+	return fileDescriptor_market_4eb507ded1b31144, []int{7, 1}
 }
 func (m *OrderBookLiquidityUpdate_OrderBookLiquidityUpdateSide) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1204,7 +1204,7 @@ func (m *TradesUpdate) Reset()         { *m = TradesUpdate{} }
 func (m *TradesUpdate) String() string { return proto.CompactTextString(m) }
 func (*TradesUpdate) ProtoMessage()    {}
 func (*TradesUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{8}
+	return fileDescriptor_market_4eb507ded1b31144, []int{8}
 }
 func (m *TradesUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1257,7 +1257,7 @@ func (m *Interval) Reset()         { *m = Interval{} }
 func (m *Interval) String() string { return proto.CompactTextString(m) }
 func (*Interval) ProtoMessage()    {}
 func (*Interval) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{9}
+	return fileDescriptor_market_4eb507ded1b31144, []int{9}
 }
 func (m *Interval) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1342,7 +1342,7 @@ func (m *Interval_OHLC) Reset()         { *m = Interval_OHLC{} }
 func (m *Interval_OHLC) String() string { return proto.CompactTextString(m) }
 func (*Interval_OHLC) ProtoMessage()    {}
 func (*Interval_OHLC) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{9, 0}
+	return fileDescriptor_market_4eb507ded1b31144, []int{9, 0}
 }
 func (m *Interval_OHLC) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1411,7 +1411,7 @@ func (m *IntervalsUpdate) Reset()         { *m = IntervalsUpdate{} }
 func (m *IntervalsUpdate) String() string { return proto.CompactTextString(m) }
 func (*IntervalsUpdate) ProtoMessage()    {}
 func (*IntervalsUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{10}
+	return fileDescriptor_market_4eb507ded1b31144, []int{10}
 }
 func (m *IntervalsUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1466,7 +1466,7 @@ func (m *SummaryUpdate) Reset()         { *m = SummaryUpdate{} }
 func (m *SummaryUpdate) String() string { return proto.CompactTextString(m) }
 func (*SummaryUpdate) ProtoMessage()    {}
 func (*SummaryUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{11}
+	return fileDescriptor_market_4eb507ded1b31144, []int{11}
 }
 func (m *SummaryUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1563,7 +1563,7 @@ func (m *SparklineUpdate) Reset()         { *m = SparklineUpdate{} }
 func (m *SparklineUpdate) String() string { return proto.CompactTextString(m) }
 func (*SparklineUpdate) ProtoMessage()    {}
 func (*SparklineUpdate) Descriptor() ([]byte, []int) {
-	return fileDescriptor_market_6a17c04e4fbcf72b, []int{12}
+	return fileDescriptor_market_4eb507ded1b31144, []int{12}
 }
 func (m *SparklineUpdate) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -6240,9 +6240,9 @@ var (
 	ErrIntOverflowMarket   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("public/markets/market.proto", fileDescriptor_market_6a17c04e4fbcf72b) }
+func init() { proto.RegisterFile("public/markets/market.proto", fileDescriptor_market_4eb507ded1b31144) }
 
-var fileDescriptor_market_6a17c04e4fbcf72b = []byte{
+var fileDescriptor_market_4eb507ded1b31144 = []byte{
 	// 1414 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x58, 0xcd, 0x6e, 0xdb, 0xc6,
 	0x16, 0x16, 0xc5, 0x1f, 0x53, 0x47, 0x92, 0xc5, 0x3b, 0x37, 0xc9, 0xe5, 0xd5, 0xcd, 0x15, 0x0c,

@@ -13,9 +13,9 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/juju/errors"
-	"honnef.co/go/tools/version"
 
 	"code.cryptowat.ch/cw-sdk-go/client/websocket/internal"
+	"code.cryptowat.ch/cw-sdk-go/version"
 	pbc "code.cryptowat.ch/cw-sdk-go/proto/public/client"
 	pbs "code.cryptowat.ch/cw-sdk-go/proto/public/stream"
 )
