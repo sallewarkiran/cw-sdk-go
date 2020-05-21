@@ -83,17 +83,20 @@ func SubFromString(kind SubscriptionType, key string) *ClientSubscription {
 	}
 
 	// Should not happen.
-	return nil
+	panic("SubFromString: invalid state")
 }
 
 // KeyFromString converts a given ClientSubscription to legacy string-based key.
 func KeyFromSub(sub *ClientSubscription) string {
+	if sub == nil {
+		return ""
+	}
 	switch v := sub.Body.(type) {
 	case *ClientSubscription_StreamSubscription:
 		return v.StreamSubscription.GetResource()
 	case *ClientSubscription_TradeSubscription:
 		return v.TradeSubscription.GetMarketId()
+	default:
+		return ""
 	}
-
-	return ""
 }

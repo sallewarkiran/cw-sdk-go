@@ -59,6 +59,7 @@ func main() {
 			URL:       cfg.StreamURL,
 			APIKey:    cfg.APIKey,
 			SecretKey: cfg.SecretKey,
+			Verbose:   verbose,
 		},
 
 		Subscriptions: streamSubs,
@@ -69,46 +70,6 @@ func main() {
 	}
 
 	signals := make(chan os.Signal, 1)
-
-	// Will print state changes to the user.
-	if verbose {
-		lastErrChan := make(chan error, 1)
-
-		c.OnError(func(err error, disconnecting bool) {
-			// If the client is going to disconnect because of that error, just save
-			// the error to show later on the disconnection message.
-			if disconnecting {
-				lastErrChan <- err
-				return
-			}
-
-			// Otherwise, print the error message right away.
-			log.Printf("Error: %s", err)
-		})
-
-		c.OnStateChange(
-			websocket.ConnStateAny,
-			func(oldState, state websocket.ConnState) {
-				select {
-				case err := <-lastErrChan:
-					if err != nil {
-						log.Printf("State updated: %s -> %s: %s", websocket.ConnStateNames[oldState], websocket.ConnStateNames[state], err)
-					} else {
-						log.Printf("State updated: %s -> %s", websocket.ConnStateNames[oldState], websocket.ConnStateNames[state])
-					}
-				default:
-					log.Printf("State updated: %s -> %s", websocket.ConnStateNames[oldState], websocket.ConnStateNames[state])
-				}
-			},
-		)
-
-		c.OnBandwidthUpdate(func(b websocket.Bandwidth) {
-			log.Println(b)
-			if !b.OK {
-				signals <- syscall.SIGQUIT
-			}
-		})
-	}
 
 	// Will print received market update messages.
 	c.OnMarketUpdate(func(marketID common.MarketID, update common.MarketUpdate) {

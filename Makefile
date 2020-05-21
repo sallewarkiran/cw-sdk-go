@@ -11,20 +11,11 @@ stream-client: ## Build stream-client
 trade-client: ## Build trade-client
 	go build -race -o bin/trade-client ./cmd/trade-client
 
-firehose: ## Build firehose example
-	go build -race -o bin/firehose ./examples/firehose
+trades-firehose: ## Build firehose example
+	go build -race -o bin/trades-firehose ./examples/trades-firehose
 
-kraken-trades: ## Build kraken-trades example
-	go build -race -o bin/kraken-trades ./examples/kraken-trades
-
-orderbook: ## Build orderbook example
-	go build -race -o bin/orderbook ./examples/orderbook
-
-print-quotes: ## Build print-quotes example
-	go build -race -o bin/print-quotes ./examples/print-quotes
-
-trading-tui: ## Build trading-tui
-	go build -race -o bin/trading-tui ./examples/trading-tui
+order-book: ## Build orderbook example
+	go build -race -o bin/order-book ./examples/order-book
 
 test: ## Run tests
 	go test -count=1 ./... -coverprofile=$(COVER_OUT)

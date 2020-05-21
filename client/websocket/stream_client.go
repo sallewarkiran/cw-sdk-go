@@ -149,7 +149,7 @@ func NewStreamClient(params *StreamClientParams) (*StreamClient, error) {
 		if err := proto.Unmarshal(data, &msg); err != nil {
 			// Failed to parse incoming message: close connection (and if
 			// reconnection was requested, then reconnect)
-			sc.wsConn.disconnectOpt(nil, websocket.CloseUnsupportedData, "")
+			sc.wsConn.disconnectOpt(nil, websocket.CloseUnsupportedData, "", false)
 			return
 		}
 
@@ -516,6 +516,7 @@ func (sc *StreamClient) bandwidthUpdateHandler(update *pbs.BandwidthUpdate) {
 			errors.New("No bandwidth"),
 			websocket.CloseNormalClosure,
 			"Disconnecting due to no bandwidth",
+			false,
 		)
 		sc.Close()
 	}

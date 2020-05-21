@@ -44,9 +44,5 @@ func NewOrderBookSnapshotGetterREST(
 }
 
 func (sg *OrderBookSnapshotGetterREST) GetOrderBookSnapshot() (common.OrderBookSnapshot, error) {
-	// TODO Use v2 endpoint after it is available
-	return sg.client.GetOrderBook(
-		string(sg.market.Exchange.Symbol),
-		string(sg.market.Instrument.Base.Symbol)+string(sg.market.Instrument.Quote.Symbol),
-	)
+	return sg.client.GetOrderBookByID(sg.market.ID)
 }

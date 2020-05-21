@@ -19,6 +19,12 @@ type OrderBookWatcherParams struct {
 
 // OrderBookWatcher uses a RESTClient and StreamClient to keep an order book
 // up to date with little setup.
+//
+// NOTE that it only works best if there is a single OrderBookWatcher per
+// StreamClient. Even though it's possible to create multiple
+// OrderBookWatcher-s with a single StreamClient, the update handling will be
+// very inefficient. If you need to watch multiple markets, it's better to use
+// OrderBookUpdater directly, instead of OrderBookWatcher.
 type OrderBookWatcher struct {
 	market common.Market
 
@@ -52,7 +58,15 @@ func NewOrderBookWatcher(params OrderBookWatcherParams) (*OrderBookWatcher, erro
 	})
 
 	params.StreamClient.OnMarketUpdate(
-		func(marketID common.MarketID, md common.MarketUpdate) {
+		func(updMarketID common.MarketID, md common.MarketUpdate) {
+			// If the update is about a different market, ignore it.
+			// NOTE that it's very inefficient if a connection has a lot of markets,
+			// and it's a lot better for the client to just not use OrderBookWatcher
+			// in this case, and use OrderBookUpdater directly instead.
+			if updMarketID != market.ID {
+				return
+			}
+
 			if delta := md.OrderBookDelta; delta != nil {
 				updater.ReceiveDelta(*delta)
 			}

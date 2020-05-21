@@ -9,6 +9,7 @@ require (
 	github.com/fatih/color v1.7.0
 	github.com/gdamore/encoding v1.0.0
 	github.com/gdamore/tcell v1.1.1
+	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v0.0.0-20180616230025-9f81198da99b
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v0.0.0-20180605202552-5ed622c449da

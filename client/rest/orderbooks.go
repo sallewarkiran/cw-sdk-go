@@ -19,17 +19,36 @@ type orderbookServer struct {
 func (c *RESTClient) GetOrderBook(
 	exchangeSymbol string, pairSymbol string,
 ) (common.OrderBookSnapshot, error) {
-	var ob common.OrderBookSnapshot
-
-	result, err := c.do(request{
+	resp, err := c.do(request{
 		endpoint: fmt.Sprintf("markets/%s/%s/orderbook", exchangeSymbol, pairSymbol),
 	})
 	if err != nil {
 		return common.OrderBookSnapshot{}, errors.Trace(err)
 	}
 
-	res := orderbookServer{}
-	err = json.Unmarshal(result, &res)
+	return decodeOrderBookResponse(resp)
+}
+
+func (c *RESTClient) GetOrderBookByID(id common.MarketID) (
+	common.OrderBookSnapshot, error,
+) {
+	resp, err := c.do(request{
+		endpoint: fmt.Sprintf("v2/markets/%d/book", id),
+	})
+	if err != nil {
+		return common.OrderBookSnapshot{}, errors.Trace(err)
+	}
+
+	return decodeOrderBookResponse(resp)
+}
+
+func decodeOrderBookResponse(in json.RawMessage) (common.OrderBookSnapshot, error) {
+	var (
+		ob  common.OrderBookSnapshot
+		res orderbookServer
+	)
+
+	err := json.Unmarshal(in, &res)
 	if err != nil {
 		return common.OrderBookSnapshot{}, errors.Trace(err)
 	}
@@ -40,7 +59,8 @@ func (c *RESTClient) GetOrderBook(
 
 	for i, v := range res.Asks {
 		if len(v) != 2 {
-			return common.OrderBookSnapshot{}, errors.Errorf("ask #%d: expected tuple of 2 elements, got %v", i, v)
+			return common.OrderBookSnapshot{},
+				errors.Errorf("Failed to decode order book response: ask #%d: expected tuple of 2 elements, got %v", i, v)
 		}
 
 		ob.Asks = append(ob.Asks, common.PublicOrder{
@@ -51,7 +71,8 @@ func (c *RESTClient) GetOrderBook(
 
 	for i, v := range res.Bids {
 		if len(v) != 2 {
-			return common.OrderBookSnapshot{}, errors.Errorf("bid #%d: expected tuple of 2 elements, got %v", i, v)
+			return common.OrderBookSnapshot{},
+				errors.Errorf("Failed to decode order book response: bid #%d: expected tuple of 2 elements, got %v", i, v)
 		}
 
 		ob.Bids = append(ob.Bids, common.PublicOrder{

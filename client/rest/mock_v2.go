@@ -1,6 +1,8 @@
 package rest
 
 import (
+	"github.com/juju/errors"
+
 	"code.cryptowat.ch/cw-sdk-go/cache"
 	"code.cryptowat.ch/cw-sdk-go/common"
 )
@@ -41,4 +43,10 @@ func (mc *MockV2Client) GetAssetByID(id common.AssetID) (
 ) {
 	a, _ := mc.C.GetAssetByID(id)
 	return a, nil
+}
+
+func (mc *MockV2Client) GetOrderBookByID(id common.MarketID) (
+	common.OrderBookSnapshot, error,
+) {
+	return common.OrderBookSnapshot{}, errors.New("Not implemented")
 }

@@ -591,6 +591,9 @@ func subsFromProto(subs []*pbc.ClientSubscription) []Subscription {
 }
 
 func subFromProto(sub *pbc.ClientSubscription) Subscription {
+	if sub == nil {
+		return &StreamSubscription{}
+	}
 	switch v := sub.Body.(type) {
 	case *pbc.ClientSubscription_StreamSubscription:
 		return streamSubFromProto(v)

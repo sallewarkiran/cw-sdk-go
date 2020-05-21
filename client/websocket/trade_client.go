@@ -326,7 +326,7 @@ func newTradeClientInternal(params *TradeClientParams, cwClient cw.Interface) (
 		if err := proto.Unmarshal(data, &msg); err != nil {
 			// Failed to parse incoming message: close connection (and if
 			// reconnection was requested, then reconnect)
-			tc.wsConn.disconnectOpt(nil, websocket.CloseUnsupportedData, "")
+			tc.wsConn.disconnectOpt(nil, websocket.CloseUnsupportedData, "", false)
 			return
 		}
 

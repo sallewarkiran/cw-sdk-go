@@ -13,6 +13,7 @@ type V2 interface {
 	GetMarketByID(common.MarketID) (common.Market, error)
 	GetAssetByID(common.AssetID) (common.Asset, error)
 	GetAssetBySymbol(common.AssetSymbol) (common.Asset, error)
+	GetOrderBookByID(common.MarketID) (common.OrderBookSnapshot, error)
 }
 
 // GetMarket returns the Market based on an ID or symbol

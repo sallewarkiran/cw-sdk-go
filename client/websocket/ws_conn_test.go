@@ -829,10 +829,10 @@ func TestAuthnErrors(t *testing.T) {
 		}
 
 		testCases := []testCase{
-			testCase{pbs.AuthenticationResult_BAD_TOKEN, 1, ErrBadCredentials},
 			testCase{pbs.AuthenticationResult_BAD_NONCE, 1, ErrBadNonce},
 			testCase{pbs.AuthenticationResult_UNKNOWN, 1, ErrUnknownAuthnError},
 			testCase{pbs.AuthenticationResult_TOKEN_EXPIRED, 1, ErrTokenExpired},
+			testCase{pbs.AuthenticationResult_BAD_TOKEN, 1, ErrBadCredentials},
 		}
 
 		for _, tc := range testCases {
@@ -867,16 +867,26 @@ func TestAuthnErrors(t *testing.T) {
 				return errors.Errorf("waiting for connection being closed: %s", err)
 			}
 
-			if err := st.expectStateWCause(t, ConnStateWaitBeforeReconnect, tc.expectedCause); err != nil {
-				return errors.Trace(err)
+			if tc.returnedStatus == pbs.AuthenticationResult_BAD_TOKEN {
+				if err := st.expectStateWCause(t, ConnStateDisconnected, tc.expectedCause); err != nil {
+					return errors.Trace(err)
+				}
+			} else {
+				if err := st.expectStateWCause(t, ConnStateWaitBeforeReconnect, tc.expectedCause); err != nil {
+					return errors.Trace(err)
+				}
 			}
 		}
 
-		// Now, finally connect successfully {{{
-		if err := st.expectState(t, ConnStateConnecting); err != nil {
+		// given that the last test disconnects we need to reconnect again
+		// time to try and succesffuly authenticate
+		if err := client.Connect(); err != nil {
 			return errors.Trace(err)
 		}
 
+		if err := st.expectState(t, ConnStateConnecting); err != nil {
+			return errors.Trace(err)
+		}
 		// Wait for the new conn to be opened
 		if err := waitConnOpen(t, tp); err != nil {
 			return errors.Errorf("waiting for new conn to be opened: %s", err)

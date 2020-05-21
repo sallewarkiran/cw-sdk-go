@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -72,6 +73,9 @@ type WSParams struct {
 	// ReconnectOpts contains settings for how to reconnect if the client becomes disconnected.
 	// Sensible defaults are used.
 	ReconnectOpts *ReconnectOpts
+
+	// Verbose enables verbose logging for state changes and errors
+	Verbose bool
 }
 
 type Subscription interface {
@@ -412,7 +416,58 @@ func newWsConn(params *WSParams, paramsInternal *wsConnParamsInternal) (*wsConn,
 	// Start goroutine which will call state listeners
 	go c.eventLoop()
 
+	// Will print state changes to the user.
+	if params.Verbose {
+		lastErrChan := make(chan error, 1)
+
+		c.onError(func(err error, disconnecting bool) {
+			// If the client is going to disconnect because of that error, just save
+			// the error to show later on the disconnection message.
+			if disconnecting {
+				lastErrChan <- err
+				return
+			}
+
+			// Otherwise, print the error message right away.
+			log.Printf("Error: %s", err)
+		})
+
+		c.onStateChange(
+			ConnStateAny,
+			func(oldState, state ConnState) {
+				var err error
+				select {
+				case err = <-lastErrChan:
+				default:
+				}
+
+				if err != nil {
+					verboseLog(fmt.Sprintf("Error: %v", err))
+				}
+
+				switch state {
+				case ConnStateConnecting:
+					verboseLog(fmt.Sprintf("Connecting to %v", params.URL))
+				case ConnStateWaitBeforeReconnect:
+					verboseLog("Disconnected: waiting to reconnect")
+				case ConnStateDisconnected:
+					verboseLog("Disconnected")
+				case ConnStateAuthenticating:
+					verboseLog("Authenticating")
+				case ConnStateEstablished:
+					verboseLog(fmt.Sprintf("Connected to %v", params.URL))
+				default:
+					log.Printf("State updated: %s -> %s", ConnStateNames[oldState], ConnStateNames[state])
+				}
+			},
+		)
+	}
+
 	return c, nil
+}
+
+func verboseLog(s string) {
+	fmt.Printf("(cw-sdk-go) %s\n", s)
 }
 
 // onRead sets on-read callback; it should be called once right after creation
@@ -452,7 +507,7 @@ func (c *wsConn) connect() (err error) {
 //
 // NOTE: disconnect should only be called from the eventLoop.
 func (c *wsConn) disconnect(cause error) {
-	c.disconnectOpt(cause, websocket.CloseNormalClosure, "")
+	c.disconnectOpt(cause, websocket.CloseNormalClosure, "", false)
 }
 
 // disconnectOpt sends a websocket closure message (with given closeCode and
@@ -464,10 +519,10 @@ func (c *wsConn) disconnect(cause error) {
 // to clients as is.
 //
 // NOTE: disconnectOpt should only be called from the eventLoop.
-func (c *wsConn) disconnectOpt(cause error, closeCode int, text string) {
+func (c *wsConn) disconnectOpt(cause error, closeCode int, text string, stopReconnecting bool) {
 	closeErr := c.transport.CloseOpt(
 		websocket.FormatCloseMessage(closeCode, text),
-		false,
+		stopReconnecting,
 	)
 	if closeErr != nil {
 		return
@@ -958,8 +1013,13 @@ loop:
 				}
 
 				if err := c.handleAuthnResult(authnResult); err != nil {
-					c.disconnect(errors.Trace(err))
-					continue loop
+					if err == ErrBadCredentials {
+						c.disconnectOpt(err, websocket.CloseNormalClosure, "", true)
+						break
+					} else {
+						c.disconnect(errors.Trace(err))
+						continue loop
+					}
 				}
 
 				// Authentication is successful
