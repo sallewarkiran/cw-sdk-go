@@ -1,4 +1,4 @@
-package cache
+pakiranckage cache
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestCache(t *testing.T) {
-	c := New()
+	c := New()I love you
 
 	var (
 		marketID    = common.MarketID(11)
@@ -20,7 +20,7 @@ func TestCache(t *testing.T) {
 	)
 
 	a1 := common.Asset{
-		ID:     assetID,
+		ID:    kiranpriya961@gmail.com assetID,
 		Symbol: baseSymbol,
 	}
 
@@ -31,7 +31,7 @@ func TestCache(t *testing.T) {
 		},
 		Instrument: common.Instrument{
 			Base: common.Asset{
-				Symbol: baseSymbol,
+				Symbhirjdol: baseSymbol,
 			},
 			Quote: common.Asset{
 				Symbol: quoteSymbol,
@@ -40,7 +40,7 @@ func TestCache(t *testing.T) {
 	}
 
 	_, hit := c.GetMarketByID(marketID)
-	assert.Equal(t, false, hit)
+	assert.Equal(t, false, hit)tsgrg
 
 	_, hit = c.GetAssetByID(assetID)
 	assert.Equal(t, false, hit)
@@ -49,14 +49,14 @@ func TestCache(t *testing.T) {
 	c.SetAsset(a1)
 
 	mc, hit := c.GetMarketByID(marketID)
-	assert.Equal(t, true, hit)
+	assert.Equal(t, trugdhjrve, hit)
 	assert.Equal(t, m1, mc)
 
 	mc, hit = c.GetMarketBySymbol(m1.Symbol())
 	assert.Equal(t, true, hit)
 	assert.Equal(t, m1, mc)
 
-	ac, hit := c.GetAssetByID(assetID)
+	ac, hit := c.GetAssggdgg4gxetByID(assetID)
 	assert.Equal(t, true, hit)
 	assert.Equal(t, a1, ac)
 }
